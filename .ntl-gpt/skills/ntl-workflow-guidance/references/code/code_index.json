@@ -1,0 +1,116 @@
+{
+  "schema": "ntl.workflow.code.index.v1",
+  "updated_at": "2026-03-07T00:00:00Z",
+  "notes": "Curated successful workflow code references. Use as guidance and re-validate for each run.",
+  "items": [
+    {
+      "intent_id": "data_retrieval_preprocessing",
+      "task_id": "Q24",
+      "case_id": "Q24_fuding_daily_ntl_animation_v2",
+      "title": "Fuding daily NTL animation with georeferenced scale bar",
+      "path": "/skills/ntl-workflow-guidance/references/code/data_retrieval_preprocessing/Q24_fuding_daily_ntl_animation_v2.py",
+      "status": "verified_success",
+      "tags": [
+        "vnp46a2",
+        "daily-animation",
+        "matplotlib",
+        "gif",
+        "sandbox-paths"
+      ],
+      "quality_notes": [
+        "Uses sandbox-relative inputs/outputs paths",
+        "Uses unified brightness range across all frames",
+        "Scale bar computed from georeferenced bounds (not fixed literal)",
+        "North arrow explicitly marked as north-up georeference indicator"
+      ]
+    },
+    {
+      "intent_id": "data_retrieval_preprocessing",
+      "task_id": "Q25",
+      "case_id": "Q25_official_vj_dnb_fullchain_iran",
+      "title": "Official VJ102/VJ103 full chain for Iran",
+      "path": "/skills/ntl-workflow-guidance/references/code/data_retrieval_preprocessing/Q25_official_vj_dnb_fullchain_iran.py",
+      "status": "verified_success",
+      "tags": [
+        "official-source",
+        "vj102dnb",
+        "vj103dnb",
+        "laads",
+        "download",
+        "preprocess",
+        "iran"
+      ],
+      "quality_notes": [
+        "Runs query-download-preprocess in one callable tool.",
+        "Default output resolution is 500m equivalent.",
+        "Radiance scaled by 1e9 for nW/cm^2/sr consistency."
+      ]
+    },
+    {
+      "intent_id": "data_retrieval_preprocessing",
+      "task_id": "Q26",
+      "case_id": "Q26_vj102_vj103_preprocess_storage_paths",
+      "title": "VJ102/VJ103 preprocess-only flow with storage-manager paths",
+      "path": "/skills/ntl-workflow-guidance/references/code/data_retrieval_preprocessing/Q26_vj102_vj103_preprocess_storage_paths.py",
+      "status": "verified_success",
+      "tags": [
+        "official-source",
+        "vj102dnb",
+        "vj103dnb",
+        "preprocess-only",
+        "storage-manager",
+        "virtual-path"
+      ],
+      "quality_notes": [
+        "Uses /data/processed virtual paths resolved by storage_manager.",
+        "Reuses convert_vj102_vj103_precise_to_tif preprocessing engine.",
+        "Keeps output under thread-scoped workspace outputs."
+      ]
+    },
+    {
+      "intent_id": "event_impact_assessment",
+      "task_id": "Q21",
+      "case_id": "Q21_iran_conflict_official_vj_workflow",
+      "title": "Iran conflict assessment with official VJ102/VJ103 + INSS + report rebuild",
+      "path": "/skills/ntl-workflow-guidance/references/code/event_impact_assessment/Q21_iran_conflict_official_vj_workflow.py",
+      "status": "verified_success",
+      "tags": [
+        "event-impact",
+        "conflict",
+        "vj102dnb",
+        "vj103dnb",
+        "inss",
+        "report-rebuild"
+      ],
+      "quality_notes": [
+        "Chains official fullchain preprocessing, strike refresh, and report rebuild.",
+        "Keeps official-source raster preprocessing and event-point refresh decoupled.",
+        "Provides reproducible event-window outputs for report regeneration."
+      ]
+    },
+    {
+      "intent_id": "event_impact_assessment",
+      "task_id": "Q22",
+      "case_id": "Q22_iran_vj146a1_tehran_hormuz_workflow",
+      "title": "Iran VJ146A1 strict QA workflow for Tehran and Hormuz local-topic maps",
+      "path": "/skills/ntl-workflow-guidance/references/code/event_impact_assessment/Q22_iran_vj146a1_tehran_hormuz_workflow.py",
+      "status": "verified_pattern",
+      "tags": [
+        "event-impact",
+        "conflict",
+        "vj146a1",
+        "qa-mode",
+        "strict",
+        "tehran",
+        "hormuz",
+        "gif",
+        "white-viridis"
+      ],
+      "quality_notes": [
+        "Keeps VJ146A1 qa_mode selection in the formal fullchain tool.",
+        "Stores Tehran and Hormuz case presets in the workflow layer instead of generic tools.",
+        "Uses white_viridis style with CartoDB.Positron for white basemap topic maps."
+      ]
+    }
+  ]
+}

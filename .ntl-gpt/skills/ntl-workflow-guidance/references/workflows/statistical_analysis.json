@@ -1,0 +1,232 @@
+[
+  {
+    "task_id": "Q11",
+    "task_name": "Identify district with highest average NTL brightness in 2020",
+    "category": "NTL statistics",
+    "description": "Download 2020 annual NPP-VIIRS-like NTL imagery and Shanghai district boundaries, then perform zonal statistics to identify the district with the maximum average nighttime light (ANTL).",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS-Like",
+          "time_range_input": "2020 to 2020",
+          "out_name": "Shanghai_NTL_2020.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "get_administrative_division_data",
+        "input": {
+          "city_name": "上海市",
+          "output_name": "Shanghai_districts.shp"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "NTL_raster_statistics",
+        "input": {
+          "ntl_tif_path": "Shanghai_NTL_2020.tif",
+          "shapefile_path": "Shanghai_districts.shp",
+          "output_csv_path": "Shanghai_2020_stats.csv",
+          "selected_indices": [
+            "ANTL"
+          ]
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Read 'outputs/Shanghai_2020_stats.csv' and find the row with the maximum 'ANTL' value to identify the brightest district.",
+        "name": "geospatial_code_step_4"
+      }
+    ],
+    "output": "The name of the district in Shanghai with the highest average NTL brightness and its corresponding ANTL value."
+  },
+  {
+    "task_id": "Q12",
+    "task_name": "Report 2020 NTL brightness at Oriental Pearl Tower",
+    "category": "NTL statistics",
+    "description": "Perform point-based NTL radiance extraction for the Oriental Pearl Tower in 2020. This involves downloading annual NPP-VIIRS-like data and geocoding the target location for precise pixel value retrieval.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS-Like",
+          "time_range_input": "2020 to 2020",
+          "out_name": "Shanghai_NTL_2020.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "geocode_tool",
+        "input": {
+          "address": "上海市东方明珠电视塔",
+          "output_csv_name": "Oriental_Pearl_location.csv"
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Using rasterio, read 'inputs/Shanghai_NTL_2020.tif' and extract the radiance value at the coordinates provided in 'outputs/Oriental_Pearl_location.csv'.",
+        "name": "geospatial_code_step_3"
+      }
+    ],
+    "output": "The specific nighttime light radiance value (pixel value) at the Oriental Pearl Tower for the year 2020."
+  },
+  {
+    "task_id": "Q13",
+    "task_name": "Calculate proportion of NTL pixels > 50 in Shanghai (2020)",
+    "category": "NTL statistics",
+    "description": "Calculate the proportion of pixels exceeding a specific radiance threshold (> 50) within the administrative boundary of Shanghai for 2020. This involves spatial masking followed by frequency analysis of the pixel values.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS-Like",
+          "time_range_input": "2020 to 2020",
+          "out_name": "Shanghai_NTL_2020.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "get_administrative_division_data",
+        "input": {
+          "city_name": "上海市",
+          "output_name": "Shanghai_boundary.shp"
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Clip the raster 'inputs/Shanghai_NTL_2020.tif' using 'inputs/Shanghai_boundary.shp' and save the masked result as 'outputs/Shanghai_Masked.tif'.",
+        "name": "geospatial_code_step_3"
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Read 'outputs/Shanghai_Masked.tif', count pixels with radiance values greater than 50, and calculate their proportion relative to the total number of valid (non-NoData) pixels.",
+        "name": "geospatial_code_step_4"
+      }
+    ],
+    "output": "The proportion of pixels in Shanghai with a radiance value > 50 for the year 2020."
+  },
+  {
+    "task_id": "Q17",
+    "task_name": "NTL brightness difference between 2020 and 2021 in Shanghai",
+    "category": "NTL statistics",
+    "description": "Quantify the pixel-wise radiance change between 2020 and 2021 for Shanghai. This involves a single-step batch download of annual NPP-VIIRS-Like imagery for the 2020-2021 period followed by raster subtraction to identify development dynamics.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS-Like",
+          "time_range_input": "2020 to 2021",
+          "out_name": "Shanghai_NTL.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Locate the two auto-named files in 'inputs/' (e.g., 'Shanghai_NTL_2020.tif' and 'Shanghai_NTL_2021.tif'). Using rasterio, perform pixel-wise subtraction (2021 - 2020) and save the radiance difference map as 'outputs/Shanghai_NTL_Diff_2021_2020.tif'.",
+        "name": "geospatial_code_step_2"
+      }
+    ],
+    "output": "outputs/Shanghai_NTL_Diff_2021_2020.tif"
+  },
+  {
+    "task_id": "Q29",
+    "task_name": "Compute District-Level Nighttime Light Landscape Metrics for Shanghai (2020)",
+    "category": "NTL statistics",
+    "description": "Quantify the spatial configuration and luminosity characteristics of Shanghai's districts (e.g., Huangpu, Jing'an) using 3D NTL landscape metrics. The analysis characterizes urban-rural differentiation through 7 key indices: TNTL (volume), LArea (space), 3DPLand (abundance), 3DED (dispersion), 3DLPI (concentration), ANTL (level), and DNTL (homogeneity).",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS",
+          "time_range_input": "2020 to 2020",
+          "out_name": "Shanghai_NTL_2020.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "get_administrative_division_data",
+        "input": {
+          "city_name": "上海市",
+          "output_name": "Shanghai_Districts.shp"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "NTL_raster_statistics",
+        "input": {
+          "ntl_tif_path": "Shanghai_NTL_2020.tif",
+          "shapefile_path": "Shanghai_Districts.shp",
+          "output_csv_path": "Shanghai_District_Landscape_Metrics.csv",
+          "selected_indices": [
+            "TNTL",
+            "LArea",
+            "3DPLand",
+            "3DED",
+            "3DLPI",
+            "ANTL",
+            "DNTL"
+          ]
+        }
+      }
+    ],
+    "output": "outputs/Shanghai_District_Landscape_Metrics.csv"
+  },
+  {
+    "task_id": "Q30",
+    "task_name": "Compute and rank province-level mean NTL for China (server-side GEE)",
+    "category": "NTL statistics",
+    "description": "Compute mean nighttime light for all Chinese province-level administrative units using a cloud-hosted annual NTL image and cloud-hosted province boundaries. This workflow is mandatory for country-scale or all-province statistics because downloading a country-scale GeoTIFF can exceed GEE request-size limits.",
+    "scale_policy": {
+      "spatial_scope": "country_or_multi_province",
+      "required_execution_mode": "gee_server_side",
+      "prohibited_steps": [
+        "country_scale_NTL_download_tool",
+        "bulk_provincial_shapefile_download",
+        "local_zonal_statistics_as_primary_path"
+      ],
+      "required_method": "ee.Image.reduceRegions over a GEE-hosted province FeatureCollection"
+    },
+    "steps": [
+      {
+        "type": "gee_server_side_code",
+        "language": "Python",
+        "description": "Initialize GEE with the configured project, load the requested annual NPP-VIIRS-Like image from `projects/sat-io/open-datasets/npp-viirs-ntl`, load China province-level boundaries from a GEE-hosted FeatureCollection such as `WM/geoLab/geoBoundaries/600/ADM1` (merge CHN ADM1 with Taiwan as one feature, or use the project province asset only if its name fields are clean), compute province-level mean NTL with `ee.Image.reduceRegions(reducer=ee.Reducer.mean(), scale=500, maxPixelsPerRegion=1e13)`, convert the returned feature properties to a pandas DataFrame, sort descending by the mean field, and save `outputs/china_province_ntl_mean_2020.csv`.",
+        "name": "gee_reduceRegions_step_1"
+      }
+    ],
+    "code_examples": [
+      "/skills/gee-python-server-side-workflow/references/cases/china_province_annual_reduceRegions.py"
+    ],
+    "output": "outputs/china_province_ntl_mean_2020.csv"
+  }
+]

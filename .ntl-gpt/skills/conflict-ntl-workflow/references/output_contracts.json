@@ -1,0 +1,151 @@
+{
+  "schema": "conflict_ntl.output_contracts.v1",
+  "contracts": {
+    "conflict_ntl.event_screening.v1": {
+      "description": "Result envelope for event traceability and NTL applicability screening.",
+      "required_fields": [
+        "schema",
+        "status",
+        "thread_id",
+        "run_dir",
+        "summary",
+        "output_files"
+      ],
+      "screened_event_required_fields": [
+        "event_id",
+        "event_date_utc",
+        "time_quality",
+        "time_score",
+        "coord_quality",
+        "coord_score",
+        "source_quality",
+        "source_score",
+        "round1_score",
+        "round1_event_candidate_status",
+        "ntl_relevance_level",
+        "conflict_ntl_candidate",
+        "event_confirmation_status",
+        "verification_notes"
+      ]
+    },
+    "conflict_ntl.analysis_units.v1": {
+      "description": "Result envelope for AOI generation and same-day aggregation.",
+      "required_fields": [
+        "schema",
+        "status",
+        "thread_id",
+        "run_dir",
+        "summary",
+        "output_files"
+      ],
+      "analysis_unit_required_fields": [
+        "analysis_unit_id",
+        "unit_type",
+        "event_date_utc",
+        "source_event_ids",
+        "source_event_count",
+        "aoi_count"
+      ]
+    },
+    "conflict_ntl.task_queue.v1": {
+      "description": "Queue of NTL verification tasks generated from screened events.",
+      "required_fields": [
+        "schema",
+        "generated_at_utc",
+        "tasks"
+      ],
+      "task_required_fields": [
+        "aoi_id",
+        "event_id",
+        "event_date_utc",
+        "aoi_type"
+      ]
+    },
+    "conflict_ntl.isw_event_fetch.v1": {
+      "description": "Result envelope for pulling ISW/CTP ArcGIS StoryMap FeatureServer event points.",
+      "required_fields": [
+        "schema",
+        "status",
+        "thread_id",
+        "run_dir",
+        "summary",
+        "output_files"
+      ],
+      "event_required_fields": [
+        "source_storymap_url",
+        "source_layer",
+        "source_layer_url",
+        "event_family",
+        "objectid",
+        "event_id",
+        "event_date_utc",
+        "post_date_utc",
+        "publication_date_utc",
+        "event_type",
+        "site_type",
+        "site_subtype",
+        "city",
+        "country",
+        "latitude",
+        "longitude",
+        "coord_type",
+        "source_1",
+        "source_2",
+        "sources"
+      ],
+      "output_files": [
+        "isw_storymap_events.csv",
+        "isw_storymap_events.geojson",
+        "isw_storymap_events_metadata.json"
+      ]
+    },
+    "conflict_ntl.case_report.v1": {
+      "description": "Compact audit report that summarizes a full ConflictNTL case run.",
+      "required_fields": [
+        "schema",
+        "status",
+        "case_name",
+        "generated_at_utc",
+        "screening",
+        "analysis_units",
+        "interpretation_limits"
+      ],
+      "output_files": [
+        "case_report.json",
+        "case_report.md"
+      ]
+    },
+    "conflict_ntl.agent_system_run.v1": {
+      "description": "Reusable ConflictNTL agent-system run envelope for NTL-GPT tool execution.",
+      "required_fields": [
+        "schema",
+        "status",
+        "thread_id",
+        "run_dir",
+        "agent_roles",
+        "summary",
+        "stages",
+        "handoff_contract",
+        "interpretation_guardrails",
+        "output_files"
+      ],
+      "agent_roles": [
+        "ConflictNTL-Commander",
+        "Conflict-Searcher",
+        "Data-Searcher",
+        "Conflict-Analyst"
+      ],
+      "stage_keys": [
+        "screen_events",
+        "generate_analysis_units",
+        "build_case_report"
+      ],
+      "output_files": [
+        "agent_system_manifest.json",
+        "agent_system_runbook.md",
+        "case_report.json",
+        "case_report.md"
+      ]
+    }
+  }
+}

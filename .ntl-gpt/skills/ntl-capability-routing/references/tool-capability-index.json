@@ -1,0 +1,87 @@
+{
+  "schema": "ntl.tool_capability_index.v1",
+  "purpose": "Skill-side map for tool ownership and selection. This is documentation, not a dynamic router and not runtime permission.",
+  "runtime_permission_rule": "Agents can directly call only tools exposed in their current runtime tool list. This index helps choose among available tools and decide when to delegate.",
+  "context_policy": {
+    "keep_as_tools": "Execution, validation, data retrieval, and structured failure-returning capabilities stay as tools.",
+    "keep_as_skills": "Workflow rules, method selection, examples, failure lessons, and tool-selection guidance stay in skills/references.",
+    "do_not_do": "Do not remove runtime tools just because a capability is documented here. Do not invent a function router for semantic decisions."
+  },
+  "direct_tools_by_agent": {
+    "NTL_Engineer": [
+      {"tool": "SDGSAT-1_strip_removal_tool", "class": "rare_specialized", "use_when": "SDGSAT-1 striping artifact removal is explicitly required."},
+      {"tool": "SDGSAT1_radiometric_calibration_tool", "class": "rare_specialized", "use_when": "SDGSAT-1 radiometric calibration is explicitly required."},
+      {"tool": "VNP46A2_angular_correction_tool", "class": "rare_specialized", "use_when": "VNP46A2 angular correction/preprocessing is explicitly required."},
+      {"tool": "DMSP_Preprocess", "class": "rare_specialized", "use_when": "DMSP-OLS/EVI preprocessing is explicitly required."},
+      {"tool": "Extract_Urban_Area_by_Thresholding", "class": "rare_specialized", "use_when": "Urban-area extraction by thresholding is requested and inputs are ready."},
+      {"tool": "Detect_Urban_Area_by_SVM", "class": "rare_specialized", "use_when": "SVM-based urban extraction is requested and training/input requirements are met."},
+      {"tool": "Detect_Electrified_Areas_by_Thresholding", "class": "rare_specialized", "use_when": "Electrification detection by NTL thresholding is requested."},
+      {"tool": "Extract_Road", "class": "rare_specialized", "use_when": "Road extraction by Otsu/NTL method is explicitly requested."},
+      {"tool": "Detect_Urban_Centres_and_Spatial_Structure", "class": "rare_specialized", "use_when": "Urban-center or spatial-structure detection is explicitly requested."},
+      {"tool": "Analyze_NTL_trend", "class": "core_execution", "use_when": "Trend analysis over prepared local NTL inputs is requested."},
+      {"tool": "Detect_NTL_anomaly", "class": "core_execution", "use_when": "Anomaly detection over prepared local NTL imagery/time series is requested."},
+      {"tool": "NTL_Mean_Composite", "class": "core_execution", "use_when": "Local mean composite from existing NTL rasters is requested."},
+      {"tool": "NTL_raster_statistics", "class": "core_execution", "use_when": "Existing local GeoTIFF and boundary files are present, scope is not national-scale, and local zonal statistics is appropriate."},
+      {"tool": "NTL_Estimate_Indicator_Provincial", "class": "rare_specialized", "use_when": "The provincial indicator-estimation workflow applies."},
+      {"tool": "DEI_Estimate_City", "class": "rare_specialized", "use_when": "The city DEI estimation workflow applies."},
+      {"tool": "official_vj_dnb_fullchain_tool", "class": "rare_specialized", "use_when": "Official VJ/DNB full-chain processing is explicitly requested."},
+      {"tool": "official_vj_dnb_preprocess_tool", "class": "rare_specialized", "use_when": "Official VJ/DNB preprocessing is explicitly requested."},
+      {"tool": "convert_vj102_vj103_precise_to_tif_tool", "class": "rare_specialized", "use_when": "VJ102/VJ103 precise product conversion to GeoTIFF is explicitly requested."},
+      {"tool": "official_vj_dnb_gif_tool", "class": "rare_specialized", "use_when": "Official VJ/DNB GIF output is explicitly requested."},
+      {"tool": "official_ntl_ais_fusion_tool", "class": "rare_specialized", "use_when": "NTL-AIS fusion is explicitly requested."},
+      {"tool": "SDGSAT1_compute_index", "class": "rare_specialized", "use_when": "SDGSAT-1 index computation is explicitly requested."},
+      {"tool": "VNCI_Compute", "class": "rare_specialized", "use_when": "VNCI computation is explicitly requested."},
+      {"tool": "uploaded_pdf_understanding_tool", "class": "core_execution", "use_when": "Uploaded PDF context must be parsed."}
+    ],
+    "Data_Searcher": [
+      {"tool": "GEE_dataset_router_tool", "class": "router", "use_when": "Any GEE retrieval or GEE execution planning task."},
+      {"tool": "NTL_download_tool", "class": "core_execution", "use_when": "Lightweight direct NTL raster download; failure state must be treated as terminal for that path."},
+      {"tool": "GEE_script_blueprint_tool", "class": "router", "use_when": "Server-side GEE script/table export is preferred or required."},
+      {"tool": "GEE_dataset_metadata_tool", "class": "router", "use_when": "Dataset temporal coverage, bands, or metadata must be validated."},
+      {"tool": "dataset_latest_availability_tool", "class": "router", "use_when": "Recent GEE or LAADS/CMR data availability must be checked before execution."},
+      {"tool": "GEE_catalog_discovery_tool", "class": "router", "use_when": "Built-in dataset routing is insufficient."},
+      {"tool": "get_administrative_division_data", "class": "core_execution", "use_when": "China boundary artifacts are explicitly required."},
+      {"tool": "get_administrative_division_geoboundaries_tool", "class": "core_execution", "use_when": "Global boundary artifacts are explicitly required."},
+      {"tool": "geocode_tool / reverse_geocode_tool / poi_search_tool", "class": "core_execution", "use_when": "Geocoding, reverse geocoding, or POI retrieval is required."},
+      {"tool": "NDVI_download_tool / LandScan_download_tool", "class": "core_execution", "use_when": "Auxiliary NDVI or population raster data is required."},
+      {"tool": "China_Official_GDP_tool / tavily_search / Google_BigQuery_Search", "class": "core_execution", "use_when": "Socio-economic or external auxiliary data is required."},
+      {"tool": "official VJ/DNB and NTL-AIS tools", "class": "rare_specialized", "use_when": "Official VJ/DNB products, GIF generation, or NTL-AIS fusion are explicitly required."}
+    ],
+    "Code_Assistant": [
+      {"tool": "execute_geospatial_script_tool", "class": "core_execution", "use_when": "Run a saved Python script in the current thread workspace."},
+      {"tool": "GeoCode_COT_Validation_tool", "class": "core_execution", "use_when": "Validate code or diagnose the first execution failure."},
+      {"tool": "GeoCode_Knowledge_Recipes_tool", "class": "documentation_only", "use_when": "Only after an Engineer draft is missing method details or fails for method reasons."}
+    ]
+  },
+  "routing_rules": [
+    {
+      "case": "download_only_lightweight",
+      "route": "Data_Searcher",
+      "required_tools": ["GEE_dataset_router_tool", "NTL_download_tool"],
+      "notes": "Small-country GeoTIFF downloads are allowed. If export size fails or output_files is empty, treat as failed."
+    },
+    {
+      "case": "country_or_multi_province_statistics",
+      "route": "Data_Searcher -> Code_Assistant",
+      "required_tools": ["GEE_dataset_router_tool", "GEE_script_blueprint_tool", "execute_geospatial_script_tool"],
+      "prohibited_primary_paths": [
+        "country-scale GeoTIFF download for statistics",
+        "bulk provincial shapefile download for local zonal statistics",
+        "local NTL_raster_statistics for national/province ranking"
+      ],
+      "notes": "Use cloud-hosted NTL imagery and cloud-hosted administrative FeatureCollection with ee.Image.reduceRegions(); return/export CSV/table."
+    },
+    {
+      "case": "local_file_statistics",
+      "route": "NTL_Engineer direct tool or Code_Assistant",
+      "required_tools": ["NTL_raster_statistics or execute_geospatial_script_tool"],
+      "notes": "Allowed only when required raster/boundary files exist and the scope is suitable for local processing."
+    },
+    {
+      "case": "custom_or_event_analysis",
+      "route": "Engineer contract -> Data_Searcher as needed -> Code_Assistant",
+      "required_tools": ["GEE_dataset_router_tool", "GEE_script_blueprint_tool", "execute_geospatial_script_tool", "GeoCode_COT_Validation_tool"],
+      "notes": "Engineer owns ntl.script.contract.v1; Code_Assistant executes the saved draft first."
+    }
+  ]
+}

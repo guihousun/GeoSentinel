@@ -1,0 +1,1 @@
+{"ts_utc": "2026-02-27T19:08:04Z", "run_id": "demo", "thread_id": "t", "question": "q", "intent_id": "quality_validation_misc", "selected_task_id": "", "status": "success", "artifact_pass": true, "trigger_signature": "", "tool_sequence": ["execute_geospatial_script_tool", "Code_Assistant"], "learning_state": "candidate_only", "reason": "agent_decided_skip_evolution"}

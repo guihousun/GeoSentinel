@@ -1,0 +1,87 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.key
+
+# Python cache/build
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editor/IDE/runtime local state
+.vscode/
+.idea/
+.trae/
+.windsurf/
+.vibe/
+.agents/
+.adal/
+
+# Local temp and logs
+.tmp/
+.tmp_*/
+.tmp*
+tmp/
+temp/
+.cache/
+tmp_*.log
+*.log
+
+# Generated runtime/session artifacts
+user_data/
+userdata_0217/
+outputs/
+reports/
+cache/
+skill_runtime/
+tmp_code_extract/
+utils/sessions/
+.tmp_langsmith_dump*/
+.conda-env/
+
+# Local backups and experiments byproducts
+backups/
+scripts/
+ntl_paper_retrieval_app.py
+experiments/**/workspace_validation/**/outputs/
+experiments/official_daily_ntl_fastpath/workspace/
+experiments/official_daily_ntl_fastpath/workspace*/
+experiments/official_daily_ntl_fastpath/workspace_validation/
+_external_refs/
+
+# Large local data (keep out of GitHub repo)
+base_data/
+RAG/
+example/**/*.tif
+example/**/*.tiff
+example/**/*.h5
+example/**/*.hdf
+example/**/*.nc
+example/**/*.aux.xml
+example/**/*.vat.*
+RAG/RAG.rar
+RAG/literature base/
+RAG/RAG_Faiss/
+RAG/Solution_RAG.zip
+RAG/*.zip
+RAG/code_guide/earthengine-api-master/
+RAG/code_guide/pytest/
+RAG/code_guide/tools_latest_runtime/
+
+# Local credentials
+tools/bigquery/*.json
+
+# Local scratch copies
+* copy.py
+*_old.py
+
+# OS files
+.DS_Store
+Thumbs.db

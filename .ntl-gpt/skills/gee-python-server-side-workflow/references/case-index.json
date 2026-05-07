@@ -1,0 +1,39 @@
+﻿{
+  "schema": "ntl.gee_python.case_index.v1",
+  "purpose": "Curated real 地缘环境智能计算平台 GEE Python server-side cases. Use as implementation patterns, not as fixed scripts.",
+  "cases": [
+    {
+      "id": "china_province_annual_reduceRegions",
+      "file": "cases/china_province_annual_reduceRegions.py",
+      "use_when": "Country-scale or all-province annual NTL mean/ranking tasks, especially China 34 province-level units.",
+      "source_case": "RAG/code_guide/tools_latest_runtime/*china_provinces_ntl_2020*.py",
+      "core_api": ["ee.Initialize(project=...)", "ee.ImageCollection.filterDate", "ee.Image.reduceRegions"],
+      "avoid": ["country-scale GeoTIFF download", "bulk province shapefile download", "local zonal statistics as primary path"]
+    },
+    {
+      "id": "local_shapefile_zonal_reduceRegions",
+      "file": "cases/local_shapefile_zonal_reduceRegions.py",
+      "use_when": "User uploaded a small boundary shapefile and wants zonal NTL stats without downloading the raster.",
+      "source_case": "RAG/code_guide/tools_latest_runtime_curated/06d05662d70d_shanghai_antl_2020.py",
+      "core_api": ["GeoPandas to GeoJSON", "ee.FeatureCollection", "ee.Image.reduceRegions"],
+      "avoid": ["large local raster download when table output is enough"]
+    },
+    {
+      "id": "single_region_annual_timeseries",
+      "file": "cases/single_region_annual_timeseries.py",
+      "use_when": "Annual NTL time series and trend extraction for one city/province/country geometry.",
+      "source_case": "RAG/code_guide/tools_latest_runtime_curated/c6f6c9cfb9d1_shanghai_ntl_slope_trend_analysis.py",
+      "core_api": ["ee.ImageCollection.map", "ee.Image.reduceRegion", "FeatureCollection.getInfo for compact tables"],
+      "avoid": ["downloading one raster per year for simple regional means"]
+    },
+    {
+      "id": "event_buffer_daily_antl",
+      "file": "cases/event_buffer_daily_antl.py",
+      "use_when": "Daily VNP46A2 event-impact analysis over epicenter buffers and pre/post windows.",
+      "source_case": "RAG/code_guide/tools_latest_runtime_curated/36bc45b6c269_myanmar_earthquake_antl_analysis.py",
+      "core_api": ["ee.Geometry.Point.buffer", "ee.ImageCollection.filterDate", "ee.Image.reduceRegions"],
+      "avoid": ["same-day first-night assumptions", "client-side per-feature loops"]
+    }
+  ]
+}
+

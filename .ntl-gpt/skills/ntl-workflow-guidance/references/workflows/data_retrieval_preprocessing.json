@@ -1,0 +1,482 @@
+[
+  {
+    "task_id": "Q1",
+    "task_name": "Retrieve annual NPP-VIIRS-like NTL data for Shanghai",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Download annual NPP-VIIRS-like nighttime light radiance data for Shanghai (2000-2020) via GEE and store it in the workspace inputs folder.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS-Like",
+          "time_range_input": "2000 to 2020",
+          "out_name": "NTL_Shanghai_NPP-VIIRS-Like_2000_2020.tif",
+          "is_in_China": true
+        }
+      }
+    ],
+    "output": "inputs/NTL_Shanghai_NPP-VIIRS-Like_2000_2020.tif"
+  },
+  {
+    "task_id": "Q2",
+    "task_name": "Retrieve LandScan population data for Shanghai",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Access and download the LandScan Global population density raster for Shanghai for the year 2020 and store it in the workspace inputs folder.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "LandScan_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "time_range_input": "2020 to 2020",
+          "out_name": "inputs/landscan_shanghai_2020",
+          "is_in_China": true
+        }
+      }
+    ],
+    "output": "inputs/landscan_shanghai_2020/*.tif"
+  },
+  {
+    "task_id": "Q3",
+    "task_name": "Download Shanghai administrative boundary",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Retrieve Shanghai’s administrative boundary shapefile using the Amap API and save to the inputs folder.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "get_administrative_division_data",
+        "input": {
+          "city_name": "上海市",
+          "output_name": "Shanghai_boundary.shp"
+        }
+      }
+    ],
+    "output": "inputs/Shanghai_boundary.shp"
+  },
+  {
+    "task_id": "Q4",
+    "task_name": "Download POI data around the Oriental Pearl Tower",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Geocode the Oriental Pearl Tower and retrieve nearby Points of Interest (POIs) within 500 meters.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "geocode_tool",
+        "input": {
+          "address": "上海市东方明珠电视塔",
+          "output_csv_name": "Oriental_Pearl_location.csv"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "poi_search_tool",
+        "input": {
+          "latitude": 31.2397,
+          "longitude": 121.4998,
+          "radius": 500,
+          "output_csv_name": "Oriental_Pearl_POI_500m.csv"
+        }
+      }
+    ],
+    "output": "outputs/Oriental_Pearl_POI_500m.csv"
+  },
+  {
+    "task_id": "Q5",
+    "task_name": "Query geolocation of the Oriental Pearl Tower",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Obtain precise latitude and longitude of the Oriental Pearl Tower for spatial analysis.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "geocode_tool",
+        "input": {
+          "address": "上海市东方明珠电视塔",
+          "output_csv_name": "Oriental_Pearl_coords.csv"
+        }
+      }
+    ],
+    "output": "outputs/Oriental_Pearl_coords.csv"
+  },
+  {
+    "task_id": "Q6",
+    "task_name": "Zenith angle correction for daily VNP46A2 imagery",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Apply 16-group mean normalization to correct zenith angle effects in daily VNP46A2 NTL imagery for Shanghai (2024) via GEE. Results are exported to the workspace inputs folder.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "VNP46A2_angular_correction_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "time_range_input": "2024-01-01 to 2024-12-31"
+        }
+      }
+    ],
+    "output": "inputs/"
+  },
+  {
+    "task_id": "Q7",
+    "task_name": "Preprocess official VJ102/VJ103 DNB imagery",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Run official VJ102DNB/VJ103DNB preprocess workflow to generate daily georeferenced GeoTIFFs. This replaces the deprecated NOAA-20 SDR preprocessing path.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "convert_vj102_vj103_precise_to_tif_tool",
+        "input": {
+          "input_dir": "/data/processed/official_vj_dnb_pipeline_runs/iran_20260222_20260301/raw_nc",
+          "output_root": "/data/processed/official_vj_dnb_preprocess_runs",
+          "run_label": "iran_preprocess_only_q7",
+          "start_date": "2026-02-22",
+          "end_date": "2026-03-01",
+          "bbox": "44.03,25.08,63.33,39.77",
+          "composite": "mean",
+          "resolution_m": 500.0,
+          "radius_m": 2000.0,
+          "radiance_scale": 1000000000.0
+        }
+      }
+    ],
+    "output": [
+      "outputs/official_vj_dnb_preprocess_runs/<run_label>/processed_tif/daily_4326/*.tif",
+      "outputs/official_vj_dnb_preprocess_runs/<run_label>/preprocess_manifest.json"
+    ]
+  },
+  {
+    "task_id": "Q8",
+    "task_name": "Preprocess SDGSAT-1 GLI imagery",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Execute a sequential preprocessing pipeline: first remove systematic striping artifacts from raw SDGSAT-1 imagery, then perform radiometric calibration to convert DN values into TOA radiance products.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "SDGSAT-1_strip_removal_tool",
+        "input": {
+          "img_input": "Test1_raw.tif",
+          "img_output": "Test1_destriped.tif",
+          "method": "median"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "SDGSAT1_radiometric_calibration_tool",
+        "input": {
+          "input_filename": "Test1_destriped.tif",
+          "output_rgb_filename": "Test1_radiance_rgb.tif",
+          "output_gray_filename": "Test1_radiance_gray.tif"
+        }
+      }
+    ],
+    "output": [
+      "outputs/Test1_radiance_rgb.tif",
+      "outputs/Test1_radiance_gray.tif"
+    ]
+  },
+  {
+    "task_id": "Q9",
+    "task_name": "Calculate NDIGR index from SDGSAT-1 imagery",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Compute the Normalized Difference Index of Green and Red (NDIGR) from an SDGSAT-1 RGB radiance GeoTIFF located in the inputs folder.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "SDGSAT1_compute_index",
+        "input": {
+          "radiance_filename": "Cleaned_GLI.tif",
+          "output_filename": "NDIGR_result.tif",
+          "index_type": "NDIGR"
+        }
+      }
+    ],
+    "output": "outputs/NDIGR_result.tif"
+  },
+  {
+    "task_id": "Q10",
+    "task_name": "Calculate RRLI index from SDGSAT-1 imagery",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Compute the Relative Red Light Index (RRLI) from an SDGSAT-1 RGB radiance GeoTIFF to identify red-dominant light sources.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "SDGSAT1_compute_index",
+        "input": {
+          "radiance_filename": "Cleaned_GLI.tif",
+          "output_filename": "RRLI_result.tif",
+          "index_type": "RRLI"
+        }
+      }
+    ],
+    "output": "outputs/RRLI_result.tif"
+  },
+  {
+    "task_id": "Q14",
+    "task_name": "Angular-correct VNP46A2 daily NTL for Shanghai",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Apply a 16-group mean normalization to correct sensor zenith angle effects in NASA VNP46A2 daily NTL imagery for Shanghai during 2024. The corrected daily GeoTIFFs are automatically exported to the workspace inputs folder for subsequent time-series analysis.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "VNP46A2_angular_correction_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "time_range_input": "2024-01-01 to 2024-12-31"
+        }
+      }
+    ],
+    "output": "inputs/"
+  },
+  {
+    "task_id": "Q15",
+    "task_name": "Calculate mean NTL for Shanghai (2020–2024) using GEE Python API",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Utilize the Google Earth Engine (GEE) Python API and its built-in administrative boundary datasets (e.g., FAO GAUL) to calculate the overall mean radiance of VNP46A2 daily NTL for Shanghai from 2020 to 2024. The statistical result is exported directly to a CSV file in the outputs folder.",
+    "steps": [
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Initialize the GEE API. Access the built-in 'FAO/GAUL/2015/level2' or 'TIGER/2018/States' dataset to filter for 'Shanghai'. Load the 'NASA/VIIRS/002/VNP46A2' collection (2020-01-01 to 2024-12-31), perform spatial-temporal mean reduction, and save the resulting mean radiance value as 'outputs/Mean_NTL_Shanghai_2020_2024.csv'.",
+        "name": "geospatial_code_step_1"
+      }
+    ],
+    "output": "outputs/Mean_NTL_Shanghai_2020_2024.csv"
+  },
+  {
+    "task_id": "Q16",
+    "task_name": "Export monthly mean NTL time series for Shanghai (2020–2024)",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Utilizes the GEE Python API to retrieve specialized monthly NTL composites (e.g., NOAA VIIRS Monthly VCM) for Shanghai from 2020 to 2024. It leverages built-in administrative boundaries to extract the spatial mean radiance for each month and exports the long-term time series to a CSV file in the outputs folder.",
+    "steps": [
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Develop a Python script using the GEE API to: 1. Filter a built-in administrative collection for 'Shanghai'. 2. Load the specialized monthly NTL image collection (e.g., 'NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG'). 3. Filter the collection from 2020-01 to 2024-12. 4. Map a reduction function over the collection to compute the spatial mean radiance for each monthly image. 5. Export the resulting time series as 'outputs/Monthly_Mean_NTL_Shanghai_2020_2024.csv'.",
+        "name": "geospatial_code_step_1"
+      }
+    ],
+    "output": "outputs/Monthly_Mean_NTL_Shanghai_2020_2024.csv"
+  },
+  {
+    "task_id": "Q23",
+    "task_name": "Compute Vegetation Nighttime Condition Index (VNCI) using NDVI and NTL",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Quantify the vegetation-urban interaction intensity in Shanghai for 2021 by calculating the Vegetation Nighttime Condition Index (VNCI). This involves constructing a triangular feature space between annual NDVI and NTL radiance to evaluate environmental conditions.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS",
+          "time_range_input": "2021 to 2021",
+          "out_name": "Shanghai_NTL_2021.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Utilize GEE (MODIS/061/MOD13A2) to retrieve the 2021 annual median NDVI composite for Shanghai. Ensure the spatial resolution and CRS match the NTL data, then save the result to 'inputs/Shanghai_NDVI_2021.tif'.",
+        "name": "geospatial_code_step_2"
+      },
+      {
+        "type": "builtin_tool",
+        "name": "VNCI_Compute",
+        "input": {
+          "ntl_tif": "Shanghai_NTL_2021.tif",
+          "ndvi_tif": "Shanghai_NDVI_2021.tif",
+          "output_tif": "Shanghai_VNCI_2021.tif"
+        }
+      }
+    ],
+    "output": "outputs/Shanghai_VNCI_2021.tif"
+  },
+  {
+    "task_id": "Q24",
+    "task_name": "Generate daily NTL change animation for Fuding City (2020-01-01 to 2020-01-07)",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Generate a high-quality GIF animation showing daily NTL changes for Fuding City, Fujian Province during January 1-7, 2020. This workflow includes: (1) retrieving VNP46A2 daily NTL data via Data_Searcher, (2) rendering each day with unified brightness range and colormap, (3) adding Chinese annotations (location, date, legend, north arrow, scale bar), and (4) synthesizing all frames into an infinite-loop GIF animation.",
+    "steps": [
+      {
+        "type": "subagent",
+        "name": "data_retrieval_step",
+        "description": "Retrieve Fuding City administrative boundary and VNP46A2 daily NTL data for 2020-01-01 to 2020-01-07 (7 days). Use GEE_dataset_router_tool to determine retrieval strategy (direct_download for <=14 daily images). Ensure complete coverage (expected_count=7, actual_count=7).",
+        "input": {
+          "study_area": "福鼎市",
+          "scale_level": "city",
+          "dataset": "NASA/VIIRS/002/VNP46A2",
+          "band": "Gap_Filled_DNB_BRDF_Corrected_NTL",
+          "time_range": "2020-01-01 to 2020-01-07",
+          "task_level": "L2",
+          "contract_version": "ntl.retrieval.contract.v1"
+        }
+      },
+      {
+        "type": "subagent",
+        "name": "animation_generation_step",
+        "description": "Execute custom Python script to: (1) load all 7 daily NTL GeoTIFFs, (2) calculate unified brightness range [min, max] across all days, (3) create custom NTL colormap (black->blue->green->yellow->white), (4) render each day as high-resolution PNG (1920x1080 @ 150 DPI) with Chinese annotations (SimHei/Microsoft YaHei fonts), (5) add location title, date label, radiance colorbar, north arrow, scale bar, and data source credit, (6) synthesize all PNG frames into infinite-loop GIF (800ms/frame).",
+        "input": {
+          "script_name": "render_ntl_animation_v3_fixed.py",
+          "execution_objective": "Generate daily NTL change animation with unified rendering and Chinese annotations",
+          "task_level": "L2",
+          "key_parameters": {
+            "resolution": "1920x1080",
+            "dpi": 150,
+            "colormap": "custom NTL (black->blue->green->yellow->white)",
+            "brightness_range": "unified across all frames",
+            "fonts": [
+              "SimHei",
+              "Microsoft YaHei"
+            ],
+            "frame_duration_ms": 800,
+            "loop": "infinite"
+          }
+        }
+      }
+    ],
+    "output": [
+      "outputs/fuding_ntl_2020-01-01_hd_fixed.png",
+      "outputs/fuding_ntl_2020-01-02_hd_fixed.png",
+      "outputs/fuding_ntl_2020-01-03_hd_fixed.png",
+      "outputs/fuding_ntl_2020-01-04_hd_fixed.png",
+      "outputs/fuding_ntl_2020-01-05_hd_fixed.png",
+      "outputs/fuding_ntl_2020-01-06_hd_fixed.png",
+      "outputs/fuding_ntl_2020-01-07_hd_fixed.png",
+      "outputs/fuding_ntl_20200101_20200107_animation_hd_fixed.gif"
+    ],
+    "technical_notes": {
+      "dataset": "NASA/VIIRS/002/VNP46A2",
+      "spatial_resolution": "500m",
+      "temporal_coverage": "2020-01-01 to 2020-01-07 (7 days)",
+      "unified_brightness_range": "[0.0, 113.228] nW·cm⁻²·sr⁻¹",
+      "chinese_font_support": "matplotlib.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei']",
+      "path_resolution": "Use relative paths (inputs/outputs) for sandbox compatibility",
+      "self_evolution_applied": true,
+      "code_reference_index": "/skills/ntl-workflow-guidance/references/code/code_index.json",
+      "visual_annotation_quality": "north arrow explicitly marked as north-up indicator; scale bar estimated from georeferenced width"
+    },
+    "execution_example": {
+      "task_date": "2026-03-01",
+      "status": "success",
+      "confidence": 0.95,
+      "issues_resolved": [
+        "path_resolution_error_with_storage_manager",
+        "chinese_character_garbled_display"
+      ],
+      "resolutions_applied": [
+        "used_relative_paths_inputs_outputs_directly",
+        "configured_matplotlib_chinese_fonts"
+      ]
+    },
+    "code_examples": [
+      {
+        "case_id": "Q24_fuding_daily_ntl_animation_v2",
+        "path": "/skills/ntl-workflow-guidance/references/code/data_retrieval_preprocessing/Q24_fuding_daily_ntl_animation_v2.py",
+        "status": "verified_success",
+        "usage": "reference_implementation",
+        "notes": [
+          "Sandbox-first relative paths (inputs/outputs).",
+          "Unified rendering range and colormap across all frames.",
+          "Scale bar computed from georeferenced bounds instead of static literal."
+        ]
+      }
+    ],
+    "_evolution": {
+      "mode": "patch_existing",
+      "updated_at": "2026-03-01T00:00:00Z",
+      "completion_gate": "success_and_artifact_pass",
+      "change_reason": "Add direct workflow patch and reusable successful code reference for Q24 to avoid repeated rediscovery.",
+      "patch_summary": "Added code_examples and code index linkage; clarified annotation quality constraints.",
+      "trigger_signature": "user_feedback_direct_workflow_patch_and_code_case_library",
+      "updated_by": "workflow_self_evolution"
+    }
+  },
+  {
+    "task_id": "Q25",
+    "task_name": "Official VJ102/VJ103 full-chain retrieval and preprocessing for Iran",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Use official_vj_dnb_fullchain_tool to query LAADS metadata, download VJ102DNB+VJ103DNB, and generate daily preprocessed NTL GeoTIFF for Iran. Outputs are saved under thread workspace outputs/.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "official_vj_dnb_fullchain_tool",
+        "input": {
+          "start_date": "2026-02-22",
+          "end_date": "2026-03-01",
+          "bbox": "44.03,25.08,63.33,39.77",
+          "output_root": "official_vj_dnb_pipeline_runs",
+          "run_label": "iran_20260222_20260301",
+          "sources": "VJ102DNB,VJ103DNB",
+          "composite": "mean",
+          "resolution_m": 500.0,
+          "radius_m": 2000.0,
+          "radiance_scale": 1000000000.0,
+          "token_env": "EARTHDATA_TOKEN"
+        }
+      }
+    ],
+    "output": [
+      "outputs/official_vj_dnb_pipeline_runs/<run_label>/query/LAADS_query_*.json",
+      "outputs/official_vj_dnb_pipeline_runs/<run_label>/raw_nc/*.nc",
+      "outputs/official_vj_dnb_pipeline_runs/<run_label>/processed_tif/daily_4326/*.tif",
+      "outputs/official_vj_dnb_pipeline_runs/<run_label>/pipeline_manifest.json"
+    ],
+    "_evolution": {
+      "added_at": "2026-03-02",
+      "reason": "Add reusable official-source (non-GEE) VIIRS DNB full chain workflow template for bbox/date tasking.",
+      "capability_scope": "generalized_official_vj102_vj103_retrieval_download_preprocess",
+      "updated_at": "2026-03-02",
+      "update_reason": "Align official VJ full-chain workflow outputs with storage_manager thread workspace outputs/ policy."
+    }
+  },
+  {
+    "task_id": "Q26",
+    "task_name": "Preprocess local VJ102/VJ103 NC files with storage-manager paths",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Run preprocess-only official VJ workflow on already-downloaded VJ102DNB/VJ103DNB files. This task uses storage_manager-compatible paths (workspace-relative or /data/processed virtual paths) and outputs daily GeoTIFF products.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "convert_vj102_vj103_precise_to_tif_tool",
+        "input": {
+          "input_dir": "/data/processed/official_vj_dnb_pipeline_runs/iran_20260222_20260301/raw_nc",
+          "output_root": "/data/processed/official_vj_dnb_preprocess_runs",
+          "run_label": "iran_20260222_20260301_preprocess_only",
+          "start_date": "2026-02-22",
+          "end_date": "2026-03-01",
+          "bbox": "44.03,25.08,63.33,39.77",
+          "composite": "mean",
+          "resolution_m": 500.0,
+          "radius_m": 2000.0,
+          "radiance_scale": 1000000000.0
+        }
+      }
+    ],
+    "output": [
+      "outputs/official_vj_dnb_preprocess_runs/<run_label>/processed_tif/daily_4326/*.tif",
+      "outputs/official_vj_dnb_preprocess_runs/<run_label>/processed_tif/precise_preprocess_summary.json",
+      "outputs/official_vj_dnb_preprocess_runs/<run_label>/preprocess_manifest.json"
+    ],
+    "code_examples": [
+      {
+        "case_id": "Q26_vj102_vj103_preprocess_storage_paths",
+        "path": "/skills/ntl-workflow-guidance/references/code/data_retrieval_preprocessing/Q26_vj102_vj103_preprocess_storage_paths.py",
+        "status": "verified_success",
+        "usage": "reference_implementation"
+      }
+    ],
+    "_evolution": {
+      "added_at": "2026-03-04",
+      "reason": "Add preprocess-only reusable workflow using storage_manager path protocol.",
+      "capability_scope": "official_vj102_vj103_preprocess_only_generalized"
+    }
+  }
+]

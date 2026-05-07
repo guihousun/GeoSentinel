@@ -1,0 +1,1577 @@
+﻿{
+  "schema": "ntl.gee_dataset_registry.v1",
+  "scope": "Curated Earth Engine datasets commonly used by 地缘环境智能计算平台. Validate live metadata with GEE_dataset_metadata_tool before execution.",
+  "datasets": [
+    {
+      "key": "npp_viirs_like_annual",
+      "name": "Global NPP-VIIRS-like Nighttime Light",
+      "dataset_id": "projects/sat-io/open-datasets/npp-viirs-ntl",
+      "category": "nighttime_light",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "annual",
+      "expected_temporal_coverage": {
+        "start": "2000-01-01",
+        "end": "2024-01-01",
+        "observed_indexes": "LongNTL_2000..LongNTL_2024",
+        "live_check_required": true
+      },
+      "scale_m": 500,
+      "primary_bands": [
+        {
+          "band": "b1",
+          "meaning": "annual harmonized nighttime light radiance",
+          "unit": "radiance-like NTL value",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "long-term annual trend",
+        "annual mean/ranking",
+        "DMSP-VIIRS harmonized studies",
+        "country/province annual statistics"
+      ],
+      "avoid_when": [
+        "daily event first-night analysis",
+        "official NOAA annual product explicitly required"
+      ],
+      "default_reducer": "mean",
+      "notes": "Primary annual NTL product for 地缘环境智能计算平台 when the task asks for annual statistics or trends.",
+      "validation_status": "live_metadata_checked",
+      "live_validation": {
+        "status": "live_metadata_checked",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "projects/sat-io/open-datasets/npp-viirs-ntl"
+        ],
+        "observed_bands": {
+          "projects/sat-io/open-datasets/npp-viirs-ntl": [
+            "b1"
+          ]
+        },
+        "observed_temporal_coverage": {
+          "projects/sat-io/open-datasets/npp-viirs-ntl": {
+            "start": "2000-01-01",
+            "end": "2024-01-01",
+            "size": 25
+          }
+        },
+        "observed_nominal_scale_m": {
+          "projects/sat-io/open-datasets/npp-viirs-ntl": 500.00000004479415
+        },
+        "notes": "Live metadata confirms 25 annual images LongNTL_2000 through LongNTL_2024 and band b1."
+      }
+    },
+    {
+      "key": "viirs_annual_v22",
+      "name": "VIIRS Nighttime Day/Night Annual Band Composites V2.2",
+      "dataset_id": "NOAA/VIIRS/DNB/ANNUAL_V22",
+      "category": "nighttime_light",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "annual",
+      "expected_temporal_coverage": {
+        "start": "2022-01-01",
+        "end": "2025-01-01",
+        "observed_indexes": [
+          "20220101",
+          "20230101",
+          "20240101",
+          "20250101"
+        ],
+        "live_check_required": true
+      },
+      "scale_m": 464,
+      "primary_bands": [
+        {
+          "band": "average",
+          "meaning": "average visible band radiance",
+          "unit": "nW/cm^2/sr",
+          "scale_factor": 1
+        },
+        {
+          "band": "cf_cvg",
+          "meaning": "cloud-free coverage count",
+          "unit": "count",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "official NOAA/EOG annual VIIRS is requested",
+        "annual VIIRS-only analysis"
+      ],
+      "avoid_when": [
+        "pre-2012 studies",
+        "daily or monthly analysis"
+      ],
+      "fallbacks": [
+        "NOAA/VIIRS/DNB/ANNUAL_V21",
+        "projects/sat-io/open-datasets/npp-viirs-ntl"
+      ],
+      "validation_status": "live_metadata_checked",
+      "notes": "Live metadata on 2026-04-23 shows V22 starts at system:index 20220101; use V21 or NPP-VIIRS-like for earlier annual VIIRS years.",
+      "live_validation": {
+        "status": "live_metadata_checked",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "NOAA/VIIRS/DNB/ANNUAL_V22"
+        ],
+        "observed_bands": {
+          "NOAA/VIIRS/DNB/ANNUAL_V22": [
+            "average",
+            "average_masked",
+            "cf_cvg",
+            "cvg",
+            "maximum",
+            "median",
+            "median_masked",
+            "minimum"
+          ]
+        },
+        "observed_temporal_coverage": {
+          "NOAA/VIIRS/DNB/ANNUAL_V22": {
+            "start": "2022-01-01",
+            "end": "2025-01-01",
+            "size": 4
+          }
+        },
+        "observed_nominal_scale_m": {
+          "NOAA/VIIRS/DNB/ANNUAL_V22": 463.83121534928955
+        }
+      }
+    },
+    {
+      "key": "viirs_annual_v21",
+      "name": "VIIRS Nighttime Day/Night Annual Band Composites V2.1",
+      "dataset_id": "NOAA/VIIRS/DNB/ANNUAL_V21",
+      "category": "nighttime_light",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "annual",
+      "expected_temporal_coverage": {
+        "start": "2013-01-01",
+        "end": "2021-01-01",
+        "observed_indexes": "20130101..20210101",
+        "live_check_required": true
+      },
+      "scale_m": 464,
+      "primary_bands": [
+        {
+          "band": "average",
+          "meaning": "average visible band radiance",
+          "unit": "nW/cm^2/sr",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "compatibility with older EOG annual V2.1 workflows"
+      ],
+      "avoid_when": [
+        "new default annual workflow unless V21 is explicitly required"
+      ],
+      "validation_status": "live_metadata_checked",
+      "live_validation": {
+        "status": "live_metadata_checked",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "NOAA/VIIRS/DNB/ANNUAL_V21"
+        ],
+        "observed_bands": {
+          "NOAA/VIIRS/DNB/ANNUAL_V21": [
+            "average",
+            "average_masked",
+            "cf_cvg",
+            "cvg",
+            "maximum",
+            "median",
+            "median_masked",
+            "minimum"
+          ]
+        },
+        "observed_temporal_coverage": {
+          "NOAA/VIIRS/DNB/ANNUAL_V21": {
+            "start": "2013-01-01",
+            "end": "2021-01-01",
+            "size": 9
+          }
+        },
+        "observed_nominal_scale_m": {
+          "NOAA/VIIRS/DNB/ANNUAL_V21": 463.83121534928955
+        }
+      }
+    },
+    {
+      "key": "viirs_monthly_slc",
+      "name": "VIIRS Monthly Stray-Light-Corrected DNB Composites",
+      "dataset_id": "NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG",
+      "category": "nighttime_light",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "monthly",
+      "expected_temporal_coverage": {
+        "start": "2014-01-01",
+        "end": "2026-03-01",
+        "live_check_required": true
+      },
+      "scale_m": 464,
+      "primary_bands": [
+        {
+          "band": "avg_rad",
+          "meaning": "monthly average radiance",
+          "unit": "nW/cm^2/sr",
+          "scale_factor": 1
+        },
+        {
+          "band": "cf_cvg",
+          "meaning": "cloud-free coverage count",
+          "unit": "count",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "monthly trend",
+        "seasonal comparison",
+        "monthly ANTL table"
+      ],
+      "avoid_when": [
+        "annual summary when annual products are available",
+        "daily event first-night analysis"
+      ],
+      "validation_status": "live_metadata_checked",
+      "live_validation": {
+        "status": "live_metadata_checked",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG"
+        ],
+        "observed_bands": {
+          "NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG": [
+            "avg_rad",
+            "cf_cvg"
+          ]
+        },
+        "observed_temporal_coverage": {
+          "NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG": {
+            "start": "2014-01-01",
+            "end": "2026-03-01",
+            "size": 147
+          }
+        },
+        "observed_nominal_scale_m": {
+          "NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG": 463.83121534928955
+        }
+      }
+    },
+    {
+      "key": "viirs_monthly_unslc",
+      "name": "VIIRS Monthly DNB Composites",
+      "dataset_id": "NOAA/VIIRS/DNB/MONTHLY_V1/VCMCFG",
+      "category": "nighttime_light",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "monthly",
+      "expected_temporal_coverage": {
+        "start": "2012-04-01",
+        "end": "2026-03-01",
+        "live_check_required": true
+      },
+      "scale_m": 464,
+      "primary_bands": [
+        {
+          "band": "avg_rad",
+          "meaning": "monthly average radiance",
+          "unit": "nW/cm^2/sr",
+          "scale_factor": 1
+        },
+        {
+          "band": "cf_cvg",
+          "meaning": "cloud-free coverage count",
+          "unit": "count",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "monthly VIIRS where non-stray-light-corrected product is explicitly needed"
+      ],
+      "avoid_when": [
+        "default monthly NTL; prefer VCMSLCFG"
+      ],
+      "validation_status": "live_metadata_checked",
+      "live_validation": {
+        "status": "live_metadata_checked",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "NOAA/VIIRS/DNB/MONTHLY_V1/VCMCFG"
+        ],
+        "observed_bands": {
+          "NOAA/VIIRS/DNB/MONTHLY_V1/VCMCFG": [
+            "avg_rad",
+            "cf_cvg"
+          ]
+        },
+        "observed_temporal_coverage": {
+          "NOAA/VIIRS/DNB/MONTHLY_V1/VCMCFG": {
+            "start": "2012-04-01",
+            "end": "2026-03-01",
+            "size": 168
+          }
+        },
+        "observed_nominal_scale_m": {
+          "NOAA/VIIRS/DNB/MONTHLY_V1/VCMCFG": 463.83121534928955
+        }
+      }
+    },
+    {
+      "key": "vnp46a2_daily",
+      "name": "VNP46A2 Daily Lunar Gap-Filled BRDF NTL",
+      "dataset_id": "NASA/VIIRS/002/VNP46A2",
+      "category": "nighttime_light",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "daily",
+      "expected_temporal_coverage": {
+        "start": "2012-01-19",
+        "end": "2026-04-08",
+        "observed_on": "2026-04-23",
+        "observed_latency_days": 15,
+        "live_check_required": true
+      },
+      "scale_m": 464,
+      "primary_bands": [
+        {
+          "band": "Gap_Filled_DNB_BRDF_Corrected_NTL",
+          "meaning": "gap-filled BRDF-corrected daily nighttime light",
+          "unit": "nW/cm^2/sr",
+          "scale_factor": 1
+        },
+        {
+          "band": "DNB_BRDF_Corrected_NTL",
+          "meaning": "BRDF-corrected daily nighttime light",
+          "unit": "nW/cm^2/sr",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "daily event impact",
+        "first-night analysis",
+        "short daily time windows",
+        "ANTL around disaster/conflict/outage"
+      ],
+      "avoid_when": [
+        "annual/monthly summary when coarser products directly exist",
+        "pixel-level UTC acquisition-time verification; this GEE product does not expose UTC_Time"
+      ],
+      "notes": "Live metadata on 2026-04-23 ended at 2026-04-08; do not assume a fixed 3-day latency for current-date tasks. Public GEE VNP46A2 does not expose pixel-level UTC_Time.",
+      "validation_status": "live_metadata_checked",
+      "live_validation": {
+        "status": "live_metadata_checked",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "NASA/VIIRS/002/VNP46A2"
+        ],
+        "observed_bands": {
+          "NASA/VIIRS/002/VNP46A2": [
+            "DNB_BRDF_Corrected_NTL",
+            "DNB_Lunar_Irradiance",
+            "Gap_Filled_DNB_BRDF_Corrected_NTL",
+            "Latest_High_Quality_Retrieval",
+            "Mandatory_Quality_Flag",
+            "QF_Cloud_Mask",
+            "Snow_Flag"
+          ]
+        },
+        "observed_temporal_coverage": {
+          "NASA/VIIRS/002/VNP46A2": {
+            "start": "2012-01-19",
+            "end": "2026-04-08",
+            "size": 5152
+          }
+        },
+        "observed_nominal_scale_m": {
+          "NASA/VIIRS/002/VNP46A2": 463.83121089650996
+        }
+      }
+    },
+    {
+      "key": "vnp46a1_daily",
+      "name": "VNP46A1 Daily At-Sensor DNB Radiance",
+      "dataset_id": "NOAA/VIIRS/001/VNP46A1",
+      "category": "nighttime_light",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "daily",
+      "expected_temporal_coverage": {
+        "start": "2012-01-19",
+        "end": "2025-01-02",
+        "live_check_required": true
+      },
+      "scale_m": 464,
+      "primary_bands": [
+        {
+          "band": "DNB_At_Sensor_Radiance_500m",
+          "meaning": "at-sensor DNB radiance",
+          "unit": "nW/cm^2/sr",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "rawer historical daily radiance is explicitly required",
+        "historical UTC_Time verification when live coverage includes the target date"
+      ],
+      "avoid_when": [
+        "default daily event analysis; prefer VNP46A2",
+        "recent event UTC boundary verification beyond GEE VNP46A1 coverage; use LAADS/CMR granule timing or official metadata"
+      ],
+      "notes": "Public GEE VNP46A1 exposes UTC_Time but live metadata on 2026-04-23 ended at 2025-01-02. Use it only when the target date is covered; for recent events, use LAADS/CMR or official granule metadata for UTC boundary checks.",
+      "validation_status": "live_metadata_checked",
+      "live_validation": {
+        "status": "live_metadata_checked",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "NOAA/VIIRS/001/VNP46A1"
+        ],
+        "observed_bands": {
+          "NOAA/VIIRS/001/VNP46A1": [
+            "BrightnessTemperature_M12",
+            "BrightnessTemperature_M13",
+            "BrightnessTemperature_M15",
+            "BrightnessTemperature_M16",
+            "DNB_At_Sensor_Radiance_500m",
+            "Glint_Angle",
+            "Granule",
+            "Lunar_Zenith",
+            "Lunar_Azimuth",
+            "Moon_Illumination_Fraction",
+            "Moon_Phase_Angle",
+            "QF_Cloud_Mask",
+            "QF_DNB",
+            "QF_VIIRS_M10",
+            "QF_VIIRS_M11",
+            "QF_VIIRS_M12",
+            "QF_VIIRS_M13",
+            "QF_VIIRS_M15",
+            "QF_VIIRS_M16",
+            "Radiance_M10",
+            "Radiance_M11",
+            "Sensor_Zenith",
+            "Sensor_Azimuth",
+            "Solar_Zenith",
+            "Solar_Azimuth",
+            "UTC_Time"
+          ]
+        },
+        "observed_temporal_coverage": {
+          "NOAA/VIIRS/001/VNP46A1": {
+            "start": "2012-01-19",
+            "end": "2025-01-02",
+            "size": 4694
+          }
+        },
+        "observed_nominal_scale_m": {
+          "NOAA/VIIRS/001/VNP46A1": 463.83121089650996
+        }
+      }
+    },
+    {
+      "key": "dmsp_ols_stable_lights",
+      "name": "DMSP-OLS Nighttime Lights Time Series v4",
+      "dataset_id": "NOAA/DMSP-OLS/NIGHTTIME_LIGHTS",
+      "category": "nighttime_light",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "annual",
+      "expected_temporal_coverage": {
+        "start": "1992-01-01",
+        "end": "2013-12-31",
+        "live_check_required": true
+      },
+      "scale_m": 928,
+      "primary_bands": [
+        {
+          "band": "stable_lights",
+          "meaning": "stable lights digital number",
+          "unit": "DN",
+          "scale_factor": 1
+        },
+        {
+          "band": "avg_vis",
+          "meaning": "average visible band digital number",
+          "unit": "DN",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "pre-VIIRS historical NTL",
+        "legacy DMSP analysis"
+      ],
+      "avoid_when": [
+        "direct comparison with VIIRS without calibration/harmonization"
+      ],
+      "validation_status": "live_metadata_checked",
+      "live_validation": {
+        "status": "live_metadata_checked",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "NOAA/DMSP-OLS/NIGHTTIME_LIGHTS"
+        ],
+        "observed_bands": {
+          "NOAA/DMSP-OLS/NIGHTTIME_LIGHTS": [
+            "avg_vis",
+            "stable_lights",
+            "cf_cvg",
+            "avg_lights_x_pct"
+          ]
+        },
+        "observed_temporal_coverage": {
+          "NOAA/DMSP-OLS/NIGHTTIME_LIGHTS": {
+            "start": "1992-01-01",
+            "end": "2013-01-01",
+            "size": 35
+          }
+        },
+        "observed_nominal_scale_m": {
+          "NOAA/DMSP-OLS/NIGHTTIME_LIGHTS": 927.6624195666301
+        }
+      }
+    },
+    {
+      "key": "dmsp_ols_calibrated",
+      "name": "DMSP-OLS Radiance-Calibrated Lights v4",
+      "dataset_id": "NOAA/DMSP-OLS/CALIBRATED_LIGHTS_V4",
+      "category": "nighttime_light",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "annual",
+      "expected_temporal_coverage": {
+        "start": "1996-03-16",
+        "end": "2011-07-31",
+        "observed_indexes": "F12_19960316...F16_20100111-20110731",
+        "live_check_required": true
+      },
+      "scale_m": 928,
+      "primary_bands": [
+        {
+          "band": "avg_vis",
+          "meaning": "radiance-calibrated average visible light",
+          "unit": "DN/radiance-like",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "DMSP radiance-calibrated historical analysis"
+      ],
+      "avoid_when": [
+        "default annual 2000+ workflow where NPP-VIIRS-like is preferred"
+      ],
+      "validation_status": "live_metadata_checked",
+      "live_validation": {
+        "status": "live_metadata_checked",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "NOAA/DMSP-OLS/CALIBRATED_LIGHTS_V4"
+        ],
+        "observed_bands": {
+          "NOAA/DMSP-OLS/CALIBRATED_LIGHTS_V4": [
+            "avg_vis",
+            "cf_cvg"
+          ]
+        },
+        "observed_temporal_coverage": {
+          "NOAA/DMSP-OLS/CALIBRATED_LIGHTS_V4": {
+            "start": "1996-03-16",
+            "end": "2010-01-11",
+            "size": 8
+          }
+        },
+        "observed_nominal_scale_m": {
+          "NOAA/DMSP-OLS/CALIBRATED_LIGHTS_V4": 927.6624195666301
+        }
+      }
+    },
+    {
+      "key": "geoboundaries_adm0_4",
+      "name": "geoBoundaries ADM0-ADM2",
+      "dataset_id_pattern": "WM/geoLab/geoBoundaries/600/ADM{level}",
+      "category": "boundary",
+      "asset_type": "FeatureCollection",
+      "levels": {
+        "ADM0": "country",
+        "ADM1": "province/state",
+        "ADM2": "city/prefecture"
+      },
+      "key_properties": [
+        "shapeGroup",
+        "shapeName",
+        "shapeType",
+        "shapeID"
+      ],
+      "filter_pattern": "ee.FeatureCollection('WM/geoLab/geoBoundaries/600/ADM1').filter(ee.Filter.eq('shapeGroup', 'CHN')).filter(ee.Filter.eq('shapeName', 'Shanghai Municipality'))",
+      "use_when": [
+        "outside-China named boundaries",
+        "cloud-hosted zonal statistics",
+        "country/province/city/county GEE server-side masks"
+      ],
+      "avoid_when": [
+        "user requires official local administrative boundary file rather than GEE feature collection"
+      ],
+      "available_levels": [
+        "ADM0",
+        "ADM1",
+        "ADM2"
+      ],
+      "unavailable_levels": [
+        "ADM3",
+        "ADM4"
+      ],
+      "validation_status": "live_metadata_checked_partial",
+      "notes": "Live test on 2026-04-23 found ADM0-ADM2 available; ADM3 and ADM4 assets were not found at WM/geoLab/geoBoundaries/600/ADM3-ADM4.",
+      "live_validation": {
+        "status": "live_metadata_checked_partial",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "WM/geoLab/geoBoundaries/600/ADM0",
+          "WM/geoLab/geoBoundaries/600/ADM1",
+          "WM/geoLab/geoBoundaries/600/ADM2",
+          "WM/geoLab/geoBoundaries/600/ADM3",
+          "WM/geoLab/geoBoundaries/600/ADM4"
+        ],
+        "observed_bands": {},
+        "observed_temporal_coverage": {
+          "WM/geoLab/geoBoundaries/600/ADM0": {
+            "start": null,
+            "end": null,
+            "size": 218
+          },
+          "WM/geoLab/geoBoundaries/600/ADM1": {
+            "start": null,
+            "end": null,
+            "size": 3223
+          },
+          "WM/geoLab/geoBoundaries/600/ADM2": {
+            "start": null,
+            "end": null,
+            "size": 49617
+          }
+        },
+        "observed_nominal_scale_m": {},
+        "known_failures": [
+          {
+            "dataset_id": "WM/geoLab/geoBoundaries/600/ADM3",
+            "errors": {
+              "size_error": "EEException: Collection.loadTable: Collection asset 'WM/geoLab/geoBoundaries/600/ADM3' not found.",
+              "props_error": "EEException: Collection.loadTable: Collection asset 'WM/geoLab/geoBoundaries/600/ADM3' not found."
+            }
+          },
+          {
+            "dataset_id": "WM/geoLab/geoBoundaries/600/ADM4",
+            "errors": {
+              "size_error": "EEException: Collection.loadTable: Collection asset 'WM/geoLab/geoBoundaries/600/ADM4' not found.",
+              "props_error": "EEException: Collection.loadTable: Collection asset 'WM/geoLab/geoBoundaries/600/ADM4' not found."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "key": "china_project_admin_assets",
+      "name": "地缘环境智能计算平台 China Administrative Assets",
+      "dataset_ids": [
+        "projects/empyrean-caster-430308-m2/assets/province",
+        "projects/empyrean-caster-430308-m2/assets/city",
+        "projects/empyrean-caster-430308-m2/assets/county"
+      ],
+      "category": "boundary",
+      "asset_type": "FeatureCollection",
+      "key_properties": [
+        "gb",
+        "name"
+      ],
+      "use_when": [
+        "China-only built-in tool boundary matching",
+        "server-side China administrative statistics after property validation"
+      ],
+      "avoid_when": [
+        "output names appear mojibake or user needs English/official global names"
+      ],
+      "notes": "Validate sample properties before using names in final tables.",
+      "validation_status": "live_metadata_checked",
+      "live_validation": {
+        "status": "live_metadata_checked",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "projects/empyrean-caster-430308-m2/assets/province",
+          "projects/empyrean-caster-430308-m2/assets/city",
+          "projects/empyrean-caster-430308-m2/assets/county"
+        ],
+        "observed_bands": {},
+        "observed_temporal_coverage": {
+          "projects/empyrean-caster-430308-m2/assets/province": {
+            "start": null,
+            "end": null,
+            "size": 34
+          },
+          "projects/empyrean-caster-430308-m2/assets/city": {
+            "start": null,
+            "end": null,
+            "size": 375
+          },
+          "projects/empyrean-caster-430308-m2/assets/county": {
+            "start": null,
+            "end": null,
+            "size": 2891
+          }
+        },
+        "observed_nominal_scale_m": {}
+      }
+    },
+    {
+      "key": "gaul_admin",
+      "name": "FAO GAUL 2015 Administrative Units",
+      "dataset_id_pattern": "FAO/GAUL/2015/level{0|1|2}",
+      "category": "boundary",
+      "asset_type": "FeatureCollection",
+      "key_properties": [
+        "ADM0_NAME",
+        "ADM1_NAME",
+        "ADM2_NAME"
+      ],
+      "use_when": [
+        "fallback global admin boundaries",
+        "legacy workflows"
+      ],
+      "avoid_when": [
+        "geoBoundaries covers the requested area cleanly"
+      ],
+      "notes": "Name variants are common, e.g. Shanghai may be `Shanghai Shi`.",
+      "validation_status": "live_metadata_checked",
+      "live_validation": {
+        "status": "live_metadata_checked",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "FAO/GAUL/2015/level0",
+          "FAO/GAUL/2015/level1",
+          "FAO/GAUL/2015/level2"
+        ],
+        "observed_bands": {},
+        "observed_temporal_coverage": {
+          "FAO/GAUL/2015/level0": {
+            "start": null,
+            "end": null,
+            "size": 292
+          },
+          "FAO/GAUL/2015/level1": {
+            "start": null,
+            "end": null,
+            "size": 3427
+          },
+          "FAO/GAUL/2015/level2": {
+            "start": null,
+            "end": null,
+            "size": 38258
+          }
+        },
+        "observed_nominal_scale_m": {}
+      }
+    },
+    {
+      "key": "lsib_country",
+      "name": "USDOS LSIB Simple 2017",
+      "dataset_id": "USDOS/LSIB_SIMPLE/2017",
+      "category": "boundary",
+      "asset_type": "FeatureCollection",
+      "key_properties": [
+        "abbreviati",
+        "country_co",
+        "country_na",
+        "wld_rgn"
+      ],
+      "use_when": [
+        "simple country boundary mask"
+      ],
+      "avoid_when": [
+        "subnational boundaries"
+      ],
+      "validation_status": "live_metadata_checked",
+      "live_validation": {
+        "status": "live_metadata_checked",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "USDOS/LSIB_SIMPLE/2017"
+        ],
+        "observed_bands": {},
+        "observed_temporal_coverage": {
+          "USDOS/LSIB_SIMPLE/2017": {
+            "start": null,
+            "end": null,
+            "size": 312
+          }
+        },
+        "observed_nominal_scale_m": {}
+      }
+    },
+    {
+      "key": "landscan_global",
+      "name": "LandScan Global Population",
+      "dataset_id": "projects/sat-io/open-datasets/ORNL/LANDSCAN_GLOBAL",
+      "category": "population",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "annual",
+      "expected_temporal_coverage": {
+        "start": "2000-01-01",
+        "end": "2024-01-01",
+        "observed_indexes": "landscan-global-2000..landscan-global-2024",
+        "live_check_required": true
+      },
+      "scale_m": 928,
+      "primary_bands": [
+        {
+          "band": "b1",
+          "meaning": "ambient population count",
+          "unit": "persons",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "electricity access",
+        "population exposed to NTL",
+        "population-weighted NTL"
+      ],
+      "avoid_when": [
+        "fine residential population where WorldPop is preferred"
+      ],
+      "validation_status": "task_tested",
+      "live_validation": {
+        "status": "task_tested",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "projects/sat-io/open-datasets/ORNL/LANDSCAN_GLOBAL"
+        ],
+        "observed_bands": {
+          "projects/sat-io/open-datasets/ORNL/LANDSCAN_GLOBAL": [
+            "b1"
+          ]
+        },
+        "observed_temporal_coverage": {
+          "projects/sat-io/open-datasets/ORNL/LANDSCAN_GLOBAL": {
+            "start": "2000-01-01",
+            "end": "2024-01-01",
+            "size": 25
+          }
+        },
+        "observed_nominal_scale_m": {
+          "projects/sat-io/open-datasets/ORNL/LANDSCAN_GLOBAL": 927.662423277276
+        },
+        "smoke_tests": [
+          {
+            "label": "landscan_2020_b1_sum_shanghai",
+            "status": "ok",
+            "value": {
+              "b1": 8344506.02352941
+            }
+          }
+        ]
+      }
+    },
+    {
+      "key": "worldpop_population",
+      "name": "WorldPop Global 100m Population",
+      "dataset_id": "WorldPop/GP/100m/pop",
+      "category": "population",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "annual",
+      "scale_m": 93,
+      "primary_bands": [
+        {
+          "band": "population",
+          "meaning": "estimated residential population",
+          "unit": "persons",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "fine-scale population exposure",
+        "urban electricity access"
+      ],
+      "avoid_when": [
+        "ambient population is required"
+      ],
+      "expected_temporal_coverage": {
+        "start": "2000-01-01",
+        "end": "2020-01-01",
+        "live_check_required": true
+      },
+      "validation_status": "task_tested",
+      "live_validation": {
+        "status": "task_tested",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "WorldPop/GP/100m/pop"
+        ],
+        "observed_bands": {
+          "WorldPop/GP/100m/pop": [
+            "population"
+          ]
+        },
+        "observed_temporal_coverage": {
+          "WorldPop/GP/100m/pop": {
+            "start": "2000-01-01",
+            "end": "2020-01-01",
+            "size": 5221
+          }
+        },
+        "observed_nominal_scale_m": {
+          "WorldPop/GP/100m/pop": 92.76624203150153
+        },
+        "smoke_tests": [
+          {
+            "label": "worldpop_2020_population_sum_shanghai",
+            "status": "ok",
+            "value": {
+              "population": 13107000.545576997
+            }
+          }
+        ]
+      }
+    },
+    {
+      "key": "gpw_population_count",
+      "name": "GPW v4.11 Population Count",
+      "dataset_id": "CIESIN/GPWv411/GPW_Population_Count",
+      "category": "population",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "5-year",
+      "scale_m": 928,
+      "primary_bands": [
+        {
+          "band": "population_count",
+          "meaning": "population count per grid cell",
+          "unit": "persons",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "coarse global population baseline",
+        "country-level socioeconomic controls"
+      ],
+      "avoid_when": [
+        "fine city-scale exposure"
+      ],
+      "expected_temporal_coverage": {
+        "start": "2000-01-01",
+        "end": "2020-01-01",
+        "observed_indexes": [
+          "2000",
+          "2005",
+          "2010",
+          "2015",
+          "2020"
+        ],
+        "live_check_required": true
+      },
+      "validation_status": "task_tested",
+      "live_validation": {
+        "status": "task_tested",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "CIESIN/GPWv411/GPW_Population_Count"
+        ],
+        "observed_bands": {
+          "CIESIN/GPWv411/GPW_Population_Count": [
+            "population_count"
+          ]
+        },
+        "observed_temporal_coverage": {
+          "CIESIN/GPWv411/GPW_Population_Count": {
+            "start": "2000-01-01",
+            "end": "2020-01-01",
+            "size": 5
+          }
+        },
+        "observed_nominal_scale_m": {
+          "CIESIN/GPWv411/GPW_Population_Count": 927.6624232772793
+        },
+        "smoke_tests": [
+          {
+            "label": "gpw_2020_population_count_sum_shanghai",
+            "status": "ok",
+            "value": {
+              "population_count": 12800966.455388913
+            }
+          }
+        ]
+      }
+    },
+    {
+      "key": "ghsl_population",
+      "name": "GHSL Population Grid",
+      "dataset_id": "JRC/GHSL/P2023A/GHS_POP",
+      "category": "population",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "5-year",
+      "scale_m": 100,
+      "primary_bands": [
+        {
+          "band": "population_count",
+          "meaning": "resident population count",
+          "unit": "persons",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "urban population exposure",
+        "built-up/population combined studies"
+      ],
+      "avoid_when": [
+        "ambient population is required"
+      ],
+      "expected_temporal_coverage": {
+        "start": "1975-01-01",
+        "end": "2030-01-01",
+        "observed_indexes": [
+          "1975",
+          "1980",
+          "1985",
+          "1990",
+          "1995",
+          "2000",
+          "2005",
+          "2010",
+          "2015",
+          "2020",
+          "2025",
+          "2030"
+        ],
+        "live_check_required": true
+      },
+      "validation_status": "task_tested",
+      "notes": "Includes historical and projected 5-year population grids; choose observed/projection years explicitly.",
+      "live_validation": {
+        "status": "task_tested",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "JRC/GHSL/P2023A/GHS_POP"
+        ],
+        "observed_bands": {
+          "JRC/GHSL/P2023A/GHS_POP": [
+            "population_count"
+          ]
+        },
+        "observed_temporal_coverage": {
+          "JRC/GHSL/P2023A/GHS_POP": {
+            "start": "1975-01-01",
+            "end": "2030-01-01",
+            "size": 12
+          }
+        },
+        "observed_nominal_scale_m": {
+          "JRC/GHSL/P2023A/GHS_POP": 100
+        },
+        "smoke_tests": [
+          {
+            "label": "ghsl_2020_population_count_sum_shanghai",
+            "status": "ok",
+            "value": {
+              "population_count": 14556124.646010736
+            }
+          }
+        ]
+      }
+    },
+    {
+      "key": "modis_ndvi_evi_500m_16day",
+      "name": "MODIS Terra Vegetation Indices 16-Day",
+      "dataset_id": "MODIS/061/MOD13A1",
+      "category": "vegetation",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "16-day",
+      "scale_m": 500,
+      "primary_bands": [
+        {
+          "band": "NDVI",
+          "meaning": "normalized difference vegetation index",
+          "unit": "unitless",
+          "scale_factor": 0.0001
+        },
+        {
+          "band": "EVI",
+          "meaning": "enhanced vegetation index",
+          "unit": "unitless",
+          "scale_factor": 0.0001
+        }
+      ],
+      "use_when": [
+        "EANTLI",
+        "vegetation correction",
+        "ecological covariate"
+      ],
+      "avoid_when": [
+        "10m land-cover classification"
+      ]
+    },
+    {
+      "key": "modis_ndvi_evi_1km_16day",
+      "name": "MODIS Terra Vegetation Indices 16-Day 1km",
+      "dataset_id": "MODIS/061/MOD13A2",
+      "category": "vegetation",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "16-day",
+      "scale_m": 1000,
+      "primary_bands": [
+        {
+          "band": "NDVI",
+          "meaning": "normalized difference vegetation index",
+          "unit": "unitless",
+          "scale_factor": 0.0001
+        },
+        {
+          "band": "EVI",
+          "meaning": "enhanced vegetation index",
+          "unit": "unitless",
+          "scale_factor": 0.0001
+        }
+      ],
+      "use_when": [
+        "DMSP-era vegetation correction at coarser scale"
+      ],
+      "avoid_when": [
+        "500m VIIRS-aligned work where MOD13A1 is preferable"
+      ]
+    },
+    {
+      "key": "modis_landcover_500m",
+      "name": "MODIS MCD12Q1 Land Cover Type",
+      "dataset_id": "MODIS/061/MCD12Q1",
+      "category": "land_cover",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "annual",
+      "scale_m": 500,
+      "primary_bands": [
+        {
+          "band": "LC_Type1",
+          "meaning": "IGBP land-cover class",
+          "unit": "class code",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "annual land-cover mask",
+        "urban/non-urban masking with MODIS classes"
+      ],
+      "avoid_when": [
+        "fine urban morphology where 10m WorldCover is better"
+      ]
+    },
+    {
+      "key": "esa_worldcover_10m",
+      "name": "ESA WorldCover v200",
+      "dataset_id": "ESA/WorldCover/v200",
+      "category": "land_cover",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "annual/static",
+      "expected_temporal_coverage": {
+        "years": [
+          2021
+        ],
+        "start": "2021-01-01",
+        "end": "2021-01-01",
+        "live_check_required": true
+      },
+      "scale_m": 10,
+      "primary_bands": [
+        {
+          "band": "Map",
+          "meaning": "land-cover class",
+          "unit": "class code",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "fine land-cover masks around 2021",
+        "urban land-cover context"
+      ],
+      "avoid_when": [
+        "long annual time series"
+      ],
+      "validation_status": "task_tested",
+      "live_validation": {
+        "status": "task_tested",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "ESA/WorldCover/v200"
+        ],
+        "observed_bands": {
+          "ESA/WorldCover/v200": [
+            "Map"
+          ]
+        },
+        "observed_temporal_coverage": {
+          "ESA/WorldCover/v200": {
+            "start": "2021-01-01",
+            "end": "2021-01-01",
+            "size": 1
+          }
+        },
+        "observed_nominal_scale_m": {
+          "ESA/WorldCover/v200": 9.276624232772797
+        },
+        "smoke_tests": [
+          {
+            "label": "worldcover_2021_map_hist_shanghai",
+            "status": "ok",
+            "value": {
+              "Map": {
+                "10": 1185053.68627451,
+                "20": 5,
+                "30": 212965.8980392157,
+                "40": 377155.58431372547,
+                "50": 4639661.356862744,
+                "60": 132492.59999999998,
+                "80": 268173.43137254904,
+                "90": 120
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "key": "modis_npp_annual",
+      "name": "MODIS MOD17A3HGF Annual NPP",
+      "dataset_id": "MODIS/061/MOD17A3HGF",
+      "category": "vegetation",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "annual",
+      "scale_m": 500,
+      "primary_bands": [
+        {
+          "band": "Npp",
+          "meaning": "net primary productivity",
+          "unit": "kg*C/m^2",
+          "scale_factor": 0.0001
+        }
+      ],
+      "use_when": [
+        "ecological/economic covariate",
+        "vegetation productivity context"
+      ],
+      "avoid_when": [
+        "nighttime light measurement itself"
+      ]
+    },
+    {
+      "key": "srtm_30m",
+      "name": "NASA SRTM 30m DEM",
+      "dataset_id": "USGS/SRTMGL1_003",
+      "category": "dem",
+      "asset_type": "Image",
+      "temporal_resolution": "static",
+      "scale_m": 30,
+      "primary_bands": [
+        {
+          "band": "elevation",
+          "meaning": "elevation above sea level",
+          "unit": "m",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "terrain control",
+        "topographic masking",
+        "slope/elevation covariates"
+      ],
+      "avoid_when": [
+        "high-latitude areas outside SRTM coverage"
+      ]
+    },
+    {
+      "key": "nasadem_30m",
+      "name": "NASADEM HGT",
+      "dataset_id": "NASA/NASADEM_HGT/001",
+      "category": "dem",
+      "asset_type": "Image",
+      "temporal_resolution": "static",
+      "scale_m": 30,
+      "primary_bands": [
+        {
+          "band": "elevation",
+          "meaning": "elevation above sea level",
+          "unit": "m",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "DEM fallback to SRTM",
+        "terrain covariates"
+      ],
+      "avoid_when": [
+        "task does not need topographic controls"
+      ]
+    },
+    {
+      "key": "firms_active_fire",
+      "name": "FIRMS Active Fire",
+      "dataset_id": "FIRMS",
+      "category": "event_context",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "daily",
+      "primary_bands": [
+        {
+          "band": "T21",
+          "meaning": "MODIS channel 21 brightness temperature/fire signal",
+          "unit": "K",
+          "scale_factor": 1
+        },
+        {
+          "band": "confidence",
+          "meaning": "active fire detection confidence",
+          "unit": "percent/class",
+          "scale_factor": 1
+        },
+        {
+          "band": "line_number",
+          "meaning": "source line number",
+          "unit": "index",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "wildfire context around NTL anomalies",
+        "fire event masking/context"
+      ],
+      "avoid_when": [
+        "burned-area extent; use MCD64A1"
+      ],
+      "expected_temporal_coverage": {
+        "start": "2000-11-01",
+        "end": "2026-04-22",
+        "observed_on": "2026-04-23",
+        "live_check_required": true
+      },
+      "scale_m": 927,
+      "validation_status": "task_tested",
+      "live_validation": {
+        "status": "task_tested",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "FIRMS"
+        ],
+        "observed_bands": {
+          "FIRMS": [
+            "T21",
+            "confidence",
+            "line_number"
+          ]
+        },
+        "observed_temporal_coverage": {
+          "FIRMS": {
+            "start": "2000-11-01",
+            "end": "2026-04-22",
+            "size": 9267
+          }
+        },
+        "observed_nominal_scale_m": {
+          "FIRMS": 926.6254330554165
+        },
+        "smoke_tests": [
+          {
+            "label": "firms_2023_maui_t21_max",
+            "status": "ok",
+            "value": {
+              "T21": 410.6400146484375
+            }
+          }
+        ]
+      }
+    },
+    {
+      "key": "modis_burned_area",
+      "name": "MODIS MCD64A1 Burned Area",
+      "dataset_id": "MODIS/061/MCD64A1",
+      "category": "event_context",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "monthly",
+      "scale_m": 500,
+      "primary_bands": [
+        {
+          "band": "BurnDate",
+          "meaning": "burn day of year",
+          "unit": "day-of-year",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "burned area context for fire-related NTL change"
+      ],
+      "avoid_when": [
+        "real-time active fire detection"
+      ],
+      "validation_status": "task_tested",
+      "live_validation": {
+        "status": "task_tested",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "MODIS/061/MCD64A1"
+        ],
+        "observed_bands": {
+          "MODIS/061/MCD64A1": [
+            "BurnDate",
+            "Uncertainty",
+            "QA",
+            "FirstDay",
+            "LastDay"
+          ]
+        },
+        "observed_temporal_coverage": {
+          "MODIS/061/MCD64A1": {
+            "start": "2000-11-01",
+            "end": "2026-02-01",
+            "size": 304
+          }
+        },
+        "observed_nominal_scale_m": {
+          "MODIS/061/MCD64A1": 463.31271652791656
+        },
+        "smoke_tests": [
+          {
+            "label": "modis_burned_area_2023_burndate_max_maui",
+            "status": "ok",
+            "value": {
+              "BurnDate": 224
+            }
+          }
+        ]
+      }
+    },
+    {
+      "key": "global_flood_db",
+      "name": "Global Flood Database MODIS Events",
+      "dataset_id": "GLOBAL_FLOOD_DB/MODIS_EVENTS/V1",
+      "category": "event_context",
+      "asset_type": "ImageCollection",
+      "temporal_resolution": "event",
+      "scale_m": 250,
+      "primary_bands": [
+        {
+          "band": "flooded",
+          "meaning": "flood extent indicator",
+          "unit": "binary/class",
+          "scale_factor": 1
+        },
+        {
+          "band": "duration",
+          "meaning": "flood duration",
+          "unit": "days",
+          "scale_factor": 1
+        },
+        {
+          "band": "clear_views",
+          "meaning": "clear MODIS observations",
+          "unit": "count",
+          "scale_factor": 1
+        },
+        {
+          "band": "clear_perc",
+          "meaning": "clear observation percentage",
+          "unit": "percent",
+          "scale_factor": 1
+        },
+        {
+          "band": "jrc_perm_water",
+          "meaning": "JRC permanent water mask/context",
+          "unit": "binary/class",
+          "scale_factor": 1
+        }
+      ],
+      "use_when": [
+        "historical flood event context for NTL impact analysis"
+      ],
+      "avoid_when": [
+        "events outside product coverage or needing near-real-time flood mapping"
+      ],
+      "expected_temporal_coverage": {
+        "start": "2000-02-17",
+        "end": "2018-12-05",
+        "live_check_required": true
+      },
+      "validation_status": "task_tested",
+      "live_validation": {
+        "status": "task_tested",
+        "tested_at": "2026-04-23T07:21:38.544272+00:00",
+        "gee_project": "empyrean-caster-430308-m2",
+        "metadata_checked": true,
+        "tested_dataset_ids": [
+          "GLOBAL_FLOOD_DB/MODIS_EVENTS/V1"
+        ],
+        "observed_bands": {
+          "GLOBAL_FLOOD_DB/MODIS_EVENTS/V1": [
+            "flooded",
+            "duration",
+            "clear_views",
+            "clear_perc",
+            "jrc_perm_water"
+          ]
+        },
+        "observed_temporal_coverage": {
+          "GLOBAL_FLOOD_DB/MODIS_EVENTS/V1": {
+            "start": "2000-02-17",
+            "end": "2018-12-05",
+            "size": 913
+          }
+        },
+        "observed_nominal_scale_m": {
+          "GLOBAL_FLOOD_DB/MODIS_EVENTS/V1": 250
+        },
+        "smoke_tests": [
+          {
+            "label": "flood_db_first_flooded_band_stats",
+            "status": "ok",
+            "value": {
+              "flooded": {
+                "0": 139630.75294117647,
+                "1": 7
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "last_live_validation": {
+    "tested_at": "2026-04-23T07:21:38.544272+00:00",
+    "gee_project": "empyrean-caster-430308-m2",
+    "metadata_result_file": "user_data/gee_dataset_registry_live_metadata_20260423.json",
+    "smoke_result_file": "user_data/gee_auxiliary_smoke_tests_20260423.json"
+  }
+}
+

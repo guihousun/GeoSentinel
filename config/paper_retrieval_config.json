@@ -1,0 +1,47 @@
+﻿{
+  "retrieval": {
+    "keywords": [
+      "nighttime light remote sensing",
+      "NTL",
+      "VIIRS",
+      "DMSP-OLS",
+      "VNP46A2",      "urban night light",
+      "night light remote sensing",
+      "city light",
+      "electric power consumption nighttime"
+    ],
+    "sources": [
+      "arxiv",
+      "semantic_scholar"
+    ],
+    "max_results_per_keyword": 50,
+    "min_year": 2010
+  },
+  "output": {
+    "base_dir": "RAG/paper_retrieval",
+    "raw_dir": "RAG/paper_retrieval/raw",
+    "processed_dir": "RAG/paper_retrieval/processed",
+    "metadata_dir": "RAG/paper_retrieval/metadata"
+  },
+  "preprocessing": {
+    "remove_header_footer": true,
+    "remove_references": true,
+    "remove_blank_pages": true,
+    "remove_figure_captions": false,
+    "min_page_length": 100
+  },
+  "semantic_scholar": {
+    "api_key_env": "SEMANTIC_SCHOLAR_API_KEY",
+    "fields": "title,authors,year,abstract,url,doi,venue"
+  },
+  "arxiv": {
+    "categories": [
+      "cs.CV",
+      "cs.GF",
+      "physics.ao-ph",
+      "eess.IV"
+    ],
+    "max_results": 50
+  }
+}
+

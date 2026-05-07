@@ -1,0 +1,149 @@
+{
+  "schema": "ntl.regression_checklist.v1",
+  "cases": [
+    {
+      "case_id": "gee_country_province_stats_china_reduceRegions",
+      "area": ["gee_routing", "workflow", "server_side"],
+      "prompt": "请计算中国2020年34个省级行政区的夜间灯光均值，并输出为表格，按灯光均值从高到低排序。",
+      "expected": {
+        "route": "gee_server_side",
+        "dataset": "projects/sat-io/open-datasets/npp-viirs-ntl",
+        "band": "b1",
+        "method": "ee.Image.reduceRegions over a cloud-hosted province FeatureCollection",
+        "output": "CSV/table sorted by mean NTL"
+      },
+      "prohibited": [
+        "country-scale GeoTIFF direct download as primary path",
+        "bulk provincial shapefile download as primary path",
+        "local raster zonal statistics as primary path"
+      ],
+      "evidence": "Router/plan states reduceRegions; optional execution returns >=31 rows."
+    },
+    {
+      "case_id": "gee_small_country_download_allowed",
+      "area": ["gee_routing", "download_failure_semantics"],
+      "prompt": "下载新加坡2020年年度NPP-VIIRS-like夜间灯光GeoTIFF。",
+      "expected": {
+        "route": "direct_download_first",
+        "dataset": "projects/sat-io/open-datasets/npp-viirs-ntl",
+        "band": "b1"
+      },
+      "prohibited": [
+        "hard-blocking all country-scale downloads before attempting",
+        "server-side table output when user asked for GeoTIFF and AOI is small"
+      ],
+      "evidence": "NTL_download_tool is allowed to try; only switch if actual export/output failure occurs."
+    },
+    {
+      "case_id": "gee_request_size_failure_not_success",
+      "area": ["download_failure_semantics", "file_management"],
+      "prompt": "下载中国2020年年度NTL GeoTIFF。",
+      "expected": {
+        "failure_semantics": "If GEE returns Total request size ... <= 50331648 error, tool returns status=error and no output_files.",
+        "next_route": "gee_server_side only if user intent is statistics; otherwise report file-download limitation"
+      },
+      "prohibited": [
+        "treating printed download error as successful output",
+        "inventing downloaded file paths"
+      ],
+      "evidence": "Tool result has status=error or empty output_files is not described as downloaded."
+    },
+    {
+      "case_id": "gee_iran_first_night_utc_file_date",
+      "area": ["date_boundary", "event_daily", "official_vj_dnb"],
+      "prompt": "伊朗当地 2 月 29 日凌晨首夜影像，应如何匹配 UTC 日期和时间？",
+      "expected": {
+        "local_first_night": "Iran local 02-29 around 00:30-02:30 unless metadata narrows it",
+        "utc_time": "UTC 02-28 around 20:30-23:00 depending exact Iran offset/time and local acquisition time",
+        "file_date_rule": "If official daily product/file is indexed by UTC acquisition time, select the UTC 02-28 image/file, not blindly local 02-29.",
+        "method": "Determine local first-night overpass/acquisition time, convert to UTC, then map to product's date/index convention."
+      },
+      "prohibited": [
+        "selecting image solely by local calendar date",
+        "assuming first-night local date equals UTC file date",
+        "using same-day UTC filter without timezone conversion"
+      ],
+      "evidence": "Plan explicitly states local-to-UTC conversion and selected UTC product date."
+    },
+    {
+      "case_id": "gee_myanmar_first_night_utc_file_date",
+      "area": ["date_boundary", "event_daily", "gee_python"],
+      "prompt": "2025-03-28 06:20 UTC 缅甸地震，使用 VNP46A2 计算首夜影响。",
+      "expected": {
+        "local_time": "2025-03-28 12:50 MMT",
+        "first_night_local_date": "2025-03-29",
+        "local_first_night_acquisition_range": "approximately 2025-03-29 00:30-02:30 MMT unless source metadata narrows it",
+        "utc_acquisition_range": "approximately 2025-03-28 18:00-20:00 UTC",
+        "utc_file_date": "2025-03-28",
+        "file_date_rule": "If the daily product/file is indexed by UTC acquisition or UTC file date, use the UTC 2025-03-28 image/file for the first-night scene; keep 2025-03-29 only as the local night label. If the range crosses a UTC date boundary or the decision is ambiguous, verify with pixel-level UTC_Time only when the source covers the target date; otherwise use LAADS/CMR granule timing or official metadata.",
+        "dataset": "NASA/VIIRS/002/VNP46A2",
+        "band": "Gap_Filled_DNB_BRDF_Corrected_NTL"
+      },
+      "prohibited": [
+        "assuming local first-night date equals UTC file date",
+        "using 2025-03-29 as the UTC-indexed image/file date for the Myanmar first-night scene",
+        "claiming exact 02:00 local acquisition without metadata or valid UTC_Time verification",
+        "empty filterDate(start, same_start)"
+      ],
+      "evidence": "Plan records local_first_night_date=2025-03-29, a local acquisition range, and utc_file_date=2025-03-28; for UTC-indexed VNP46A2/file selection it queries/selects 2025-03-28 and requires valid UTC_Time/source-metadata verification when ambiguous, using LAADS/CMR or official metadata when GEE VNP46A1 coverage is unavailable."
+    },
+    {
+      "case_id": "gee_dataset_selection_monthly_not_daily",
+      "area": ["dataset_selection", "gee_routing"],
+      "prompt": "计算上海2020年每个月的平均夜间灯光并输出时间序列表。",
+      "expected": {
+        "dataset": "NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG",
+        "band": "avg_rad",
+        "route": "gee_server_side table or lightweight monthly workflow"
+      },
+      "prohibited": [
+        "downloading hundreds of VNP46A2 daily images to compute monthly means",
+        "using annual product for monthly time series"
+      ],
+      "evidence": "Dataset selection identifies monthly VIIRS product."
+    },
+    {
+      "case_id": "local_shapefile_stats_allowed",
+      "area": ["local_analysis", "file_management"],
+      "prompt": "已有上海区县shp和上海2020 NTL GeoTIFF，计算各区县平均值。",
+      "expected": {
+        "route": "local_analysis_allowed",
+        "method": "local zonal statistics if both raster and shapefile are present in inputs"
+      },
+      "prohibited": [
+        "unnecessary GEE rewrite",
+        "ignoring existing user-provided files"
+      ],
+      "evidence": "Plan checks existing inputs and chooses local stats or local script."
+    },
+    {
+      "case_id": "script_outputs_workspace_only",
+      "area": ["code_execution", "file_management"],
+      "prompt": "执行任意生成的GEE/Python统计脚本。",
+      "expected": {
+        "path_rule": "Read inputs from current thread inputs; write outputs under current thread outputs using storage_manager or workspace-relative paths.",
+        "no_absolute_paths": true
+      },
+      "prohibited": [
+        "hardcoded D:/NTL-GPT-Clone/user_data/test-id paths inside generated scripts",
+        "writing outputs into repo source folders"
+      ],
+      "evidence": "Script contract and code use resolve_output_path or outputs/."
+    },
+    {
+      "case_id": "gee_user_project_denied_stop",
+      "area": ["gee_execution", "error_handling"],
+      "prompt": "GEE reduceRegion returns USER_PROJECT_DENIED or missing serviceusage.serviceUsageConsumer.",
+      "expected": {
+        "status": "needs_engineer_decision",
+        "reason": "environment/IAM/API enablement problem"
+      },
+      "prohibited": [
+        "changing dataset to hide IAM error",
+        "retrying arbitrary project IDs",
+        "claiming no data"
+      ],
+      "evidence": "Failure is surfaced as authorization/config issue."
+    }
+  ]
+}

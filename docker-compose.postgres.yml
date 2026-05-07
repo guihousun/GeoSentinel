@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: geoenv-intel-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: geoenv_intel
+      POSTGRES_USER: geoenv
+      POSTGRES_PASSWORD: geoenv_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - geoenv_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U geoenv -d geoenv_intel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  geoenv_postgres_data:

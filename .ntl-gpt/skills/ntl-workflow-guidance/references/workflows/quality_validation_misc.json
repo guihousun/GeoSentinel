@@ -1,0 +1,39 @@
+[
+  {
+    "task_id": "Q24",
+    "task_name": "Preprocess DMSP-OLS NTL using EANTLI transformation (2000–2012)",
+    "category": "Data Preprocessing > Cross-sensor harmonization",
+    "description": "Enhance historical DMSP-OLS NTL datasets (2000–2012) by applying the EANTLI (Enhanced Vegetation Adjusted Nighttime Light Index) formula. This method integrates NTL brightness with annual EVI composites to mitigate sensor saturation and bloom effects, facilitating temporal consistency with modern VIIRS data.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "DMSP-OLS",
+          "time_range_input": "2012 to 2012",
+          "out_name": "Shanghai_DMSP_2012.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Utilize GEE (MODIS/061/MOD13A2) to retrieve the 2012 annual median EVI (Enhanced Vegetation Index) composite for Shanghai. Resample and align it to match the DMSP-OLS resolution, then save to 'inputs/Shanghai_EVI_2012.tif'.",
+        "name": "geospatial_code_step_2"
+      },
+      {
+        "type": "builtin_tool",
+        "name": "DMSP_Preprocess",
+        "input": {
+          "dmsp_tif": "Shanghai_DMSP_2012.tif",
+          "evi_tif": "Shanghai_EVI_2012.tif",
+          "output_tif": "Shanghai_EANTLI_2012.tif"
+        }
+      }
+    ],
+    "output": "outputs/Shanghai_EANTLI_2012.tif"
+  }
+]
