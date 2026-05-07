@@ -49,11 +49,11 @@ class RuntimeGovernanceTests(unittest.TestCase):
 
         self.assertEqual(
             deepagents_memory_namespace(first),
-            ("NTL_Engineer", "alice", "alice-flood"),
+            ("Engineer", "alice", "alice-flood"),
         )
         self.assertEqual(
             deepagents_memory_namespace(second),
-            ("NTL_Engineer", "alice", "alice-wildfire"),
+            ("Engineer", "alice", "alice-wildfire"),
         )
         self.assertNotEqual(
             deepagents_memory_namespace(first),
@@ -72,7 +72,7 @@ class RuntimeGovernanceTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(deepagents_memory_namespace(runtime), ("NTL_Engineer", "alice"))
+        self.assertEqual(deepagents_memory_namespace(runtime), ("Engineer", "alice"))
 
     def test_active_run_limits_have_safe_defaults_and_env_overrides(self) -> None:
         self.assertEqual(max_active_runs(), 10)

@@ -1,6 +1,16 @@
-# 地缘环境智能计算平台
+# GeoSentinel · 地缘环境智能计算平台
 
-地缘环境智能计算平台是一个面向冲突事件跟踪、地缘环境监测和夜间灯光证据分析的本地多智能体系统。当前版本以 `conflict_ntl_analysis` 为核心能力：从事件源获取冲突事件，执行事件筛选和 AOI 生成，并对接 VIIRS/VNP46A2、官方 VJ-DNB 和本地栅格统计工具，形成可复核的夜光分析证据链。
+GeoSentinel（地缘环境智能计算平台）是一个面向冲突事件跟踪、地缘环境监测和夜间灯光证据分析的本地多智能体系统。
+
+## 智能体架构
+
+平台由 Supervisor Agent（Engineer）统一调度两个专业化 Subagent：
+
+| Agent | 职责 |
+|-------|------|
+| **Engineer** | 任务分解、CoT 编排、脚本契约设计、工作流进化决策 |
+| **Data Searcher** | 多源数据检索：GEE 影像、行政边界（geoBoundaries/Amap/OSM）、官方统计数据、事件信息 |
+| **Code Assistant** | Python 地理空间脚本验证与执行：rasterio / geopandas / GEE API / Matplotlib |
 
 ## 核心能力
 
@@ -9,8 +19,6 @@
 - AOI 生成：为 exact/general-neighborhood 事件生成 2 km / 5 km buffer，并生成行政区 AOI 任务队列。
 - 夜光分析衔接：面向 VNP46A2、官方 VJ-DNB fullchain、栅格统计、预览和 GIF 工具输出 handoff contract。
 - 报告沉淀：生成 case report、manifest、runbook 和后续 manuscript 可用的证据表。
-
-本项目不暴露 SDGSAT-1 相关工具，包括条带噪声去除、SDGSAT-1 辐射定标和 SDGSAT-1 光谱指数计算。界面和默认工具列表聚焦 ConflictNTL、VIIRS/VNP46A2、官方 VJ-DNB 和通用地理空间分析能力。
 
 ## 目录结构
 
@@ -25,10 +33,10 @@
 
 ## Conda 环境配置
 
-推荐使用已有环境名 `NTL-GPT-Stable`：
+使用 `geoenv-intelligent-platform` 环境：
 
 ```powershell
-conda activate NTL-GPT-Stable
+conda activate geoenv-intelligent-platform
 python -m pip install -U pip
 python -m pip install -r requirements.txt
 ```
@@ -63,13 +71,11 @@ Copy-Item .env.example .env
 notepad .env
 ```
 
-最低模型配置通常需要：
+最低模型配置：
 
 ```text
-DASHSCOPE_API_KEY=
-DASHSCOPE_Qwen_plus_KEY=
-DASHSCOPE_Qwen_plus_URL=
-DASHSCOPE_Coding_URL=
+DEEPSEEK_API_KEY=
+DEEPSEEK_Coding_URL=https://api.deepseek.com
 ```
 
 可选外部服务：
@@ -81,7 +87,6 @@ GOOGLE_OAUTH_CLIENT_SECRET=
 GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8502
 NTL_TOKEN_ENCRYPTION_KEY=
 EARTHDATA_TOKEN=
-OPENAI_API_KEY=
 ```
 
 不要提交 `.env`、token、GEE 凭证、Earthdata 凭证、用户工作区或下载数据。
@@ -134,10 +139,10 @@ docker compose -f docker-compose.postgres.yml down -v
 
 ## 启动平台
 
-使用 `NTL-GPT-Stable` 环境启动：
+使用 `geoenv-intelligent-platform` 环境启动：
 
 ```powershell
-conda run -n NTL-GPT-Stable python -m streamlit run Streamlit.py --server.port 8502
+conda run -n geoenv-intelligent-platform python -m streamlit run Streamlit.py --server.port 8502
 ```
 
 或在已激活环境中：

@@ -10,9 +10,7 @@ from dotenv import dotenv_values
 
 MODEL_OPTIONS = [
     "deepseek-v4-pro",
-    "qwen3.6-plus",
-    "qwen3.5-plus",
-    ]
+]
 DEEPSEEK_DEFAULT_BASE_URL = "https://api.deepseek.com"
 PROJECT_DOTENV = Path(__file__).resolve().parent / ".env"
 
@@ -24,23 +22,13 @@ class ModelRuntimeConfig:
     api_key_env: str | None = None
     base_url_env: str | None = None
     default_base_url: str | None = None
-    key_label: str = "OpenAI API Key"
+    key_label: str = "API Key"
     uses_env_api_key: bool = False
 
 
 def get_model_config(model_name: str) -> ModelRuntimeConfig:
     name = str(model_name or "").strip()
     normalized = name.lower().replace("-", "").replace("_", "").replace(" ", "").replace(".", "")
-
-    if normalized.startswith("qwen"):
-        return ModelRuntimeConfig(
-            provider="dashscope",
-            api_model=name,
-            api_key_env="DASHSCOPE_API_KEY",
-            base_url_env="DASHSCOPE_Coding_URL",
-            key_label="DashScope API Key",
-            uses_env_api_key=True,
-        )
 
     if normalized.startswith("deepseek"):
         return ModelRuntimeConfig(
@@ -53,10 +41,15 @@ def get_model_config(model_name: str) -> ModelRuntimeConfig:
             uses_env_api_key=True,
         )
 
-    if "claude" in normalized:
-        return ModelRuntimeConfig(provider="anthropic", api_model=name, key_label="Anthropic API Key")
-
-    return ModelRuntimeConfig(provider="openai", api_model=name, key_label="OpenAI API Key")
+    return ModelRuntimeConfig(
+        provider="deepseek",
+        api_model="deepseek-v4-pro",
+        api_key_env="DEEPSEEK_API_KEY",
+        base_url_env="DEEPSEEK_Coding_URL",
+        default_base_url=DEEPSEEK_DEFAULT_BASE_URL,
+        key_label="DeepSeek API Key",
+        uses_env_api_key=True,
+    )
 
 
 def get_api_model_name(model_name: str) -> str:
@@ -97,9 +90,5 @@ def missing_env_for_model(model_name: str) -> list[str]:
     config = get_model_config(model_name)
     missing: list[str] = []
     if config.api_key_env and not _get_configured_env(config.api_key_env):
-        missing.append(config.api_key_env)
-    if config.provider == "dashscope" and config.base_url_env and not _get_configured_env(config.base_url_env):
-        missing.append(config.base_url_env)
-    if config.provider == "deepseek" and config.api_key_env and not _get_configured_env(config.api_key_env):
         missing.append(config.api_key_env)
     return missing

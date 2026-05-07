@@ -1,8 +1,8 @@
-﻿# AGENTS.md
+# AGENTS.md
 
 ## Project Snapshot
 
-地缘环境智能计算平台 is a Streamlit application for geostrategic environmental intelligence and nighttime-light evidence analysis. It combines a Chinese chat UI, Deep Agents / LangGraph-style orchestration, ConflictNTL event screening, Google Earth Engine and VIIRS workflows, local geospatial processing tools, and local RAG assets.
+GeoSentinel (地缘环境智能计算平台) is a Streamlit application for geostrategic environmental intelligence. It combines a Chinese chat UI, Deep Agents / LangGraph-style orchestration, ConflictNTL event screening, Google Earth Engine and VIIRS/VNP46A2 workflows, official VJ-DNB processing, local geospatial analysis tools, and local RAG assets.
 
 ### Repository Map
 - `Streamlit.py`: application entrypoint.
@@ -11,8 +11,8 @@
 - `app_logic.py`: run lifecycle, event streaming, cancellation, stale-run recovery, output collection, and chat history writes.
 - `app_agents.py`: Streamlit-cached graph wrapper. Keep its public signature stable for UI callers.
 - `graph_factory.py`: graph construction, model selection, skill discovery, backend routing, subagent setup, and supervisor prompt assembly.
-- `agents/`: system prompts and subagent definitions.
-- `tools/`: domain tools for retrieval, GEE, VIIRS, preprocessing, statistics, rendering, and knowledge-base access.
+- `agents/`: system prompts and subagent definitions (Engineer, Data_Searcher, Code_Assistant).
+- `tools/`: domain tools for retrieval, GEE, VIIRS, preprocessing, statistics, rendering, and conflict-event analysis.
 - `storage_manager.py`: canonical workspace, input/output, memory, and shared-data path resolution.
 - `history_store.py`: persistent chat, turn summaries, and injected-context records.
 - `file_context_service.py`: uploaded file parsing and context extraction.
@@ -21,9 +21,10 @@
 - `check_env.py`, `.env.example`, `environment.yml`: environment bootstrap and readiness checks.
 
 ### Project Scope
-- The primary capability is `conflict_ntl_analysis`: conflict event intake, screening, AOI generation, VIIRS/VNP46A2 handoff, and case-report evidence packaging.
+- The core capability is `conflict_ntl_analysis`: conflict event intake, screening, AOI generation, VIIRS/VNP46A2 handoff, official VJ-DNB processing, and local raster statistics — producing a verifiable nighttime-light evidence chain suitable for case-report packaging.
+- Supported data sources: VIIRS/VNP46A2 (daily), official VJ-DNB, NPP-VIIRS (annual/monthly), DMSP-OLS, LandScan, NDVI, admin boundaries (geoBoundaries/Amap/OSM), and socio-economic indicators.
 - The UI is Chinese-only. Do not reintroduce CN/EN toggles unless explicitly requested.
-- Do not expose SDGSAT-1 tools in `tools/__init__.py`, prompts, routing skills, or UI examples.
+- Do not expose SDGSAT-1 tools (stripe noise removal, radiometric calibration, spectral index calculation) in `tools/__init__.py`, prompts, routing skills, or UI examples.
 
 ## Operating Principles
 
@@ -62,43 +63,7 @@ This repository prefers robust, reusable capability upgrades over query-specific
 ### Environment and Secrets
 - Never commit `.env`, tokens, API keys, Earthdata credentials, GEE credentials, downloaded private data, or local user workspaces.
 - Keep `.env.example`, `README.md`, and `check_env.py` in sync when adding, renaming, or removing environment variables.
-- Current required DashScope variables are documented in `README.md` and checked by `check_env.py`.
-- `DASHSCOPE_API_KEY` and `DASHSCOPE_Qwen_plus_KEY` may serve different model channels; do not collapse them unless the runtime code and docs are updated together.
-
-### Feishu/Lark OpenAPI MCP
-- Use the official `@larksuiteoapi/lark-mcp` package for Feishu/Lark cloud document access. The `meegle` skill/CLI is for Feishu Project (Meego/Meegle) work items and does not read `/docx/...` cloud documents.
-- Install the MCP CLI when needed:
-  ```bash
-  npm install -g @larksuiteoapi/lark-mcp
-  ```
-- Required environment variables for application identity:
-  ```bash
-  FEISHU_APP_ID=<app_id>
-  FEISHU_APP_SECRET=<app_secret>
-  ```
-- Do not print or commit these secrets. When probing the environment, list variable names only.
-- Start the MCP server over stdio with the smallest useful tool set. For cloud document reading, enable:
-  ```bash
-  lark-mcp mcp -a "$FEISHU_APP_ID" -s "$FEISHU_APP_SECRET" \
-    --tools "docx.v1.document.get,docx.v1.document.rawContent,docs.v1.content.get,drive.v1.exportTask.create,drive.v1.exportTask.get" \
-    --token-mode tenant_access_token \
-    --language zh
-  ```
-- For Windows subprocess clients, spawn via `cmd.exe /c lark-mcp ...` if direct `spawn("lark-mcp")` or `spawn("lark-mcp.cmd")` fails.
-- To read a Feishu document URL such as `https://my.feishu.cn/docx/<document_id>`, use the token after `/docx/` as `document_id` / `doc_token`.
-- Prefer these MCP tools:
-  - `docx_v1_document_get` for title and revision metadata.
-  - `docx_v1_document_rawContent` for plain text content.
-  - `docs_v1_content_get` with `doc_type=docx` and `content_type=markdown` for Markdown content.
-  - `drive_v1_exportTask_create` and `drive_v1_exportTask_get` for exporting documents when raw/Markdown content is not enough.
-- If application identity cannot access a document, use OAuth user identity instead. Configure the Feishu app redirect URL as `http://localhost:3000/callback`, then login:
-  ```bash
-  lark-mcp login -a "$FEISHU_APP_ID" -s "$FEISHU_APP_SECRET" --scope "offline_access docx:document"
-  ```
-- Then start MCP with user tokens:
-  ```bash
-  lark-mcp mcp -a "$FEISHU_APP_ID" -s "$FEISHU_APP_SECRET" --oauth --token-mode user_access_token
-  ```
+- The platform uses DeepSeek V4 Pro as the sole backend model. Required env var: `DEEPSEEK_API_KEY`.
 
 ## Validation Baseline
 
@@ -176,14 +141,6 @@ PY
 - Do not push a branch containing known syntax errors unless the branch is explicitly for preserving a broken snapshot.
 - If creating a branch for review, base it on `upstream/main` unless the user asks for a different base.
 - Do not commit generated caches, local workspaces, credentials, or transient outputs unless the repository intentionally tracks that asset class.
-
-## Result Bus Isolation Policy
-
-### Mandatory Runtime Safety Rules
-- If users request cross-device result notifications, use an independent Git result bus repo, for example `E:\codex-result-bus`.
-- Never run result-sync `git push` or `git pull` operations inside the active project workspace.
-- Consumer machine 地缘环境智能计算平台 should pull and notify only; do not push back.
-- If remote is unavailable, persist a local snapshot commit first and report the missing remote as an actionable item.
 
 ## Quick Agent Checklist
 

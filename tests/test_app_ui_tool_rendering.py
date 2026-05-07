@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import unittest
 from unittest import mock
@@ -20,7 +20,7 @@ import app_ui
 class AppUiToolRenderingTests(unittest.TestCase):
     def test_streaming_signatures_are_stable_and_change_with_inputs(self) -> None:
         chat = [("user", "show Beijing lights"), ("assistant", "working")]
-        logs = [{"messages": [AIMessage(content="Plan", name="NTL_Engineer")]}]
+        logs = [{"messages": [AIMessage(content="Plan", name="Engineer")]}]
 
         chat_sig = app_ui._compute_streaming_chat_signature(
             chat,
@@ -79,14 +79,14 @@ class AppUiToolRenderingTests(unittest.TestCase):
         self.assertNotEqual(
             reasoning_sig,
             app_ui._compute_streaming_reasoning_signature(
-                logs + [{"messages": [AIMessage(content="Summarize", name="NTL_Engineer")]}]
+                logs + [{"messages": [AIMessage(content="Summarize", name="Engineer")]}]
             ),
         )
 
     def test_streaming_render_flags_skip_when_poll_has_no_changes(self) -> None:
         state = {
             "chat_history": [("user", "question")],
-            "analysis_logs": [{"messages": [AIMessage(content="Thinking", name="NTL_Engineer")]}],
+            "analysis_logs": [{"messages": [AIMessage(content="Thinking", name="Engineer")]}],
             "is_running": True,
             "run_last_terminal_kind": "",
         }
@@ -107,7 +107,7 @@ class AppUiToolRenderingTests(unittest.TestCase):
     def test_streaming_render_flags_redraw_only_changed_placeholders(self) -> None:
         state = {
             "chat_history": [("user", "question")],
-            "analysis_logs": [{"messages": [AIMessage(content="Thinking", name="NTL_Engineer")]}],
+            "analysis_logs": [{"messages": [AIMessage(content="Thinking", name="Engineer")]}],
             "is_running": True,
             "run_last_terminal_kind": "",
         }
@@ -152,7 +152,7 @@ class AppUiToolRenderingTests(unittest.TestCase):
                 "messages": [
                     AIMessage(
                         content="",
-                        name="NTL_Engineer",
+                        name="Engineer",
                         tool_calls=[
                             {
                                 "name": "read_file",
@@ -203,7 +203,7 @@ class AppUiToolRenderingTests(unittest.TestCase):
     def test_edit_file_metadata_includes_target_and_replacement_preview(self) -> None:
         msg = AIMessage(
             content="",
-            name="NTL_Engineer",
+            name="Engineer",
             tool_calls=[
                 {
                     "name": "edit_file",
@@ -296,7 +296,7 @@ class AppUiToolRenderingTests(unittest.TestCase):
             {
                 "nodes": [
                     {"data": {"id": "start", "label": "START", "kind": "system"}},
-                    {"data": {"id": "ai", "label": "AI: NTL_Engineer", "kind": "ai"}},
+                    {"data": {"id": "ai", "label": "AI: Engineer", "kind": "ai"}},
                 ],
                 "edges": [{"data": {"source": "start", "target": "ai"}, "classes": "flow"}],
             }
@@ -306,14 +306,14 @@ class AppUiToolRenderingTests(unittest.TestCase):
         self.assertIn('fontcolor="#eaf1ff"', dot)
 
     def test_reasoning_headers_distinguish_agent_roles(self) -> None:
-        engineer = app_ui._reasoning_agent_meta("NTL_Engineer")
+        engineer = app_ui._reasoning_agent_meta("Engineer")
         code = app_ui._reasoning_agent_meta("Code_Assistant")
         html = app_ui._reasoning_header_html("AI", engineer["label"], engineer["role"], accent=engineer["accent"])
 
         self.assertNotEqual(engineer["accent"], code["accent"])
         self.assertIn("ntl-reasoning-header", html)
         self.assertIn("ntl-reasoning-header-plain", html)
-        self.assertIn("NTL_Engineer", html)
+        self.assertIn("Engineer", html)
         self.assertIn(engineer["accent"], html)
         self.assertEqual(engineer["role"], "")
 
@@ -327,7 +327,7 @@ class AppUiToolRenderingTests(unittest.TestCase):
         grouped = app_ui._build_reasoning_sections(
             [
                 {"messages": [HumanMessage(content="Original user query")]},
-                {"messages": [AIMessage(content="Route to subagent", name="NTL_Engineer")]},
+                {"messages": [AIMessage(content="Route to subagent", name="Engineer")]},
                 {"messages": [HumanMessage(content="Execute the saved script")]},
             ]
         )

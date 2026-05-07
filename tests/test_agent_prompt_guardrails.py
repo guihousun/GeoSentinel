@@ -1,7 +1,7 @@
 import unittest
 
-from agents.NTL_Engineer import system_prompt_text
-from agents.NTL_Code_Assistant import Code_Assistant_system_prompt_text
+from agents.Engineer import system_prompt_text
+from agents.Code_Assistant import Code_Assistant_system_prompt_text
 
 
 class AgentPromptGuardrailTests(unittest.TestCase):

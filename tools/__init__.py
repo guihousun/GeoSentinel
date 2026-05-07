@@ -29,7 +29,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     ),
     "NDVI_download_tool": (".Other_image_download", "NDVI_download_tool"),
     "LandScan_download_tool": (".Other_image_download", "LandScan_download_tool"),
-    "google_bigquery_search": (".Google_Bigquery", "google_bigquery_search"),
     "Tavily_search": (".TavilySearch", "Tavily_search"),
     "China_Official_Stats_tool": (".China_official_stats", "China_Official_Stats_tool"),
     "China_Official_GDP_tool": (".China_official_stats", "China_Official_GDP_tool"),

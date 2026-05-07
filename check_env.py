@@ -10,16 +10,11 @@ ROOT = Path(__file__).resolve().parent
 DOTENV_PATH = ROOT / ".env"
 
 REQUIRED_ENV = [
-    "DASHSCOPE_API_KEY",
-    "DASHSCOPE_Qwen_plus_KEY",
-    "DASHSCOPE_Qwen_plus_URL",
-    "DASHSCOPE_Coding_URL",
+    "DEEPSEEK_API_KEY",
 ]
 
 OPTIONAL_ENV = [
-    "DEEPSEEK_API_KEY",
     "DEEPSEEK_Coding_URL",
-    "OPENAI_API_KEY",
     "GEE_DEFAULT_PROJECT_ID",
     "GOOGLE_OAUTH_CLIENT_ID",
     "GOOGLE_OAUTH_CLIENT_SECRET",

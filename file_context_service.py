@@ -113,7 +113,7 @@ def _content_to_text(content: Any) -> str:
 
 def _image_vlm_summary(
     path: Path,
-    model_name: str = "qwen3.5-plus",
+    model_name: str = "deepseek-v4-pro",
     api_key: Optional[str] = None,
     timeout_s: int = 90,
 ) -> Tuple[Optional[str], Dict[str, Any], Optional[str]]:
@@ -124,30 +124,23 @@ def _image_vlm_summary(
     if ChatOpenAI is None:
         return None, {"model": model_name}, "langchain_openai is unavailable for VLM."
 
-    key = (api_key or os.getenv("DASHSCOPE_API_KEY") or os.getenv("QWEN_API_KEY") or "").strip()
+    key = (api_key or os.getenv("DEEPSEEK_API_KEY") or "").strip()
     if not key:
-        return None, {"model": model_name}, "DASHSCOPE_API_KEY/QWEN_API_KEY is missing for VLM image understanding."
+        return None, {"model": model_name}, "DEEPSEEK_API_KEY is missing for VLM image understanding."
 
     data_url = _encode_image_data_url(path)
     prompt = (
         "You are a geospatial-vision analyst. Analyze this image and return concise factual understanding. "
         "Include: observed objects/patterns, likely geospatial relevance, potential quality risks, "
-        "and what downstream NTL/GIS tasks this image can support."
+        "and what downstream GIS/NTL conflict-analysis tasks this image can support."
     )
     try:
-        if "qwen" in model_name.lower():
-            llm = ChatOpenAI(
-                api_key=SecretStr(key),
-                base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-                model=model_name,
-                timeout=timeout_s,
-            )
-        else:
-            llm = ChatOpenAI(
-                api_key=SecretStr(key),
-                model=model_name,
-                timeout=timeout_s,
-            )
+        llm = ChatOpenAI(
+            api_key=SecretStr(key),
+            base_url="https://api.deepseek.com",
+            model=model_name,
+            timeout=timeout_s,
+        )
 
         msg = HumanMessage(
             content=[
@@ -300,7 +293,7 @@ def build_context_items_for_files(
     thread_id: str,
     file_names: List[str],
     max_pages: int = 120,
-    vlm_model_name: str = "qwen3.5-plus",
+    vlm_model_name: str = "deepseek-v4-pro",
     vlm_timeout_s: int = 90,
     workspace_lookup: str = "auto",
 ) -> Dict[str, Any]:

@@ -225,7 +225,7 @@ def _run_understanding(
         thread_id=thread_id,
         file_names=targets,
         max_pages=120,
-        vlm_model_name="qwen3.5-plus",
+        vlm_model_name="deepseek-v4-pro",
         vlm_timeout_s=90,
         workspace_lookup=workspace_lookup,
     )

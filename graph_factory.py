@@ -8,16 +8,15 @@ from deepagents import create_deep_agent
 from deepagents.backends import CompositeBackend, FilesystemBackend, StoreBackend
 from deepagents.backends.utils import create_file_data
 from deepagents.middleware.skills import _list_skills
-from langchain.chat_models import init_chat_model
 from langchain_openai import ChatOpenAI
 from langgraph.store.memory import InMemoryStore
 from pathlib import Path
 from pydantic import SecretStr
 
-from agents.NTL_Code_Assistant import Code_Assistant_system_prompt_text
-from agents.NTL_Data_Searcher import system_prompt_data_searcher
-from agents.NTL_Engineer import system_prompt_text
-from model_config import get_api_model_name, get_base_url, get_model_config
+from agents.Code_Assistant import Code_Assistant_system_prompt_text
+from agents.Data_Searcher import system_prompt_data_searcher
+from agents.Engineer import system_prompt_text
+from model_config import get_api_model_name, get_base_url
 from runtime_governance import (
     ASSISTANT_ID,
     deepagents_memory_namespace,
@@ -130,22 +129,12 @@ def _seed_local_memory_to_store(
 
 
 def _build_llm(model_name: str, api_key: str, request_timeout_s: int):
-    model_config = get_model_config(model_name)
     api_model = get_api_model_name(model_name)
-    if model_config.provider in {"dashscope", "deepseek"}:
-        return ChatOpenAI(
-            api_key=SecretStr(api_key),
-            base_url=get_base_url(model_name),
-            model=api_model,
-            timeout=request_timeout_s,
-        )
-    return init_chat_model(
-        api_model,
-        model_provider="openai",
-        api_key=api_key,
-        temperature=0,
+    return ChatOpenAI(
+        api_key=SecretStr(api_key),
+        base_url=get_base_url(model_name),
+        model=api_model,
         timeout=request_timeout_s,
-        max_retries=3,
     )
 
 
@@ -189,7 +178,7 @@ def build_ntl_graph(
     model_name: str,
     api_key: str,
     request_timeout_s: int = 120,
-    graph_name: str = "NTL_Engineer",
+    graph_name: str = "Engineer",
     postgres_url: str | None = None,
 ):
     store, checkpointer, lifecycle_stack = _build_persistence(postgres_url)

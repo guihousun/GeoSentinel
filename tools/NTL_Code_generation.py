@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import ast
 import contextlib
@@ -940,7 +940,7 @@ def _preflight_checks(code: str, strict_mode: bool) -> Dict[str, Any]:
         if has_bbox and not has_admin_boundary and not has_user_bbox_override:
             msg = (
                 "Detected bbox AOI without administrative-boundary confirmation. "
-                "Use NTL_Engineer-confirmed boundary file/asset (via upstream data retrieval), "
+                "Use Engineer-confirmed boundary file/asset (via upstream data retrieval), "
                 "or add `# AOI_CONFIRMED_BY_USER` if user explicitly provided coordinates."
             )
             warnings.append(msg)
@@ -1049,7 +1049,7 @@ def _derive_fix_suggestions(error_type: Optional[str], error_message: Optional[s
 
     if "bbox aoi" in msg or "boundary" in msg:
         fixes.append(
-            "Escalate to NTL_Engineer to obtain a verified administrative boundary "
+            "Escalate to Engineer to obtain a verified administrative boundary "
             "(source, CRS, bounds) from upstream retrieval."
         )
         fixes.append("Avoid self-defined bbox for named regions unless user explicitly provided coordinates.")
@@ -1926,7 +1926,7 @@ def execute_geospatial_script(
                     "recommendation": "handoff_to_engineer_with_context",
                     "reason": (
                         f"Repeated identical execution failure detected ({repeated_failure_count} times). "
-                        "Escalate to NTL_Engineer instead of continued self-debug."
+                        "Escalate to Engineer instead of continued self-debug."
                     ),
                 }
             )

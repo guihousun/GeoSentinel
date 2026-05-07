@@ -1,4 +1,4 @@
-﻿from dotenv import load_dotenv
+from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
@@ -17,5 +17,5 @@ def get_ntl_graph(model_name: str, api_key: str, request_timeout_s: int = 120, s
         model_name=model_name,
         api_key=api_key,
         request_timeout_s=request_timeout_s,
-        graph_name="NTL_Engineer",
+        graph_name="Engineer",
     )

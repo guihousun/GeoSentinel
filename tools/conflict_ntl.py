@@ -348,6 +348,17 @@ def _resolve_read_path(path_text: str, thread_id: str) -> Path:
     workspace = storage_manager.get_workspace(thread_id).resolve()
     inputs_root = (workspace / "inputs").resolve()
     outputs_root = (workspace / "outputs").resolve()
+    if storage_manager._is_deepagents_virtual_path(raw):
+        path = storage_manager.resolve_workspace_relative_path(
+            raw,
+            thread_id=thread_id,
+            default_root="outputs",
+            create_parent=False,
+            allow_memory=False,
+        )
+        if not path.exists():
+            raise FileNotFoundError(f"Input not found: {path}")
+        return path
     if raw_path.is_absolute():
         resolved = raw_path.resolve()
         if not (_is_at_or_under(resolved, inputs_root) or _is_at_or_under(resolved, outputs_root)):
@@ -360,6 +371,9 @@ def _resolve_read_path(path_text: str, thread_id: str) -> Path:
         if _is_at_or_under(cwd_candidate, inputs_root) or _is_at_or_under(cwd_candidate, outputs_root):
             return cwd_candidate
         raise PermissionError("Repository-relative read paths must stay under the thread inputs or outputs directory.")
+    shared_candidate = (storage_manager.shared_dir / raw).resolve()
+    if shared_candidate.exists():
+        return shared_candidate
     path = storage_manager.resolve_workspace_relative_path(
         raw,
         thread_id=thread_id,
@@ -1643,8 +1657,12 @@ def _child_output_root(output_root: str, parent_label: str) -> str:
     return f"{root}/{parent_label}".strip("/")
 
 
-def _load_json_file(path_text: str) -> dict[str, Any]:
-    path = Path(path_text)
+def _load_json_file(path_text: str, thread_id: Optional[str] = None) -> dict[str, Any]:
+    tid = str(thread_id or current_thread_id.get() or "debug").strip() or "debug"
+    path = storage_manager.resolve_workspace_relative_path(
+        path_text, thread_id=tid,
+        default_root="outputs", create_parent=False, allow_memory=False,
+    )
     if not path.exists():
         return {}
     data = json.loads(path.read_text(encoding="utf-8-sig"))
@@ -1759,6 +1777,11 @@ def run_conflict_ntl_agent_system(
     child_root = _child_output_root(output_root, parent_label)
     radii = _parse_radii(buffer_radii_m)
 
+    child_config: dict[str, Any] = dict(config) if isinstance(config, dict) else {}
+    configurable = child_config.setdefault("configurable", {})
+    if isinstance(configurable, dict):
+        configurable["thread_id"] = thread_id
+
     stages: dict[str, Any] = {}
 
     screen = run_conflict_ntl_screen_events(
@@ -1767,7 +1790,7 @@ def run_conflict_ntl_agent_system(
         run_label="01_screen_events",
         event_window_start=event_window_start,
         event_window_end=event_window_end,
-        config={"configurable": {"thread_id": thread_id}},
+        config=child_config,
     )
     stages["screen_events"] = screen
 
@@ -1777,7 +1800,7 @@ def run_conflict_ntl_agent_system(
         run_label="02_analysis_units",
         buffer_radii_m=buffer_radii_m,
         overlap_threshold=overlap_threshold,
-        config={"configurable": {"thread_id": thread_id}},
+        config=child_config,
     )
     stages["generate_analysis_units"] = units
 
@@ -1788,7 +1811,7 @@ def run_conflict_ntl_agent_system(
         top_candidates_csv_path=screen["output_files"]["top_candidates"],
         output_root=child_root,
         run_label="03_case_report",
-        config={"configurable": {"thread_id": thread_id}},
+        config=child_config,
     )
     stages["build_case_report"] = report
 

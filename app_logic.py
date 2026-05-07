@@ -447,7 +447,7 @@ def _serialize_analysis_logs(logs: list) -> list:
 
 def inject_selected_files_to_context(file_names: list[str], max_pages: int = 120) -> dict:
     thread_id = str(st.session_state.get("thread_id") or "debug")
-    vlm_model_name = str(st.session_state.get("cfg_model") or "qwen3.5-plus")
+    vlm_model_name = str(st.session_state.get("cfg_model") or "deepseek-v4-pro")
     result = file_context_service.build_context_items_for_files(
         thread_id=thread_id,
         file_names=file_names,
@@ -978,7 +978,7 @@ def _worker_run_main(run_id: str) -> None:
         current_gee_encrypted_refresh_token.reset(gee_refresh_token)
         current_gee_token_scopes.reset(gee_scopes_token)
 
-    preferred_agents = ["NTL_Engineer"]
+    preferred_agents = ["Engineer"]
     if not final_answer and last_event and "messages" in last_event:
         final_answer = _extract_meaningful_ai_text(last_event.get("messages"), preferred_agents=preferred_agents)
 
