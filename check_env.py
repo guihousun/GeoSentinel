@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import importlib
 import os
@@ -17,8 +17,8 @@ REQUIRED_ENV = [
 ]
 
 OPTIONAL_ENV = [
-    "MINIMAX_API_KEY",
-    "MINIMAX_Coding_URL",
+    "DEEPSEEK_API_KEY",
+    "DEEPSEEK_Coding_URL",
     "OPENAI_API_KEY",
     "GEE_DEFAULT_PROJECT_ID",
     "GOOGLE_OAUTH_CLIENT_ID",

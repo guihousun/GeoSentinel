@@ -17,7 +17,6 @@ from pydantic import SecretStr
 from agents.NTL_Code_Assistant import Code_Assistant_system_prompt_text
 from agents.NTL_Data_Searcher import system_prompt_data_searcher
 from agents.NTL_Engineer import system_prompt_text
-from agents.NTL_Knowledge_Subagent import system_prompt_kb_searcher
 from model_config import get_api_model_name, get_base_url, get_model_config
 from runtime_governance import (
     ASSISTANT_ID,
@@ -28,7 +27,6 @@ from runtime_governance import (
 )
 from storage_manager import current_thread_id, storage_manager
 from tools import Code_tools, Engineer_tools, data_searcher_tools
-from tools.NTL_Knowledge_Base_Searcher import NTL_Knowledge_Base
 
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -134,7 +132,7 @@ def _seed_local_memory_to_store(
 def _build_llm(model_name: str, api_key: str, request_timeout_s: int):
     model_config = get_model_config(model_name)
     api_model = get_api_model_name(model_name)
-    if model_config.provider in {"dashscope", "minimax"}:
+    if model_config.provider in {"dashscope", "deepseek"}:
         return ChatOpenAI(
             api_key=SecretStr(api_key),
             base_url=get_base_url(model_name),
@@ -199,16 +197,6 @@ def build_ntl_graph(
     use_store_memory = memory_backend_mode(persistence_url) == "store"
 
     llm = _build_llm(model_name=model_name, api_key=api_key, request_timeout_s=request_timeout_s)
-    # code_assistant_llm = _build_ark_llm(
-    #     model_name="doubao-seed-2.0-code",
-    #     default_api_key=api_key,
-    #     request_timeout_s=request_timeout_s,
-    # )
-    knowledge_base_llm = ChatOpenAI(
-        model_name="qwen-plus",
-        api_key=os.getenv("DASHSCOPE_Qwen_plus_KEY"),
-        base_url=os.getenv("DASHSCOPE_Qwen_plus_URL"),
-    )
 
     project_memory_path = Path(__file__).resolve().parent / ".ntl-gpt" / MEMORY_FILE_NAME
 
@@ -278,19 +266,9 @@ def build_ntl_graph(
         "skills": [SKILLS_SOURCE],
     }
 
-    knowledge_base_subagent = {
-        "name": "Knowledge_Base_Searcher",
-        "description": "NTL domain knowledge specialist: grounded methods, workflow planning, and task-level JSON intent.",
-        "system_prompt": system_prompt_kb_searcher,
-        "model": knowledge_base_llm,
-        "tools": [NTL_Knowledge_Base],
-        "skills": [SKILLS_SOURCE],
-    }
-
     configured_skill_sources = [
         *data_searcher_subagent.get("skills", []),
         *code_assistant_subagent.get("skills", []),
-        *knowledge_base_subagent.get("skills", []),
         SKILLS_SOURCE,
     ]
     _validate_skill_sources(configured_skill_sources)
@@ -317,7 +295,6 @@ Deep Agents virtual-path compatibility (alias mapping):
 - `/shared/<file>` -> `base_data/<file>`
 
 Delegation policy:
-- Use `Knowledge_Base_Searcher` for methodology/workflow grounding and task-level JSON framing.
 - Use `Data_Searcher` for retrieval and metadata validation.
 - Use `Code_Assistant` for code validation and execution.
 - Keep delegation sequential (one subagent at a time).
@@ -328,7 +305,7 @@ Delegation policy:
     ntl_agent = create_deep_agent(
         model=llm,
         tools=Engineer_tools,
-        subagents=[data_searcher_subagent, code_assistant_subagent, knowledge_base_subagent],
+        subagents=[data_searcher_subagent, code_assistant_subagent],
         system_prompt=NTL_SYSTEM_PROMPT,
         skills=[SKILLS_SOURCE],
         memory=["/memories/NTL_AGENT_MEMORY.md"],

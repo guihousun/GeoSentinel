@@ -1,4 +1,4 @@
-﻿import os
+import os
 import re
 import json
 import hashlib
@@ -2492,120 +2492,6 @@ def _parse_literature_records_from_text(text: str) -> list[dict]:
     return records
 
 
-def render_kb_tool_output(raw_content, tool_name: str = ""):
-    """Render KB tool outputs robustly (single JSON, multi-JSON, or plain literature text)."""
-    if isinstance(raw_content, (dict, list)):
-        _render_static_json_block(raw_content, title="Knowledge JSON")
-        return
-    text = str(raw_content or "")
-    if not text.strip():
-        return
-
-    parsed = None
-    try:
-        parsed = json.loads(text)
-    except Exception:
-        parsed = None
-    if parsed is not None:
-        _render_static_json_block(parsed, title="Knowledge JSON")
-        return
-
-    chunks, rest = _extract_all_json_chunks(text)
-    if chunks:
-        if len(chunks) == 1 and (not isinstance(rest, str) or not rest.strip()):
-            _render_static_json_block(chunks[0], title="Knowledge JSON")
-        else:
-            _render_static_json_block(chunks, title="Knowledge JSON")
-            if isinstance(rest, str) and rest.strip():
-                st.caption(_sanitize_paths_in_text(rest))
-        return
-
-    tool_name_norm = str(tool_name or "").strip().lower()
-    if "literature_knowledge" in tool_name_norm:
-        records = _parse_literature_records_from_text(text)
-        if records:
-            _render_static_json_block(records, title="Literature JSON")
-            return
-
-    st.write(_sanitize_paths_in_text(text))
-
-
-def _normalize_kb_payload(data: dict) -> dict:
-    """Normalize heterogeneous KB payloads into a render-friendly schema."""
-    if not isinstance(data, dict):
-        return {}
-
-    normalized = dict(data)
-    schema = str(normalized.get("schema") or "").strip().lower()
-    workflow = normalized.get("workflow")
-    if isinstance(workflow, dict):
-        for key in ("task_id", "task_name", "category", "description", "steps", "output", "result", "sources"):
-            if key not in normalized and key in workflow:
-                normalized[key] = workflow.get(key)
-
-    if schema == "ntl.kb.response.v2":
-        normalized["mode"] = normalized.get("mode") or ""
-        if not isinstance(normalized.get("intent"), dict):
-            normalized["intent"] = {}
-        intent = normalized.get("intent") if isinstance(normalized.get("intent"), dict) else {}
-        if "proposed_task_level" not in normalized and intent.get("proposed_task_level"):
-            normalized["proposed_task_level"] = intent.get("proposed_task_level")
-        if "task_level_reason_codes" not in normalized and isinstance(intent.get("task_level_reason_codes"), list):
-            normalized["task_level_reason_codes"] = intent.get("task_level_reason_codes")
-        if "task_level_confidence" not in normalized and intent.get("task_level_confidence") is not None:
-            normalized["task_level_confidence"] = intent.get("task_level_confidence")
-        if "message" not in normalized and normalized.get("reason"):
-            normalized["message"] = normalized.get("reason")
-        if "reason" not in normalized and normalized.get("message"):
-            normalized["reason"] = normalized.get("message")
-    elif schema == "ntl.kb.subagent.response.v1":
-        intent_block = normalized.get("intent_analysis") if isinstance(normalized.get("intent_analysis"), dict) else {}
-        response_block = normalized.get("response") if isinstance(normalized.get("response"), dict) else {}
-        for key in ("task_id", "task_name", "category", "description", "steps", "output", "result"):
-            if key not in normalized and key in response_block:
-                normalized[key] = response_block.get(key)
-        if "proposed_task_level" not in normalized and intent_block.get("proposed_task_level"):
-            normalized["proposed_task_level"] = intent_block.get("proposed_task_level")
-        if "task_level_reason_codes" not in normalized and isinstance(intent_block.get("task_level_reason_codes"), list):
-            normalized["task_level_reason_codes"] = intent_block.get("task_level_reason_codes")
-        if "task_level_confidence" not in normalized and intent_block.get("task_level_confidence") is not None:
-            normalized["task_level_confidence"] = intent_block.get("task_level_confidence")
-        if "mode" not in normalized:
-            normalized["mode"] = "workflow"
-
-    task_name = normalized.get("task_name") or normalized.get("task") or normalized.get("title") or normalized.get("task_id")
-    if task_name:
-        normalized["task_name"] = task_name
-
-    normalized["category"] = normalized.get("category") or normalized.get("type") or ""
-    if "output" not in normalized and "result" in normalized:
-        normalized["output"] = normalized.get("result")
-
-    steps_raw = normalized.get("steps")
-    if steps_raw is None and isinstance(workflow, dict):
-        steps_raw = workflow.get("steps")
-
-    if isinstance(steps_raw, dict):
-        try:
-            keys = sorted(steps_raw.keys(), key=lambda x: int(str(x)) if str(x).isdigit() else str(x))
-        except Exception:
-            keys = list(steps_raw.keys())
-        steps = [steps_raw[k] for k in keys]
-    elif isinstance(steps_raw, list):
-        steps = steps_raw
-    else:
-        steps = []
-
-    normalized_steps = []
-    for step in steps:
-        if isinstance(step, dict):
-            normalized_steps.append(step)
-        elif step is not None:
-            normalized_steps.append({"type": "note", "name": str(step)})
-    normalized["steps"] = normalized_steps
-    return normalized
-
-
 def _strip_legacy_stream_marker(content):
     """Remove legacy inline streaming headings from historical text payloads."""
     if not isinstance(content, str):
@@ -2636,9 +2522,9 @@ def render_bot_message(msg):
 def _reasoning_agent_meta(agent_name: str) -> dict:
     normalized = str(agent_name or "AI").strip()
     key = normalized.lower()
-    if key == "ntl_engineer":
+    if key == "ntl_engineer" or key == "engineer":
         return {
-            "label": "NTL_Engineer",
+            "label": "Engineer",
             "role": "",
             "accent": "#5eead4",
             "tone": "teal",
@@ -2656,13 +2542,6 @@ def _reasoning_agent_meta(agent_name: str) -> dict:
             "role": "",
             "accent": "#fbbf24",
             "tone": "amber",
-        }
-    if key in {"knowledge_base_searcher", "knowledge_base_subagent"}:
-        return {
-            "label": normalized,
-            "role": "",
-            "accent": "#86efac",
-            "tone": "green",
         }
     return {
         "label": normalized or "AI",
@@ -3169,144 +3048,6 @@ def render_data_searcher_output(raw_content):
     with _render_popover("View Raw JSON"):
         _render_static_json_block(data, title="Raw JSON")
     if isinstance(rest, str) and rest.strip(): _render_reasoning_text(rest, accent="#fbbf24")
-
-
-def render_kb_output(kb_content):
-    """Render NTL knowledge-base output."""
-    data, rest = None, kb_content
-    if isinstance(kb_content, dict): data, rest = kb_content, ""
-    elif isinstance(kb_content, str): data, rest = _extract_json(kb_content)
-
-    if not isinstance(data, dict):
-        if isinstance(rest, str) and rest.strip(): _render_reasoning_text(rest, accent="#86efac")
-        return
-
-    normalized = _normalize_kb_payload(data)
-    status = str(normalized.get("status") or "").strip().lower()
-    if status in {"no_valid_tool", "empty_store", "code_corpus_unavailable", "error"}:
-        reason = normalized.get("reason") or normalized.get("message") or "No details provided."
-        st.warning(f"Knowledge base ({status}): {_sanitize_paths_in_text(reason)}")
-        if normalized.get("sources"):
-            with _render_popover("Sources"):
-                _render_static_json_block(normalized["sources"], title="Sources JSON")
-        with _render_popover("Raw JSON"):
-            _render_static_json_block(data, title="Raw JSON")
-        if isinstance(rest, str) and rest.strip(): _render_reasoning_text(rest, accent="#86efac")
-        return
-
-    if (
-        not normalized.get("steps")
-        and not normalized.get("description")
-        and not normalized.get("output")
-        and (normalized.get("reason") or normalized.get("message"))
-    ):
-        st.warning(_sanitize_paths_in_text(f"Knowledge base: {normalized.get('reason') or normalized.get('message')}"))
-        if normalized.get("sources"):
-            with _render_popover("Sources"):
-                _render_static_json_block(normalized["sources"], title="Sources JSON")
-        with _render_popover("Raw JSON"):
-            _render_static_json_block(data, title="Raw JSON")
-        if isinstance(rest, str) and rest.strip(): _render_reasoning_text(rest, accent="#86efac")
-        return
-
-    task = normalized.get("task_name") or normalized.get("task_id") or "Knowledge Base Task"
-    category = normalized.get("category", "")
-    mode = normalized.get("mode", "")
-    schema = normalized.get("schema", "")
-    st.markdown(f"""
-        <div style="border:1px solid #e3e7ef;border-radius:8px;padding:14px;background:#f9fbff">
-          <div style="font-size:18px;font-weight:700;color:#2b4a8b;">task: {task}</div>
-          <div style="margin-top:4px;color:#5f6b7a;">category: {category}</div>
-          <div style="margin-top:2px;color:#6b7280;font-size:0.88rem;">mode: {mode or '-'} | schema: {schema or '-'}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    proposed_level = str(normalized.get("proposed_task_level") or "").strip()
-    reason_codes = normalized.get("task_level_reason_codes")
-    if not isinstance(reason_codes, list):
-        reason_codes = []
-    confidence = normalized.get("task_level_confidence")
-    if proposed_level:
-        confidence_text = "-"
-        try:
-            confidence_text = f"{float(confidence):.2f}"
-        except Exception:
-            confidence_text = "-"
-        reason_text = ", ".join(str(code) for code in reason_codes) if reason_codes else "-"
-        st.markdown(
-            f"**KB preliminary level**: `{proposed_level}`  |  **reason codes**: `{reason_text}`  |  **confidence**: `{confidence_text}`"
-        )
-
-    if normalized.get("description"):
-        st.markdown("**Description**")
-        st.write(normalized["description"])
-
-    steps = normalized.get("steps") or []
-
-    if steps:
-        st.markdown("**Steps**")
-        for i, step in enumerate(steps, 1):
-            typ, name = step.get("type", ""), step.get("name", "")
-            note, desc = step.get("note", ""), step.get("description", "")
-            st.markdown(f"- **{i}. {name or typ}**")
-            
-            has_input = "input" in step and step["input"]
-            main_info = note or desc
-            
-            if has_input:
-                with _render_popover(main_info or "Step Details"):
-                    _render_static_json_block(step["input"], title="Step input")
-            elif main_info:
-                st.markdown(
-                    f"&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:gray; font-size:0.95em;'>{_sanitize_paths_in_text(main_info)}</span>",
-                    unsafe_allow_html=True,
-                )
-
-            if typ in ("geospatial_code", "code"):
-                code_text = step.get("code") or step.get("Code_description")
-                if code_text:
-                    lang = (step.get("language") or "python").lower()
-                    with _render_popover(f"View {lang} Code"):
-                        _render_static_code_block(code_text, language=lang, title=f"{lang} code")
-
-            if step.get("sources"):
-                srcs = step["sources"]
-                if isinstance(srcs, list):
-                    # Clean up list formatting
-                    sources_str = ", ".join(str(s) for s in srcs)
-                else:
-                    sources_str = str(srcs)
-                st.markdown(f"*Sources for this step: {_sanitize_paths_in_text(sources_str)}*")
-
-    if normalized.get("output"):
-        st.markdown("**Output**")
-        st.write(_sanitize_paths_in_text(str(normalized["output"])))
-    elif not steps and not normalized.get("description"):
-        st.info("Knowledge base returned structured data without workflow steps.")
-        summary = {}
-        for key in ("task_name", "task_id", "category", "store", "message", "reason", "query"):
-            if normalized.get(key):
-                summary[key] = normalized.get(key)
-        if summary:
-            _render_static_json_block(summary, title="Summary JSON")
-
-    with _render_popover("Raw JSON"):
-        _render_static_json_block(data, title="Raw JSON")
-    
-    if normalized.get("supplementary_text"):
-        st.markdown("---")
-        with st.expander("Supplementary Knowledge & Code (Mixed Mode)", expanded=False):
-            st.markdown(_sanitize_paths_in_text(str(normalized.get("supplementary_text"))))
-
-    if isinstance(rest, str) and rest.strip(): 
-        # Keep supplementary content in an expander and downgrade headings
-        # to avoid visually overriding the main response area.
-        import re
-        formatted_rest = re.sub(r'^(#+)\s', r'#### ', rest, flags=re.MULTILINE)
-
-        st.markdown("---")
-        with st.expander("Supplementary Knowledge & Code (Mixed Mode)", expanded=False):
-            st.markdown(formatted_rest)
 
 
 def render_uploaded_understanding_output(raw_content, tool_name: str = ""):
@@ -6030,7 +5771,7 @@ def _infer_transfer_target_agent(tool_name: str):
         or "transfer_to_ntl_engineer" in name
         or "transfer_back_to_engineer" in name
     ):
-        return "NTL_Engineer"
+        return "Engineer"
     m = re.search(r"transfer_to_([a-z0-9_]+)", name)
     if m:
         suffix = m.group(1)
@@ -6038,98 +5779,10 @@ def _infer_transfer_target_agent(tool_name: str):
     return None
 
 
-def _kb_phase_specs() -> list[tuple[str, str, str]]:
-    return [
-        ("query_received", _tr("已接收查询", "Query Received"), _tr("已进入检索流程", "Entered retrieval flow")),
-        (
-            "knowledge_retrieval",
-            _tr("知识检索", "Knowledge Retrieval"),
-            _tr("正在检索知识库候选内容", "Retrieving candidate context from KB"),
-        ),
-        (
-            "workflow_assembly",
-            _tr("LLM 响应", "LLM Response"),
-            _tr("LLM 正在生成响应", "LLM is generating response"),
-        ),
-        (
-            "structured_output",
-            _tr("结构化输出", "Structured Output"),
-            _tr("正在准备可渲染 JSON 合约", "Preparing renderable JSON contract"),
-        ),
-    ]
-
-
-def _build_kb_progress_nodes_from_records(records: list[dict]) -> list[dict]:
-    if not records:
-        return []
-    latest_by_phase = {}
-    for item in records:
-        phase = str(item.get("phase", "")).strip()
-        if phase:
-            latest_by_phase[phase] = item
-
-    nodes = []
-    for phase_key, label, default_detail in _kb_phase_specs():
-        record = latest_by_phase.get(phase_key)
-        status = str((record or {}).get("status", "")).strip().lower()
-        done = status == "done"
-        running = status == "running"
-        error = status == "error"
-        meta = (record or {}).get("meta")
-        error_summary = ""
-        if isinstance(meta, dict):
-            error_summary = str(meta.get("error_summary", "")).strip()
-        detail = str((record or {}).get("label", "")).strip() or default_detail
-        if error and error_summary:
-            detail = f"{detail} | {error_summary}"
-        nodes.append(
-            {
-                "key": phase_key,
-                "label": label,
-                "done": done,
-                "running": running,
-                "error": error,
-                "detail": detail,
-            }
-        )
-    return nodes
-
-
-def _render_kb_progress_nodes(nodes: list[dict], caption_text: str):
-    if not nodes:
-        return
-    done = sum(1 for n in nodes if n.get("done"))
-    total = len(nodes)
-    st.caption(caption_text)
-    st.progress(done / total if total else 0.0)
-    cols = st.columns(total)
-    for idx, node in enumerate(nodes):
-        icon = "..."
-        if node.get("error"):
-            icon = "x"
-        elif node.get("done"):
-            icon = "ok"
-        elif node.get("running"):
-            icon = "..."
-        with cols[idx]:
-            st.markdown(f"**{icon} {node.get('label', '')}**")
-            if node.get("error"):
-                st.caption(node.get("detail", ""))
-
-
 def _build_reasoning_graph_payload(events, show_sub_steps: bool = False):
     grouped = _build_reasoning_sections(events)
     if not grouped:
         return None
-    has_final_kb_tool = any(
-        step.get("kind") == "tool"
-        and any(
-            isinstance(msg, ToolMessage)
-            and "ntl_knowledge_base" in str(getattr(msg, "name", "")).strip().lower()
-            for msg in (step.get("messages") or [])
-        )
-        for step in grouped
-    )
 
     nodes = [
         {"data": {"id": "start", "label": "START", "kind": "system"}, "classes": "system"},
@@ -6203,17 +5856,6 @@ def _build_reasoning_graph_payload(events, show_sub_steps: bool = False):
             if prev_ai != node_id:
                 # Agent handoff or context switch: avoid cross-agent tool clustering.
                 last_tool_cluster = None
-            continue
-
-        if kind == "kb_progress":
-            if has_final_kb_tool:
-                continue
-            node_id = f"kbp_{len([n for n in nodes if str((n.get('data') or {}).get('id', '')).startswith('kbp_')]) + 1}"
-            add_node(node_id, "KB Progress", "tool_kb")
-            add_edge(last_ai or last_anchor, node_id, "tool_call_edge")
-            add_edge(node_id, last_ai or last_anchor, "return_edge")
-            last_anchor = last_ai or last_anchor
-            last_tool_cluster = None
             continue
 
         if kind == "tool":
@@ -6661,18 +6303,6 @@ def render_reasoning_content(events):
     if not grouped:
         st.caption(_tr("等待推理事件...", "Waiting for reasoning events..."))
         return
-    has_final_kb_response = any(
-        step.get("kind") == "ai"
-        and (
-            str(step.get("agent") or "").strip().lower() == "knowledge_base_searcher"
-            or str(step.get("agent") or "").strip().lower() == "knowledge_base_subagent"
-        )
-        and any(
-            str(_normalize_content_to_text(_strip_legacy_stream_marker(getattr(msg, "content", ""))) or "").strip()
-            for msg in (step.get("messages") or [])
-        )
-        for step in grouped
-    )
 
     for step in grouped:
         if step["kind"] == "human":
@@ -6705,17 +6335,12 @@ def render_reasoning_content(events):
                     render_data_searcher_output(msg_content)
                 elif agent_name.lower() == "code_assistant":
                     _render_code_assistant_message(msg_content)
-                elif agent_name.lower() == "knowledge_base_searcher" or str(agent_name or "").strip().lower() == "knowledge_base_subagent":
-                    render_kb_output(msg_content)
                 else:
                     _render_reasoning_text(msg_content, accent=agent_meta["accent"])
             st.markdown(_reasoning_divider_html(), unsafe_allow_html=True)
         elif step["kind"] == "tool":
             tool_messages = _dedupe_tool_messages([m for m in step["messages"] if isinstance(m, ToolMessage)])
             for msg in tool_messages:
-                if msg.name and "NTL_Knowledge_Base" in msg.name:
-                    # KB output is now rendered on Knowledge_Base_Searcher AI messages.
-                    continue
                 exp_title = _tr(f"工具输出 · {msg.name}", f"Tool Output · {msg.name}")
                 with st.expander(exp_title, expanded=False):
                     render_label_tool(str(msg.name or "tool"))
@@ -6734,40 +6359,11 @@ def render_reasoning_content(events):
                         "uploaded_file_understanding_tool",
                     }:
                         render_uploaded_understanding_output(msg.content, tool_name=str(msg.name or ""))
-                    elif any(
-                        token in str(msg.name or "").strip().lower()
-                        for token in (
-                            "ntl_solution_knowledge",
-                            "ntl_literature_knowledge",
-                            "ntl_code_knowledge",
-                            "solution_knowledge",
-                            "literature_knowledge",
-                            "code_knowledge",
-                        )
-                    ):
-                        render_kb_tool_output(msg.content, tool_name=str(msg.name or ""))
                     else:
                         try:
                             _render_static_json_block(json.loads(msg.content), title="Tool JSON")
                         except Exception:
                             _render_reasoning_text(str(msg.content), accent="#93c5fd")
-            st.markdown(_reasoning_divider_html(), unsafe_allow_html=True)
-        elif step["kind"] == "kb_progress":
-            if has_final_kb_response:
-                continue
-            records = [x for x in step.get("records", []) if isinstance(x, dict)]
-            if not records:
-                continue
-            nodes = _build_kb_progress_nodes_from_records(records)
-            if not nodes:
-                continue
-            exp_title = _tr("工具输出 · NTL_Knowledge_Base", "Tool Output · NTL_Knowledge_Base")
-            with st.expander(exp_title, expanded=False):
-                render_label_tool("NTL_Knowledge_Base")
-                _render_kb_progress_nodes(
-                    nodes,
-                    _tr("NTL_Knowledge_Base_Searcher 节点进度（流式）", "NTL_Knowledge_Base_Searcher Node Progress (Streaming)"),
-                )
             st.markdown(_reasoning_divider_html(), unsafe_allow_html=True)
         elif step["kind"] == "custom_notice":
             for record in (step.get("records") or []):
@@ -7071,10 +6667,9 @@ def _render_chat_history_with_run_notice() -> None:
 
 
 _SUBAGENT_CARD_ORDER = [
-    "Knowledge_Base_Searcher",
     "Data_Searcher",
     "Code_Assistant",
-    "NTL_Engineer",
+    "Engineer",
 ]
 
 
@@ -7082,14 +6677,12 @@ def _normalize_subagent_name(raw_name: str) -> str:
     name = str(raw_name or "").strip().lower()
     if not name:
         return ""
-    if "knowledge_base" in name:
-        return "Knowledge_Base_Searcher"
     if "data_searcher" in name:
         return "Data_Searcher"
     if "code_assistant" in name:
         return "Code_Assistant"
     if "engineer" in name or name == "ntl-gpt":
-        return "NTL_Engineer"
+        return "Engineer"
     return ""
 
 
@@ -7113,10 +6706,9 @@ def _extract_latest_agent_text(logs: list, target_agent: str) -> str:
 
 def _display_agent_label(agent_name: str) -> str:
     mapping = {
-        "Knowledge_Base_Searcher": "Knowledge Base",
         "Data_Searcher": "Data Searcher",
         "Code_Assistant": "Code Assistant",
-        "NTL_Engineer": "NTL Engineer",
+        "Engineer": "Engineer",
     }
     return mapping.get(str(agent_name or "").strip(), str(agent_name or "").replace("_", " "))
 
@@ -7138,8 +6730,8 @@ def _build_subagent_lifecycle_state(logs: list, is_running: bool, last_terminal_
 
     if not encountered:
         if is_running:
-            state["NTL_Engineer"]["status"] = "running"
-            state["NTL_Engineer"]["summary"] = _tr("任务已启动", "Run started")
+            state["Engineer"]["status"] = "running"
+            state["Engineer"]["summary"] = _tr("任务已启动", "Run started")
         return state
 
     for idx, agent in enumerate(encountered):
@@ -7153,9 +6745,9 @@ def _build_subagent_lifecycle_state(logs: list, is_running: bool, last_terminal_
 
     terminal = str(last_terminal_kind or "").strip().lower()
     if terminal == "error":
-        state["NTL_Engineer"]["status"] = "error"
+        state["Engineer"]["status"] = "error"
     elif terminal == "interrupted":
-        state["NTL_Engineer"]["status"] = "interrupted"
+        state["Engineer"]["status"] = "interrupted"
 
     return state
 

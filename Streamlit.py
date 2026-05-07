@@ -44,7 +44,7 @@ def main():
     top_left, _ = st.columns([0.90, 0.10])
     with top_left:
         title = "地缘环境智能计算平台"
-        desc = "面向冲突事件跟踪、地缘环境监测与夜间灯光证据分析的多智能体计算平台。当前版本以 ConflictNTL 分析链为核心，支持事件获取、筛选、AOI 生成、VIIRS/VNP46A2 夜光分析任务编排与报告沉淀。"
+        desc = "面向冲突事件跟踪、地缘环境监测与夜间灯光证据分析的多智能体计算平台。"
         contact_label = "联系方式"
 
         st.markdown(

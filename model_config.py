@@ -9,14 +9,11 @@ from dotenv import dotenv_values
 
 
 MODEL_OPTIONS = [
+    "deepseek-v4-pro",
     "qwen3.6-plus",
     "qwen3.5-plus",
-    "MiniMax-M2.7",
-    "GPT-5.4",
-    "GPT-5.4-mini",
-    "GPT-5.4-nano",
-]
-MINIMAX_DEFAULT_BASE_URL = "https://api.minimaxi.com/v1"
+    ]
+DEEPSEEK_DEFAULT_BASE_URL = "https://api.deepseek.com"
 PROJECT_DOTENV = Path(__file__).resolve().parent / ".env"
 
 
@@ -45,19 +42,16 @@ def get_model_config(model_name: str) -> ModelRuntimeConfig:
             uses_env_api_key=True,
         )
 
-    if normalized in {"minimax27", "minimaxm27", "codexminimaxm27"}:
+    if normalized.startswith("deepseek"):
         return ModelRuntimeConfig(
-            provider="minimax",
-            api_model="MiniMax-M2.7",
-            api_key_env="MINIMAX_API_KEY",
-            base_url_env="MINIMAX_Coding_URL",
-            default_base_url=MINIMAX_DEFAULT_BASE_URL,
-            key_label="MiniMax API Key",
+            provider="deepseek",
+            api_model="deepseek-v4-pro",
+            api_key_env="DEEPSEEK_API_KEY",
+            base_url_env="DEEPSEEK_Coding_URL",
+            default_base_url=DEEPSEEK_DEFAULT_BASE_URL,
+            key_label="DeepSeek API Key",
             uses_env_api_key=True,
         )
-
-    if normalized.startswith("gpt"):
-        return ModelRuntimeConfig(provider="openai", api_model=name.lower(), key_label="OpenAI API Key")
 
     if "claude" in normalized:
         return ModelRuntimeConfig(provider="anthropic", api_model=name, key_label="Anthropic API Key")
@@ -106,4 +100,6 @@ def missing_env_for_model(model_name: str) -> list[str]:
         missing.append(config.api_key_env)
     if config.provider == "dashscope" and config.base_url_env and not _get_configured_env(config.base_url_env):
         missing.append(config.base_url_env)
+    if config.provider == "deepseek" and config.api_key_env and not _get_configured_env(config.api_key_env):
+        missing.append(config.api_key_env)
     return missing
