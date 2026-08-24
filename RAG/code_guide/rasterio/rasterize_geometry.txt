@@ -1,0 +1,8 @@
+{
+    "Language": "Python",
+    "Platform": "Python",
+    "Library": "rasterio",
+    "Title": "",
+    "Description": "",
+    "Code": "import logging\nimport numpy as np\nimport sys\nimport rasterio\nfrom rasterio.features import rasterize\nfrom rasterio.transform import IDENTITY\n\n\nlogging.basicConfig(stream=sys.stderr, level=logging.INFO)\nlogger = logging.getLogger('rasterize_geometry')\n\n\nrows = cols = 10\n\ngeometry = {\n    'type': 'Polygon',\n    'coordinates': [[(2, 2), (2, 4.25), (4.25, 4.25), (4.25, 2), (2, 2)]]}\n\n\nwith rasterio.Env():\n    result = rasterize([geometry], out_shape=(rows, cols))\n    with rasterio.open(\n            \"test.tif\",\n            'w',\n            driver='GTiff',\n            width=cols,\n            height=rows,\n            count=1,\n            dtype=np.uint8,\n            nodata=0,\n            transform=IDENTITY,\n            crs={'init': \"EPSG:4326\"}) as out:\n        out.write(result.astype(np.uint8), indexes=1)\n"
+}

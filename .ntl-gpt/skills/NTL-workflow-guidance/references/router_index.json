@@ -1,0 +1,272 @@
+{
+  "schema": "ntl.workflow.intent.router.v1",
+  "updated_at": "2026-03-04T00:00:00Z",
+  "version": "2.0",
+  "description": "Enhanced router index with expanded intent coverage and keyword mappings for improved matching accuracy. PREFERRED alternative to Knowledge_Base_Searcher.",
+  "intents": [
+    {
+      "intent_id": "data_retrieval_preprocessing",
+      "intent_name": "data retrieval preprocessing",
+      "workflow_file": "/skills/ntl-workflow-guidance/references/workflows/data_retrieval_preprocessing.json",
+      "priority": 1,
+      "source_categories": [
+        "Data Retrieval and Preprocessing"
+      ],
+      "keywords": [
+        "download",
+        "retrieve",
+        "fetch",
+        "get data",
+        "NTL_download_tool",
+        "destripe",
+        "destriping",
+        "strip removal",
+        "calibrate",
+        "radiometric calibration",
+        "radiance",
+        "preprocess",
+        "preprocessing",
+        "quality control",
+        "official source",
+        "laads",
+        "vj102dnb",
+        "vj103dnb",
+        "noaa20 dnb",
+        "preprocess-only",
+        "convert_vj102_vj103_precise_to_tif_tool"
+      ],
+      "example_queries": [
+        "Download NTL data for Shanghai 2020",
+        "Remove stripes from SDGSAT-1 image",
+        "Calibrate nighttime light imagery",
+        "Get VIIRS daily data for Myanmar"
+      ]
+    },
+    {
+      "intent_id": "statistical_analysis",
+      "intent_name": "statistical analysis",
+      "workflow_file": "/skills/ntl-workflow-guidance/references/workflows/statistical_analysis.json",
+      "priority": 2,
+      "source_categories": [
+        "NTL statistics"
+      ],
+      "keywords": [
+        "statistics",
+        "zonal",
+        "regional",
+        "average",
+        "mean",
+        "ANTL",
+        "point extraction",
+        "pixel value",
+        "radiance at location",
+        "threshold",
+        "proportion",
+        "percentage",
+        "histogram",
+        "brightest",
+        "darkest",
+        "maximum",
+        "minimum"
+      ],
+      "example_queries": [
+        "Calculate average NTL for each district",
+        "Find brightest pixel in city",
+        "What proportion of pixels exceed threshold 50",
+        "Extract NTL value at specific location"
+      ]
+    },
+    {
+      "intent_id": "trend_change_detection",
+      "intent_name": "trend change detection",
+      "workflow_file": "/skills/ntl-workflow-guidance/references/workflows/trend_change_detection.json",
+      "priority": 3,
+      "source_categories": [
+        "NTL statistics"
+      ],
+      "keywords": [
+        "trend",
+        "change",
+        "time series",
+        "temporal",
+        "multi-year",
+        "Mann-Kendall",
+        "Sen's slope",
+        "slope analysis",
+        "anomaly",
+        "spike",
+        "fluctuation",
+        "sudden change",
+        "increase",
+        "decrease",
+        "growth",
+        "decline",
+        "expansion"
+      ],
+      "example_queries": [
+        "Analyze NTL trend from 2015 to 2024",
+        "Detect sudden brightness changes",
+        "Find areas with declining nighttime light",
+        "Calculate urban expansion rate"
+      ]
+    },
+    {
+      "intent_id": "regression_indicator_estimation",
+      "intent_name": "regression indicator estimation",
+      "workflow_file": "/skills/ntl-workflow-guidance/references/workflows/regression_indicator_estimation.json",
+      "priority": 4,
+      "source_categories": [
+        "Application and Modeling > Socio-economic indicator modeling",
+        "Application and Modeling > Socio-economic indicator estimation"
+      ],
+      "keywords": [
+        "GDP",
+        "economic",
+        "regression",
+        "modeling",
+        "estimation",
+        "population",
+        "demographic",
+        "CO2",
+        "emissions",
+        "carbon",
+        "DEI",
+        "digital economy",
+        "electric power",
+        "consumption",
+        "correlation",
+        "R-squared",
+        "model",
+        "predict"
+      ],
+      "example_queries": [
+        "Estimate GDP from nighttime light",
+        "Model population distribution using NTL",
+        "Calculate CO2 emissions from NTL data",
+        "Digital economy indicator estimation"
+      ]
+    },
+    {
+      "intent_id": "event_impact_assessment",
+      "intent_name": "event impact assessment",
+      "workflow_file": "/skills/ntl-workflow-guidance/references/workflows/event_impact_assessment.json",
+      "priority": 5,
+      "source_categories": [
+        "Application and Modeling > Disaster monitoring"
+      ],
+      "keywords": [
+        "earthquake",
+        "disaster",
+        "flood",
+        "hurricane",
+        "typhoon",
+        "conflict",
+        "war",
+        "blackout",
+        "power outage",
+        "damage",
+        "impact assessment",
+        "before after",
+        "recovery",
+        "resilience",
+        "first night",
+        "post-event",
+        "baseline",
+        "change detection"
+      ],
+      "example_queries": [
+        "Assess earthquake impact on power infrastructure",
+        "Analyze blackout after hurricane",
+        "Compare NTL before and after flood",
+        "Monitor post-disaster recovery"
+      ]
+    },
+    {
+      "intent_id": "urban_extraction_structure",
+      "intent_name": "urban extraction structure",
+      "workflow_file": "/skills/ntl-workflow-guidance/references/workflows/urban_extraction_structure.json",
+      "priority": 6,
+      "source_categories": [
+        "Application and Modeling > Urban spatial structure analyses",
+        "Application and Modeling > Urban spatial structure extraction"
+      ],
+      "keywords": [
+        "urban",
+        "built-up",
+        "city",
+        "settlement",
+        "extraction",
+        "thresholding",
+        "SVM",
+        "classification",
+        "mask",
+        "urban center",
+        "polycentric",
+        "hierarchy",
+        "core",
+        "subcenter",
+        "road",
+        "network",
+        "infrastructure",
+        "electrified area"
+      ],
+      "example_queries": [
+        "Extract urban built-up area from NTL",
+        "Identify urban centers and hierarchy",
+        "Map electrified areas for SDG 7.1.1",
+        "Extract road network from nighttime imagery"
+      ]
+    },
+    {
+      "intent_id": "quality_validation_misc",
+      "intent_name": "quality validation misc",
+      "workflow_file": "/skills/ntl-workflow-guidance/references/workflows/quality_validation_misc.json",
+      "priority": 7,
+      "source_categories": [
+        "Data Preprocessing > Cross-sensor harmonization"
+      ],
+      "keywords": [
+        "validation",
+        "quality",
+        "accuracy",
+        "assessment",
+        "error",
+        "cross-sensor",
+        "harmonization",
+        "inter-calibration",
+        "DMSP",
+        "VIIRS",
+        "composite",
+        "monthly",
+        "annual",
+        "mean",
+        "median",
+        "VNCI",
+        "vegetation",
+        "NDVI",
+        "spectral index",
+        "RBLI",
+        "RRLI"
+      ],
+      "example_queries": [
+        "Validate NTL data quality",
+        "Harmonize DMSP and VIIRS data",
+        "Create monthly mean composite",
+        "Calculate vegetation nighttime index"
+      ]
+    }
+  ],
+  "matching_guidelines": {
+    "exact_match_threshold": 1.0,
+    "fuzzy_match_threshold": 0.6,
+    "combined_match_threshold": 0.4,
+    "escalation_threshold": 0.3,
+    "keyword_boost": 0.15,
+    "example_query_boost": 0.2
+  },
+  "usage_notes": {
+    "priority": "ALWAYS use this router BEFORE Knowledge_Base_Searcher",
+    "fallback": "Only escalate to Knowledge_Base_Searcher if confidence < 0.30 after all matching stages",
+    "composition": "Check if novel requests can be composed from multiple existing workflows"
+  }
+}

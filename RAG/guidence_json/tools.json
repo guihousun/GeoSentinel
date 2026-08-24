@@ -1,0 +1,424 @@
+[
+  {
+    "tool_name": "NTL_Knowledge_Base",
+    "category": "Analysis Support",
+    "description": "A domain-specific Knowledge Retrieval (RAG) tool that provides expert insights into Nighttime Light (NTL) remote sensing. It queries three internal stores: Literature (theoretical foundations and peer-reviewed equations), Solutions (standardized methodology and tool workflows), and Code (optimized Python/GEE implementation snippets). It supports specialized output modes such as 'workflow' for structured step-by-step analysis and 'theory' for scientific justification.",
+    "parameters": {
+      "query": "The specific technical question, research task, or theoretical inquiry regarding NTL analysis.",
+      "response_mode": "Defines the output structure: 'workflow' (JSON tool chain), 'theory' (scientific bullets), 'code' (runnable snippets), or 'mixed' (comprehensive). Use 'auto' to infer from context.",
+      "locale": "Language preference for the output: 'en' (English) or 'zh' (Chinese).",
+      "need_citations": "Boolean flag (default: true) to include academic references and source citations for traceability."
+    },
+    "output": "Returns grounded, expert knowledge synthesized from peer-reviewed literature and technical documentation, tailored to the requested response mode.",
+    "example_queries": [
+      "What is the theoretical workflow for correcting the angular effect in VNP46A2 data?",
+      "Provide the Python code snippet for calculating the VNCI index using MODIS NDVI.",
+      "Explain the scientific relationship between nighttime light radiance and GDP growth according to recent literature."
+    ]
+  },
+  {
+    "tool_name": "Noaa20_VIIRS_Preprocess",
+    "category": "Preprocessing",
+    "description": "An advanced radiometric and geometric preprocessing tool for NOAA-20 VIIRS DNB Sensor Data Records (SDR). It implements a quality control pipeline to transform raw HDF5 granules into research-ready GeoTIFFs. The process includes the suppression of stray light, solar/lunar contamination filtering, and scan-edge noise removal. Essential for standardizing DNB observations before temporal or spatial analysis.",
+    "parameters": {
+      "input_subfolder": "The name of the subfolder within 'inputs/' containing the raw .h5 data granules.",
+      "output_subfolder": "The target subfolder name within 'outputs/' for storing georeferenced GeoTIFF results. Default: 'processed_noaa20'."
+    },
+    "output": "Generates processed, georeferenced GeoTIFF images in the specified 'outputs/' subfolder, representing high-quality nighttime radiance measurements.",
+    "example_queries": [
+      "Preprocess the raw NOAA-20 H5 files in the 'Shanghai_SDR' folder.",
+      "Convert the VIIRS DNB SDR granules to GeoTIFF while removing stray light and solar noise.",
+      "Run the quality control pipeline for the uploaded NOAA-20 nighttime satellite data.",
+      "Standardize the raw SDR radiance data for further urban light analysis."
+    ]
+  },
+  {
+    "tool_name": "SDGSAT-1_strip_removal_tool",
+    "category": "Preprocessing",
+    "description": "A dedicated preprocessing tool for the SDGSAT-1 Glimmer Imager (GLI). It implements advanced destriping algorithms to suppress periodic and systematic striping artifacts common in raw nighttime RGB imagery. This step is a mandatory prerequisite to ensure image quality before radiometric calibration.",
+    "parameters": {
+      "img_input": "The filename of the raw SDGSAT-1 image in the 'inputs/' folder (e.g., 'raw_glimmer.tif').",
+      "img_output": "The target filename for the destriped result to be saved in 'outputs/' (e.g., 'destriped_glimmer.tif').",
+      "method": "The interpolation strategy for noise suppression, typically 'median' or 'percentile'."
+    },
+    "output": "Produces a destriped, georeferenced GeoTIFF in the 'outputs/' folder, significantly reducing horizontal/vertical sensor artifacts.",
+    "example_queries": [
+      "Remove the striping noise from the SDGSAT-1 nighttime image."
+    ]
+  },
+  {
+    "tool_name": "SDGSAT1_radiometric_calibration_tool",
+    "category": "Preprocessing",
+    "description": "Converts Digital Numbers (DN) from SDGSAT-1 GLI RGB imagery into physical Top-of-Atmosphere (TOA) radiance units. Using sensor-specific calibration coefficients, it generates a calibrated multi-band RGB product and a perceptually-weighted grayscale luminance layer. This tool assumes the input image has already undergone destriping.",
+    "parameters": {
+      "input_filename": "The filename of the destriped SDGSAT-1 image in the 'inputs/' or 'outputs/' folder.",
+      "output_rgb_filename": "The filename for the radiance-calibrated RGB GeoTIFF (e.g., 'city_radiance_rgb.tif').",
+      "output_gray_filename": "The filename for the single-band grayscale luminance GeoTIFF (e.g., 'city_luminance.tif')."
+    },
+    "output": "Generates two georeferenced products in the 'outputs/' folder: a radiance-calibrated multi-band RGB image and a high-resolution grayscale luminance (grayscale) map.",
+    "example_queries": [
+      "Calibrate the RGB nighttime light data and generate a grayscale luminance map.",
+      "Perform radiometric calibration on the SDGSAT-1 GLI imagery using sensor coefficients."
+    ]
+  },
+  {
+    "tool_name": "VNP46A2_angular_correction_tool",
+    "category": "Preprocessing",
+    "description": "Performs advanced angular effect correction on NASA VNP46A2 daily NTL radiance data. It implements a 16-group mean normalization algorithm to suppress systematic biases caused by sensor zenith angle variations. This preprocessing step ensures spatiotemporal consistency across the daily time series, producing BRDF-corrected radiance imagery. Results are saved as a series of GeoTIFFs in the 'inputs/' workspace folder.",
+    "parameters": {
+      "study_area": "The name of the target region. For regions in China, use Chinese characters (e.g., '南京市').",
+      "scale_level": "The administrative hierarchy level: 'country', 'province', 'city', or 'county'.",
+      "time_range_input": "The temporal window for processing in 'YYYY-MM-DD to YYYY-MM-DD' format (e.g., '2020-01-01 to 2020-01-16')."
+    },
+    "output": "Downloads and saves the angularly-corrected daily NTL imagery as georeferenced GeoTIFFs in the 'inputs/' folder, named following the pattern '[study_area]_[date].tif'.",
+    "example_queries": [
+      "Perform zenith angle correction on daily VNP46A2 NTL data for Nanjing from Sep 1 to Oct 31, 2024.",
+      "Correct the sensor zenith angle effects for daily NTL imagery of Shanghai during the study period."
+    ]
+  },
+  {
+    "tool_name": "SDGSAT1_compute_index",
+    "category": "preprocessing",
+    "description": "Calculates pixelwise spectral indices (RBLI, RRLI, NDIBG, or NDIGR) derived from SDGSAT-1 RGB radiance data. Each index represents vegetation health, built-up area characteristics, or light spectral features, computed using radiance bands (Red, Green, Blue). The results are saved as single-band GeoTIFFs in the 'outputs/' folder.",
+    "parameters": {
+      "radiance_filename": "Filename of the calibrated RGB radiance GeoTIFF located in the 'inputs/' workspace (e.g., 'city_rgb.tif'). Must be a Float32 3-band image.",
+      "output_filename": "Filename for the output file to save in the 'outputs/' folder (e.g., 'city_NDIBG.tif').",
+      "index_type": "The type of index to compute. Choose from: 'RBLI' (Blue/Green), 'RRLI' (Red/Green), 'NDIBG' (Normalized Difference Index for Blue and Green), or 'NDIGR' (Normalized Difference Index for Green and Red)."
+    },
+    "output": "Generates a single-band spectral index GeoTIFF saved to the 'outputs/' subfolder, with NoData (-9999.0) where indices could not be computed.",
+    "example_queries": [
+      "Calculate the NDIBG index for the input SDGSAT-1 RGB radiance image.",
+      "Generate an RRLI map for identifying red-to-green light sources in urban areas using 'city_rgb.tif'.",
+      "Compute an RBLI spectral index from the uploaded SDGSAT-1 radiance file and save it as 'city_RBLI.tif'.",
+      "Calculate vegetation-based spectral indices like NDIGR for the given RGB radiance imagery."
+    ]
+  },
+  {
+    "tool_name": "VNCI_Compute",
+    "category": "preprocessing",
+    "description": "Computes the Vegetation Nighttime Condition Index (VNCI) using NDVI and nighttime light (NTL) data. VNCI leverages triangular feature space geometry to measure relationships between vegetation health and light intensity, making it ideal for assessing urban vegetation stress. The result is saved as a georeferenced GeoTIFF in the 'outputs/' folder.",
+    "parameters": {
+      "ndvi_tif": "The filename of the NDVI raster in the 'inputs/' folder. The file should be a single-band floating-point image (e.g., 'ndvi_2021.tif').",
+      "ntl_tif": "The filename of the nighttime light (NTL) raster in the 'inputs/' folder. The file should be a single-band floating-point image (e.g., 'ntl_2021.tif').",
+      "output_tif": "The target filename for saving the VNCI GeoTIFF in the 'outputs/' folder (e.g., 'vnci_output_2021.tif')."
+    },
+    "output": "Generates a single-band VNCI GeoTIFF that is saved to the 'outputs/' folder. NoData pixels are handled appropriately, and VNCI values are normalized between 0 and 1.",
+    "example_queries": [
+      "Calculate the VNCI index for the 2021 NDVI and nighttime light rasters.",
+      "Generate a VNCI GeoTIFF for urban vegetation stress analysis using 'ndvi2021.tif' and 'ntl2021.tif'.",
+      "Compute the VNCI metric to understand vegetation health in brightly lit urban regions.",
+      "Analyze the impact of nighttime light on vegetation conditions across the city using NDVI and NTL data."
+    ]
+  },
+  {
+    "tool_name": "DMSP_Preprocess",
+    "category": "Preprocessing",
+    "description": "This preprocessing tool transforms DMSP nighttime light (NTL) and annual Enhanced Vegetation Index (EVI) composite data using the EANTLI formula. It standardizes NTL values and integrates EVI to adjust brightness impact for vegetation-sensitive regions. The resulting GeoTIFF is saved in the 'outputs/' folder. Ideal for cross-sensor calibration and environmental analysis.",
+    "parameters": {
+      "dmsp_tif": "The filename of the DMSP raster stored in 'inputs/' (e.g., 'dmsp_ntl_2020.tif'). Must be a single-band floating-point GeoTIFF.",
+      "evi_tif": "The filename of the EVI raster stored in 'inputs/' (e.g., 'annual_evi_2020.tif'). Must be a single-band floating-point GeoTIFF.",
+      "output_tif": "The filename to save the EANTLI raster in 'outputs/' (e.g., 'eantli_2020.tif')."
+    },
+    "output": "Generates a georeferenced single-band EANTLI raster saved in the 'outputs/' folder. Invalid pixels are masked as NoData (-9999.0).",
+    "example_queries": [
+      "Apply EANTLI preprocessing to DMSP NTL and EVI datasets for 2020.",
+      "Transform 'dmsp_ntl_2019.tif' and 'evi_annual_2019.tif' into an EANTLI index raster saved as 'eantli_2019.tif'.",
+      "Generate an adjusted nighttime light intensity map using DMSP and EVI data composites.",
+      "Preprocess DMSP NTL brightness with vegetation-sensitive EVI using the EANTLI formula."
+    ]
+  },
+  {
+    "tool_name": "NTL_Mean_Composite",
+    "category": "Preprocessing",
+    "description": "Performs pixel-wise temporal aggregation to create a mean radiance composite from multiple daily nighttime light (NTL) GeoTIFFs. This tool is essential for reducing episodic noise (e.g., clouds, ephemeral lights) and generating a stable radiance baseline for a specific period. It processes rasters stored in 'inputs/' and saves the resulting composite to 'outputs/'.",
+    "parameters": {
+      "file_paths": "A list of GeoTIFF filenames located in the 'inputs/' folder (e.g., ['NTL_01.tif', 'NTL_02.tif']).",
+      "out_tif": "The target filename for the resulting mean composite in the 'outputs/' folder (e.g., 'January_Mean_NTL.tif').",
+      "enforce_same_grid": "Optional: If true (default), the tool will verify that all input rasters share the same coordinate system and resolution."
+    },
+    "output": "Generates a single-band GeoTIFF representing the average radiance across the specified input files, saved in the 'outputs/' folder.",
+    "example_queries": [
+      "Generate a monthly mean composite using all daily NTL images in the inputs folder.",
+      "Aggregate the corrected daily VNP46A2 files into a stable mean radiance map named 'stable_light.tif'."
+    ]
+  },
+  {
+    "tool_name": "NTL_raster_statistics",
+    "category": "NTL statistics",
+    "description": "A landscape analysis tool for calculating advanced nighttime light (NTL) indices across spatial boundaries defined in a shapefile. It computes metrics such as total NTL intensity (TNTL), lit area (LArea), average NTL (ANTL), 3D Patch metrics (3DPLand, 3DED, 3DLPI), and statistical summaries (MaxNTL, MinNTL, SDNTL). Outputs a CSV containing per-region statistics along with a global summary.",
+    "parameters": {
+      "ntl_tif_path": "The filename of the NTL GeoTIFF raster located in 'inputs/' (e.g., 'city_ntl.tif').",
+      "shapefile_path": "The filename of the boundary Shapefile located in 'inputs/' (e.g., 'region_boundaries.shp').",
+      "output_csv_path": "The target filename for saving aggregated statistics (e.g., 'ntl_statistics.csv'). Results will appear in 'outputs/'.",
+      "selected_indices": "Optional list of indices to calculate. Available options: ['TNTL', 'LArea', 'ANTL', '3DPLand', '3DED', '3DLPI', 'MaxNTL', 'MinNTL', 'SDNTL']. Defaults to all indices if left blank."
+    },
+    "output": "Generates a CSV file containing regional-level nighttime light indices and a global summary. Metrics include intensity, area, spatial patterns, and statistical summaries.",
+    "example_queries": [
+      "Calculate regional NTL statistics for the provided GeoTIFF and shapefile.",
+      "Generate TNTL, LArea, and MaxNTL metrics for city boundaries using the uploaded nighttime light raster.",
+      "Perform an NTL landscape analysis on boundaries from 'region_boundaries.shp' and save the results as 'ntl_output.csv'.",
+      "Aggregate nighttime light statistics globally and per administrative region defined in the shapefile."
+    ]
+  },
+  {
+    "tool_name": "Extract_Urban_Area_by_Thresholding",
+    "category": "Urban spatial structure analyses",
+    "description": "An automated feature extraction tool that identifies built-up areas from nighttime light (NTL) rasters. It utilizes a change-point detection method based on the relationship between intensity thresholds and lit area perimeters. This tool is ideal for urban boundary mapping and multi-temporal urban expansion studies without requiring manual threshold selection.",
+    "parameters": {
+      "tif_filename": "The filename of the input NTL raster in 'inputs/' (e.g., 'ntl_shanghai_2020.tif').",
+      "output_filename": "The target filename for the binary urban mask in 'outputs/' (e.g., 'urban_mask_2020.tif')."
+    },
+    "output": "Generates a binary GeoTIFF mask (1 = urban, 0 = non-urban) in the 'outputs/' folder and reports the calculated optimal threshold value.",
+    "example_queries": [
+      "Extract the urban built-up area from 'ntl_2020.tif' using the automated change-point method.",
+      "Generate a binary urban mask for my uploaded NTL imagery and save it as 'mask_result.tif'."
+    ]
+  },
+  {
+    "tool_name": "Detect_Urban_Area_by_SVM",
+    "category": "Urban spatial structure analyses",
+    "description": "A supervised machine learning tool that extracts urban built-up areas from nighttime light (NTL) imagery using a pre-trained Support Vector Machine (SVM). It performs high-precision pixel-wise classification based on radiance intensity. This tool is suitable for multi-temporal urban monitoring and provides more robust results in regions where simple thresholding may fail.",
+    "parameters": {
+      "tif_filename": "The filename of the input NTL raster in 'inputs/' (e.g., 'nightlight_data.tif').",
+      "output_filename": "The target filename for the resulting SVM classification mask in 'outputs/' (e.g., 'shanghai_svm_mask.tif')."
+    },
+    "output": "Generates an integer-based GeoTIFF mask (1 = Urban, 0 = Non-Urban, -1 = NoData) in the 'outputs/' folder.",
+    "example_queries": [
+      "Extract the urban area from 'city_ntl.tif' using the pre-trained SVM machine learning model.",
+      "Perform supervised urban classification on the uploaded NTL image and save the mask to 'urban_svm.tif'."
+    ]
+  },
+  {
+    "tool_name": "Extract_Road",
+    "category": "Urban spatial structure analyses",
+    "description": "This tool generates binary road centerline masks from grayscale imagery using Otsu thresholding and morphological post-processing. It applies skimage techniques for removing noise, closing gaps, and skeletonizing road networks. The final output is saved as a GeoTIFF binary mask in the 'outputs/' folder.",
+    "parameters": {
+      "input_tif": "Filename of the grayscale input raster located in the 'inputs/' folder (e.g., 'gee_nightlight.tif').",
+      "output_tif": "Filename for saving the extracted road mask raster in the 'outputs/' folder (e.g., 'road_mask_otsu.tif')."
+    },
+    "output": "Generates a single-band GeoTIFF mask with pixel value 1 indicating road centerlines and NoData (255) for other areas. The result is saved in the 'outputs/' folder.",
+    "example_queries": [
+      "Extract road centerlines from the uploaded nighttime light raster using Otsu thresholding.",
+      "Generate a binary road mask from 'gee_nightlight.tif' and save it as 'road_mask_otsu.tif'."
+    ]
+  },
+  {
+    "tool_name": "Detect_Electrified_Areas_by_Thresholding",
+    "category": "Urban spatial structure analyses",
+    "description": "A specialized binary classification tool for monitoring SDG Indicator 7.1.1. It applies a threshold to distinguish between electrified and un-electrified regions in SDGSAT-1 imagery. The threshold is scientifically derived as the mean of the maximum radiance in non-electrified areas and the minimum radiance in electrified areas, providing a robust metric for assessing energy infrastructure in developing regions.",
+    "parameters": {
+      "input_tif": "The filename of the preprocessed grayscale SDGSAT-1 raster in 'inputs/' (e.g., 'processed_gli_ntl.tif').",
+      "output_tif": "The target filename for the binary electrification mask to be saved in 'outputs/' (e.g., 'sdg_7_1_1_mask.tif').",
+      "threshold": "The numerical threshold value (e.g., 100.0). Pixels with values equal to or greater than this are classified as electrified (1)."
+    },
+    "output": "Generates a binary GeoTIFF mask (1: Electrified, 0: Non-electrified) saved in the 'outputs/' folder, used for calculating electricity access rates.",
+    "example_queries": [
+      "Detect electrified areas from 'calibrated_ntl.tif' using a threshold of 100.",
+      "Generate an electricity access map for SDG 7.1.1 monitoring with a custom threshold."
+    ]
+  },
+  {
+    "tool_name": "Detect_NTL_anomaly",
+    "category": "Other",
+    "description": "A statistical detection tool designed to identify abrupt brightness spikes or anomalous fluctuations in nighttime light (NTL) time-series data. It utilizes a pixel-wise Z-Score (K-Sigma) method, comparing a target image against a calculated historical baseline (mean and standard deviation). This is particularly effective for monitoring post-disaster recovery, identifying sudden infrastructure developments, or detecting unexpected socioeconomic events. Inputs are retrieved from 'inputs/' and results are stored in 'outputs/'.",
+    "parameters": {
+      "raster_files": "A list of NTL raster filenames in chronological order (e.g., ['t1.tif', 't2.tif', 't3.tif']).",
+      "target_index": "The 0-based index of the specific image to evaluate. Defaults to the latest image.",
+      "k_sigma": "The threshold multiplier for standard deviation. Pixels exceeding this value are flagged as anomalies. Default: 3.0.",
+      "save_filename": "The filename for the output anomaly mask. Default: 'NTL_anomaly_mask.tif'."
+    },
+    "output": "Produces a binary GeoTIFF mask in the 'outputs/' folder, where pixel value 1 indicates a detected anomaly (statistical spike) and 0 indicates normal status.",
+    "example_queries": [
+      "Identify abnormal light intensity spikes in this time-series of satellite images.",
+      "Perform Z-Score anomaly detection to find sudden changes in nighttime luminosity.",
+      "Detect post-disaster power recovery or sudden construction activities using the K-Sigma method.",
+      "Locate significant brightness deviations in the latest image compared to the historical baseline."
+    ]
+  },
+  {
+    "tool_name": "Analyze_NTL_trend",
+    "category": "Other",
+    "description": "A spatiotemporal analysis tool designed to detect long-term trends in nighttime light (NTL) intensity. It integrates the Mann-Kendall test for statistical significance and Sen's Slope estimator for quantifying the magnitude of change (growth rate). This tool is essential for monitoring urban expansion dynamics and socioeconomic evolution. Requires at least 3 spatially aligned rasters located in the 'inputs/' workspace folder.",
+    "parameters": {
+      "raster_files": "A list of NTL raster filenames in chronological order (e.g., ['ntl_2010.tif', 'ntl_2015.tif', 'ntl_2020.tif']).",
+      "save_subfolder": "The name of the target subfolder within 'outputs/' for storing result layers. Default: 'trend_analysis'."
+    },
+    "output": "Generates two georeferenced rasters in the 'outputs/' folder: 'slope_map.tif' (representing the pixel-wise rate of NTL change) and 'significance_map.tif' (indicating trend significance: 1 for significant increase, -1 for significant decrease, 0 for stable).",
+    "example_queries": [
+      "Analyze the nighttime light growth trend in the Yangtze River Delta over the past decade.",
+      "Quantify the pixel-wise NTL change rate and statistical significance for the provided time-series data.",
+      "Detect significant urban expansion areas using Mann-Kendall and Sen's Slope analysis.",
+      "Evaluate the long-term luminosity dynamics of this region based on the uploaded satellite imagery."
+    ]
+  },
+  {
+    "tool_name": "geocode_tool",
+    "category": "NTL Data Searcher-Geospatial data",
+    "description": "Converts Chinese address strings into precise geographic coordinates (Latitude/Longitude) using the Amap API. Note: This tool is restricted to addresses within China and requires input in Chinese characters. Results are essential for point-based NTL intensity extraction.",
+    "parameters": {
+      "address": "The full Chinese address to be geocoded (e.g., '上海市南京西路').",
+      "output_csv_name": "The filename for the result CSV to be saved in 'outputs/'."
+    },
+    "output": "Saves a CSV file in the 'outputs/' folder containing the structured address, latitude, and longitude.",
+    "example_queries": [
+      "Geocode the address '上海市静安区' to find its geographic center.",
+      "Convert this list of Chinese site names into coordinates for light intensity analysis."
+    ]
+  },
+  {
+    "tool_name": "reverse_geocode_tool",
+    "category": "NTL Data Searcher-Geospatial data",
+    "description": "Converts a list of geographic coordinates (Latitude/Longitude) into human-readable addresses. It supports regional context selection (China vs. International) to ensure address accuracy. This is essential for identifying the specific locations of detected light spikes or anomalous pixels.",
+    "parameters": {
+      "latitudes": "A list of numerical latitudes (e.g., [31.23, 39.90]).",
+      "longitudes": "A list of numerical longitudes (e.g., [121.47, 116.40]).",
+      "region": "The geographical context for geocoding: 'China' or 'other_country'.",
+      "output_csv_name": "The target filename for the results CSV in the 'outputs/' folder (e.g., 'address_results.csv')."
+    },
+    "output": "Saves a CSV file in the 'outputs/' folder containing the original coordinates and their corresponding full addresses.",
+    "example_queries": [
+      "Reverse geocode these coordinates to find their city addresses in China.",
+      "Identify the locations of these high-intensity pixels and save them to 'site_addresses.csv'."
+    ]
+  },
+  {
+    "tool_name": "poi_search_tool",
+    "category": "NTL Data Searcher-Geospatial data",
+    "description": "Retrieves Points of Interest (POIs) within a specific radius of a coordinate using the Amap API. It identifies facility types (e.g., restaurants, factories, residential) near a location, facilitating the interpretation of nighttime light sources and urban land-use patterns.",
+    "parameters": {
+      "latitude": "The center latitude for the search.",
+      "longitude": "The center longitude for the search.",
+      "radius": "The search radius in meters (maximum 50,000). Default is 500m.",
+      "types": "Amap POI category codes (e.g., '050000' for catering). If empty, all types are returned.",
+      "output_csv_name": "The target filename for the POI list in the 'outputs/' folder."
+    },
+    "output": "Generates a CSV file in the 'outputs/' directory containing POI names, types, addresses, and distances from the center coordinate.",
+    "example_queries": [
+      "Search for industrial facilities within 1000m of this bright pixel coordinate.",
+      "Find all nearby POIs for the given latitude and longitude to analyze the urban context."
+    ]
+  },
+  {
+    "tool_name": "get_administrative_division_data",
+    "category": "NTL Data Searcher-Geospatial data",
+    "description": "Retrieves administrative boundaries (Shapefiles) for cities or districts in China using the Amap API. It automatically performs coordinate transformation from the local GCJ-02 system to the standard WGS-84 CRS, ensuring seamless compatibility with global geospatial datasets. This tool is essential for defining study areas (ROIs) in China-based nighttime light research.",
+    "parameters": {
+      "city_name": "The name of the target city or district in China (e.g., 'Shanghai' or 'Haidian District').",
+      "output_name": "The target filename for the Shapefile to be saved in the 'inputs/' folder (e.g., 'shanghai_boundary.shp')."
+    },
+    "output": "Saves a georeferenced Shapefile in WGS-84 coordinates to the 'inputs/' directory, ready for spatial masking or zonal statistics.",
+    "example_queries": [
+      "Download the administrative boundary for Beijing and save it as 'beijing.shp'.",
+      "Fetch the vector boundary of Guangzhou for nighttime light spatial masking."
+    ]
+  },
+  {
+    "tool_name": "get_administrative_division_osm_tool",
+    "category": "NTL Data Searcher-Geospatial data",
+    "description": "Fetches global administrative boundaries (countries, provinces, or cities) from OpenStreetMap (OSM) via Nominatim. It retrieves geometric data in the WGS-84 coordinate system and saves the results as ESRI Shapefiles. This tool is ideal for defining regions of interest for international GIS analysis.",
+    "parameters": {
+      "place_name": "The global place name to query (e.g., 'Thailand' or 'Paris').",
+      "output_name": "The filename for the resulting Shapefile to be saved in the 'inputs/' folder (e.g., 'thailand_boundary.shp')."
+    },
+    "output": "Generates a georeferenced Shapefile in WGS-84 CRS in the 'inputs/' directory representing the administrative extent of the queried location.",
+    "example_queries": [
+      "Retrieve the country boundary for Vietnam from OpenStreetMap.",
+      "Get the administrative shapefile for 'London' and save it to the inputs folder."
+    ]
+  },
+  {
+    "tool_name": "NTL_download_tool",
+    "category": "NTL Data Searcher-Geospatial data",
+    "description": "Retrieves multi-source Nighttime Light (NTL) radiance data from Google Earth Engine (GEE). Supports DMSP-OLS (annual), NPP-VIIRS (annual/monthly), and VNP46 (daily) datasets. Users must specify the Region of Interest (ROI) name, spatial scale (country/province/city/county), and temporal resolution. For China, administrative names must be in Chinese characters (e.g., '江苏省'). Results are automatically saved as GeoTIFFs in the 'inputs/' workspace folder.",
+    "parameters": {
+      "study_area": "The name of the administrative region (e.g., '上海市' or 'Myanmar').",
+      "scale_level": "The spatial hierarchy: 'country', 'province', 'city', or 'county'.",
+      "temporal_resolution": "The time frequency: 'annual', 'monthly', or 'daily'.",
+      "time_range_input": "The date range (e.g., '2020 to 2023', '2021-05 to 2021-07', or '2022-01-01 to 2022-02-01').",
+      "dataset_name": "Optional dataset selection. Annual: 'NPP-VIIRS-Like', 'NPP-VIIRS', 'DMSP-OLS'. Monthly: 'NOAA_VCMSLCFG'. Daily: 'VNP46A2', 'VNP46A1'.",
+      "out_name": "Target filename for the GeoTIFF in 'inputs/' (e.g., 'NTL_Shanghai_2020.tif'). Do not include paths.",
+      "is_in_China": "Boolean flag (True/False) indicating if the study area is located in China."
+    },
+    "output": "Downloads the specified NTL dataset to the 'inputs/' folder as a georeferenced GeoTIFF.",
+    "example_queries": [
+      "Download annual NPP-VIIRS-Like NTL data for Shanghai from 2020 to 2022.",
+      "Fetch monthly NOAA_VCMSLCFG nighttime light imagery for Myanmar for the first half of 2021."
+    ]
+  },
+  {
+    "tool_name": "NDVI_download_tool",
+    "category": "NTL Data Searcher-Geospatial data",
+    "description": "Downloads annual MODIS (MOD13Q1) Enhanced Vegetation Index (NDVI) composites from GEE. This tool provides the annual average NDVI scaled to standard units (0.0001), serving as a critical environmental covariate for NTL correction and urban expansion studies. Administrative boundaries for China require Chinese names. All files are saved directly to the 'inputs/' folder.",
+    "parameters": {
+      "study_area": "The name of the region (e.g., '南京市' or 'Thailand').",
+      "scale_level": "Spatial hierarchy: 'country', 'province', 'city', or 'county'.",
+      "time_range_input": "The year range in 'YYYY to YYYY' format (e.g., '2015 to 2020').",
+      "out_name": "Target filename in 'inputs/' (e.g., 'NDVI_Nanjing_2020.tif')."
+    },
+    "output": "Saves the annual average NDVI GeoTIFF to the workspace 'inputs/' directory.",
+    "example_queries": [
+      "Retrieve annual NDVI data for Jiangsu province from 2018 to 2022.",
+      "Download the 2020 vegetation index (NDVI) for Bangkok at the city level."
+    ]
+  },
+  {
+    "tool_name": "LandScan_download_tool",
+    "category": "NTL Data Searcher-Geospatial data",
+    "description": "Extracts annual LandScan Global population distribution data from GEE. It provides high-resolution population density grids for NTL normalization and socioeconomic analysis. The parameter 'out_name' is interpreted as an output directory path; the tool writes yearly GeoTIFFs named 'LandScan_<study_area>_<year>.tif' into that directory.",
+    "parameters": {
+      "study_area": "The administrative region name (e.g., '北京市' or 'Vietnam').",
+      "scale_level": "Spatial hierarchy: 'country', 'province', 'city', or 'county'.",
+      "time_range_input": "The year range in 'YYYY to YYYY' format (e.g., '2019 to 2021').",
+      "out_name": "Output directory path (e.g., 'inputs/landscan_shanghai_2020'). Do not pass a single .tif filename.",
+      "is_in_China": "Boolean flag indicating if the ROI is in China."
+    },
+    "output": "Writes one or more annual population GeoTIFF files to the specified output directory, with filenames following 'LandScan_<study_area>_<year>.tif'.",
+    "example_queries": [
+      "Download LandScan population data for Beijing for the year 2020.",
+      "Fetch annual population distribution maps for Vietnam from 2015 to 2020."
+    ]
+  },
+  {
+    "tool_name": "tavily_search",
+    "category": "NTL Data Searcher-Public socio-economic data",
+    "description": "A web-based retrieval tool designed to collect up-to-date socioeconomic and environmental information to support contextual reasoning. It is primarily used for fact verification and obtaining ground-truth data—such as GDP statistics, disaster impact reports, and infrastructure status—to cross-validate and interpret spatiotemporal patterns observed in nighttime light imagery.",
+    "parameters": {
+      "query": "The search string for the specific context or fact required (e.g., '2023 GDP of Shanghai' or 'Turkey earthquake damage report').",
+      "start_date": "Optional: Filter results published after this date (Format: YYYY-MM-DD).",
+      "end_date": "Optional: Filter results published before this date (Format: YYYY-MM-DD)."
+    },
+    "output": "Provides a curated list of information from official and open-web sources, including snippets and source URLs, to facilitate evidence-based analysis.",
+    "example_queries": [
+      "Search for official 2023 GDP and population data for the Yangtze River Delta.",
+      "Retrieve the latest disaster reports and power outage updates for the 2024 flood event.",
+      "Verify regional infrastructure development plans for the study area to support urban expansion analysis."
+    ]
+  },
+  {
+    "tool_name": "Google_BigQuery_Search",
+    "category": "NTL Data Searcher-Public socio-economic data",
+    "description": "Executes standard SQL queries on Google BigQuery to retrieve structured records, primarily from the GDELT (Global Database of Events, Language, and Tone) dataset, as well as other public socio-economic archives. It identifies spatiotemporal events—such as social unrest, festivals, or infrastructure updates—providing high-resolution ground-truth context to validate and explain temporal radiance patterns in nighttime light (NTL) imagery.",
+    "parameters": {
+      "query": "The SQL query string targeting GDELT or other public datasets on BigQuery (e.g., 'SELECT SQLDATE, ActionGeo_FullName FROM `gdelt-bq.gdeltv2.events` WHERE...')."
+    },
+    "output": "A tabular dataset of global events and socio-economic indicators, essential for cross-validating fluctuations in light intensity.",
+    "example_queries": [
+      "Query GDELT for social and infrastructure events during 2023 to explain luminosity spikes in the study area.",
+      "Execute a SQL search on BigQuery to identify political events coinciding with observed nighttime radiance fluctuations."
+    ]
+  },
+  {
+    "tool_name": "Detect_Urban_Centres_and_Spatial_Structure",
+    "category": "Urban spatial structure analyses",
+    "description": "Detect urban centers and hierarchy from NTL raster using contour-tree based analysis.",
+    "parameters": {
+      "ntl_tif": "Input NTL raster filename in inputs/.",
+      "output_shp": "Output shapefile name in outputs/.",
+      "output_csv": "Output attribute CSV name in outputs/."
+    },
+    "output": "Urban center hierarchy shapefile and CSV in outputs/.",
+    "example_queries": [
+      "Detect urban centers and hierarchy from NTL raster for Shanghai."
+    ]
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "timestamp_utc": "20260217T115359Z",
+  "source_tool": "execute_geospatial_script_tool",
+  "thread_id": "20675068-66f",
+  "original_script_name": "wuhan_antlr_statistics.py",
+  "original_script_path": "E:\\NTL-GPT-Clone\\user_data\\20675068-66f\\outputs\\wuhan_antlr_statistics.py",
+  "content_hash": "1d93d846c994c13bcca51adcc970ed4e15471e5fa47ebb4cf6960049beea230c",
+  "stdout_excerpt": "[StorageManager] Resolving 'wuhan_boundary.shp' for thread_id='20675068-66f'\n[StorageManager] Found in user workspace: E:\\NTL-GPT-Clone\\user_data\\20675068-66f\\inputs\\wuhan_boundary.shp\nBoundary loaded: 10 features\nCRS: EPSG:4326\nRegion bounds: [113.69653841  30.25216682 114.6358898   31.36331553]\nCalculating zonal statistics for 2019 lockdown period...\n2019 stats retrieved\nCalculating zonal statistics for 2020 lockdown period...\n2020 stats retrieved\n\n=== ANTL Comparison Results ===\n2019 Lockdown Period (Jan 23 - Apr 8): Mean NTL = 4.7146\n2020 Lockdown Period (Jan 23 - Apr 8): Mean NTL = 6.1466\nChange: 30.37%\n\nComparison results saved to: E:\\NTL-GPT-Clone\\user_data\\20675068-66f\\outputs\\wuhan_antlr_lockdown_comparison.csv\n"
+}

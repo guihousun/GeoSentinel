@@ -1,0 +1,43 @@
+name: Feature request
+description: Propose a reusable NTL-GPT capability or workflow improvement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What research or operational task is currently difficult?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed capability
+      description: Describe the expected inputs, outputs, and validation behavior.
+    validations:
+      required: true
+  - type: dropdown
+    id: owner
+    attributes:
+      label: Likely component
+      options:
+        - Streamlit UI
+        - Agent or skill routing
+        - Runtime tool
+        - ntl-gis-core MCP
+        - ntl-download MCP
+        - GEE or Earthdata workflow
+        - Documentation
+        - Unsure
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This request describes a reusable capability rather than a one-prompt workaround.
+          required: true

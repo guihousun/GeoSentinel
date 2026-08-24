@@ -1,0 +1,9 @@
+{
+  "timestamp_utc": "20260218T072857Z",
+  "source_tool": "execute_geospatial_script_tool",
+  "thread_id": "case_1771399476_1",
+  "original_script_name": "shanghai_ntl_slope_trend_analysis.py",
+  "original_script_path": "E:\\NTL-GPT-Clone\\user_data\\case_1771399476_1\\outputs\\shanghai_ntl_slope_trend_analysis.py",
+  "content_hash": "c6f6c9cfb9d147ef763e24da6f24c6cb187d67c33bef471d50a04d7593f74026",
+  "stdout_excerpt": "[StorageManager] Resolving 'shanghai_boundary.shp' for thread_id='case_1771399476_1'\n[StorageManager] Found in user workspace: E:\\NTL-GPT-Clone\\user_data\\case_1771399476_1\\inputs\\shanghai_boundary.shp\nExtracted 21 annual NTL values for Shanghai (2000-2020)\n         date  ntl_mean  year\n0  2000-01-01  4.581962  2000\n1  2001-01-01  3.884296  2001\n2  2002-01-01  7.271353  2002\n3  2003-01-01  6.810103  2003\n4  2004-01-01  5.506936  2004\n\n=== Trend Analysis Results for Shanghai (2000-2020) ===\nMann-Kendall Tau: 0.6857\nP-value: 0.0000\nTrend: significant increasing\nSen's Slope: 0.5165 (NTL units/year)\n95% CI: [-0.8654, 2.2153]\nIntercept: -1029.1504\n\nAnnual NTL values saved to: E:\\NTL-GPT-Clone\\user_data\\case_1771399476_1\\outputs\\shanghai_ntl_annual_2000_2020.csv\nTrend analysis results saved to: E:\\NTL-GPT-Clone\\user_data\\case_1771399476_1\\outputs\\shanghai_ntl_trend_results.csv\n\n=== Analysis Complete ===\n"
+}

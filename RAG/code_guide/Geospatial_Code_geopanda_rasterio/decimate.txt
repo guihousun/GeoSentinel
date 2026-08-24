@@ -1,0 +1,8 @@
+{
+    "Language": "Python",
+    "Platform": "Python",
+    "Library": "rasterio",
+    "Title": "",
+    "Description": "",
+    "Code": "import os.path\nimport subprocess\nimport tempfile\n\nimport rasterio\nimport rasterio.shutil\n\nwith rasterio.Env():\n\n    with rasterio.open('tests/data/RGB.byte.tif') as src:\n        b, g, r = (src.read(k) for k in (1, 2, 3))\n        meta = src.meta\n\n    tmpfilename = os.path.join(tempfile.mkdtemp(), 'decimate.tif')\n\n    meta.update(\n        width=src.width/2,\n        height=src.height/2)\n\n    with rasterio.open(\n            tmpfilename, 'w',\n            **meta\n            ) as dst:\n        for k, a in [(1, b), (2, g), (3, r)]:\n            dst.write(a, indexes=k)\n\n    outfilename = os.path.join(tempfile.mkdtemp(), 'decimate.jpg')\n\n    rasterio.shutil.copy(tmpfilename, outfilename, driver='JPEG', quality='30')\n\ninfo = subprocess.call(['open', outfilename])\n"
+}

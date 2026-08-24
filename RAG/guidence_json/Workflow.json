@@ -1,0 +1,942 @@
+[
+  {
+    "task_id": "Q1",
+    "task_name": "Retrieve annual NPP-VIIRS-like NTL data for Shanghai",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Download annual NPP-VIIRS-like nighttime light radiance data for Shanghai (2000-2020) via GEE and store it in the workspace inputs folder.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS-Like",
+          "time_range_input": "2000 to 2020",
+          "out_name": "NTL_Shanghai_NPP-VIIRS-Like_2000_2020.tif",
+          "is_in_China": true
+        }
+      }
+    ],
+    "output": "inputs/NTL_Shanghai_NPP-VIIRS-Like_2000_2020.tif"
+  },
+  {
+    "task_id": "Q2",
+    "task_name": "Retrieve LandScan population data for Shanghai",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Access and download the LandScan Global population density raster for Shanghai for the year 2020 and store it in the workspace inputs folder.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "LandScan_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "time_range_input": "2020 to 2020",
+          "out_name": "inputs/landscan_shanghai_2020",
+          "is_in_China": true
+        }
+      }
+    ],
+    "output": "inputs/landscan_shanghai_2020/*.tif"
+  },
+  {
+    "task_id": "Q3",
+    "task_name": "Download Shanghai administrative boundary",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Retrieve Shanghai’s administrative boundary shapefile using the Amap API and save to the inputs folder.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "get_administrative_division_data",
+        "input": {
+          "city_name": "上海市",
+          "output_name": "Shanghai_boundary.shp"
+        }
+      }
+    ],
+    "output": "inputs/Shanghai_boundary.shp"
+  },
+  {
+    "task_id": "Q4",
+    "task_name": "Download POI data around the Oriental Pearl Tower",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Geocode the Oriental Pearl Tower and retrieve nearby Points of Interest (POIs) within 500 meters.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "geocode_tool",
+        "input": {
+          "address": "上海市东方明珠电视塔",
+          "output_csv_name": "Oriental_Pearl_location.csv"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "poi_search_tool",
+        "input": {
+          "latitude": 31.2397,
+          "longitude": 121.4998,
+          "radius": 500,
+          "output_csv_name": "Oriental_Pearl_POI_500m.csv"
+        }
+      }
+    ],
+    "output": "outputs/Oriental_Pearl_POI_500m.csv"
+  },
+  {
+    "task_id": "Q5",
+    "task_name": "Query geolocation of the Oriental Pearl Tower",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Obtain precise latitude and longitude of the Oriental Pearl Tower for spatial analysis.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "geocode_tool",
+        "input": {
+          "address": "上海市东方明珠电视塔",
+          "output_csv_name": "Oriental_Pearl_coords.csv"
+        }
+      }
+    ],
+    "output": "outputs/Oriental_Pearl_coords.csv"
+  },
+  {
+    "task_id": "Q6",
+    "task_name": "Zenith angle correction for daily VNP46A2 imagery",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Apply 16-group mean normalization to correct zenith angle effects in daily VNP46A2 NTL imagery for Shanghai (2024) via GEE. Results are exported to the workspace inputs folder.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "VNP46A2_angular_correction_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "time_range_input": "2024-01-01 to 2024-12-31"
+        }
+      }
+    ],
+    "output": "inputs/"
+  },
+  {
+    "task_id": "Q7",
+    "task_name": "Preprocess NOAA-20 VIIRS imagery",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Transform raw NOAA-20 HDF5 granules into georeferenced GeoTIFFs by suppressing stray light and noise. Data is read from and saved to specific subfolders.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "Noaa20_VIIRS_Preprocess",
+        "input": {
+          "input_subfolder": "NOAA20_raw",
+          "output_subfolder": "NOAA20_processed"
+        }
+      }
+    ],
+    "output": "outputs/NOAA20_processed/"
+  },
+  {
+    "task_id": "Q8",
+    "task_name": "Preprocess SDGSAT-1 GLI imagery",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Execute a sequential preprocessing pipeline: first remove systematic striping artifacts from raw SDGSAT-1 imagery, then perform radiometric calibration to convert DN values into TOA radiance products.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "SDGSAT-1_strip_removal_tool",
+        "input": {
+          "img_input": "Test1_raw.tif",
+          "img_output": "Test1_destriped.tif",
+          "method": "median"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "SDGSAT1_radiometric_calibration_tool",
+        "input": {
+          "input_filename": "Test1_destriped.tif",
+          "output_rgb_filename": "Test1_radiance_rgb.tif",
+          "output_gray_filename": "Test1_radiance_gray.tif"
+        }
+      }
+    ],
+    "output": [
+      "outputs/Test1_radiance_rgb.tif",
+      "outputs/Test1_radiance_gray.tif"
+    ]
+  },
+  {
+    "task_id": "Q9",
+    "task_name": "Calculate NDIGR index from SDGSAT-1 imagery",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Compute the Normalized Difference Index of Green and Red (NDIGR) from an SDGSAT-1 RGB radiance GeoTIFF located in the inputs folder.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "SDGSAT1_compute_index",
+        "input": {
+          "radiance_filename": "Cleaned_GLI.tif",
+          "output_filename": "NDIGR_result.tif",
+          "index_type": "NDIGR"
+        }
+      }
+    ],
+    "output": "outputs/NDIGR_result.tif"
+  },
+  {
+    "task_id": "Q10",
+    "task_name": "Calculate RRLI index from SDGSAT-1 imagery",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Compute the Relative Red Light Index (RRLI) from an SDGSAT-1 RGB radiance GeoTIFF to identify red-dominant light sources.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "SDGSAT1_compute_index",
+        "input": {
+          "radiance_filename": "Cleaned_GLI.tif",
+          "output_filename": "RRLI_result.tif",
+          "index_type": "RRLI"
+        }
+      }
+    ],
+    "output": "outputs/RRLI_result.tif"
+  },
+  {
+    "task_id": "Q11",
+    "task_name": "Identify district with highest average NTL brightness in 2020",
+    "category": "NTL statistics",
+    "description": "Download 2020 annual NPP-VIIRS-like NTL imagery and Shanghai district boundaries, then perform zonal statistics to identify the district with the maximum average nighttime light (ANTL).",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS-Like",
+          "time_range_input": "2020 to 2020",
+          "out_name": "Shanghai_NTL_2020.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "get_administrative_division_data",
+        "input": {
+          "city_name": "上海市",
+          "output_name": "Shanghai_districts.shp"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "NTL_raster_statistics",
+        "input": {
+          "ntl_tif_path": "Shanghai_NTL_2020.tif",
+          "shapefile_path": "Shanghai_districts.shp",
+          "output_csv_path": "Shanghai_2020_stats.csv",
+          "selected_indices": [
+            "ANTL"
+          ]
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Read 'outputs/Shanghai_2020_stats.csv' and find the row with the maximum 'ANTL' value to identify the brightest district.",
+        "name": "geospatial_code_step_4"
+      }
+    ],
+    "output": "The name of the district in Shanghai with the highest average NTL brightness and its corresponding ANTL value."
+  },
+  {
+    "task_id": "Q12",
+    "task_name": "Report 2020 NTL brightness at Oriental Pearl Tower",
+    "category": "NTL statistics",
+    "description": "Perform point-based NTL radiance extraction for the Oriental Pearl Tower in 2020. This involves downloading annual NPP-VIIRS-like data and geocoding the target location for precise pixel value retrieval.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS-Like",
+          "time_range_input": "2020 to 2020",
+          "out_name": "Shanghai_NTL_2020.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "geocode_tool",
+        "input": {
+          "address": "上海市东方明珠电视塔",
+          "output_csv_name": "Oriental_Pearl_location.csv"
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Using rasterio, read 'inputs/Shanghai_NTL_2020.tif' and extract the radiance value at the coordinates provided in 'outputs/Oriental_Pearl_location.csv'.",
+        "name": "geospatial_code_step_3"
+      }
+    ],
+    "output": "The specific nighttime light radiance value (pixel value) at the Oriental Pearl Tower for the year 2020."
+  },
+  {
+    "task_id": "Q13",
+    "task_name": "Calculate proportion of NTL pixels > 50 in Shanghai (2020)",
+    "category": "NTL statistics",
+    "description": "Calculate the proportion of pixels exceeding a specific radiance threshold (> 50) within the administrative boundary of Shanghai for 2020. This involves spatial masking followed by frequency analysis of the pixel values.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS-Like",
+          "time_range_input": "2020 to 2020",
+          "out_name": "Shanghai_NTL_2020.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "get_administrative_division_data",
+        "input": {
+          "city_name": "上海市",
+          "output_name": "Shanghai_boundary.shp"
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Clip the raster 'inputs/Shanghai_NTL_2020.tif' using 'inputs/Shanghai_boundary.shp' and save the masked result as 'outputs/Shanghai_Masked.tif'.",
+        "name": "geospatial_code_step_3"
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Read 'outputs/Shanghai_Masked.tif', count pixels with radiance values greater than 50, and calculate their proportion relative to the total number of valid (non-NoData) pixels.",
+        "name": "geospatial_code_step_4"
+      }
+    ],
+    "output": "The proportion of pixels in Shanghai with a radiance value > 50 for the year 2020."
+  },
+  {
+    "task_id": "Q14",
+    "task_name": "Angular-correct VNP46A2 daily NTL for Shanghai",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Apply a 16-group mean normalization to correct sensor zenith angle effects in NASA VNP46A2 daily NTL imagery for Shanghai during 2024. The corrected daily GeoTIFFs are automatically exported to the workspace inputs folder for subsequent time-series analysis.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "VNP46A2_angular_correction_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "time_range_input": "2024-01-01 to 2024-12-31"
+        }
+      }
+    ],
+    "output": "inputs/"
+  },
+  {
+    "task_id": "Q15",
+    "task_name": "Calculate mean NTL for Shanghai (2020–2024) using GEE Python API",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Utilize the Google Earth Engine (GEE) Python API and its built-in administrative boundary datasets (e.g., FAO GAUL) to calculate the overall mean radiance of VNP46A2 daily NTL for Shanghai from 2020 to 2024. The statistical result is exported directly to a CSV file in the outputs folder.",
+    "steps": [
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Initialize the GEE API. Access the built-in 'FAO/GAUL/2015/level2' or 'TIGER/2018/States' dataset to filter for 'Shanghai'. Load the 'NASA/VIIRS/002/VNP46A2' collection (2020-01-01 to 2024-12-31), perform spatial-temporal mean reduction, and save the resulting mean radiance value as 'outputs/Mean_NTL_Shanghai_2020_2024.csv'.",
+        "name": "geospatial_code_step_1"
+      }
+    ],
+    "output": "outputs/Mean_NTL_Shanghai_2020_2024.csv"
+  },
+  {
+    "task_id": "Q16",
+    "task_name": "Export monthly mean NTL time series for Shanghai (2020–2024)",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Utilizes the GEE Python API to retrieve specialized monthly NTL composites (e.g., NOAA VIIRS Monthly VCM) for Shanghai from 2020 to 2024. It leverages built-in administrative boundaries to extract the spatial mean radiance for each month and exports the long-term time series to a CSV file in the outputs folder.",
+    "steps": [
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Develop a Python script using the GEE API to: 1. Filter a built-in administrative collection for 'Shanghai'. 2. Load the specialized monthly NTL image collection (e.g., 'NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG'). 3. Filter the collection from 2020-01 to 2024-12. 4. Map a reduction function over the collection to compute the spatial mean radiance for each monthly image. 5. Export the resulting time series as 'outputs/Monthly_Mean_NTL_Shanghai_2020_2024.csv'.",
+        "name": "geospatial_code_step_1"
+      }
+    ],
+    "output": "outputs/Monthly_Mean_NTL_Shanghai_2020_2024.csv"
+  },
+  {
+    "task_id": "Q17",
+    "task_name": "NTL brightness difference between 2020 and 2021 in Shanghai",
+    "category": "NTL statistics",
+    "description": "Quantify the pixel-wise radiance change between 2020 and 2021 for Shanghai. This involves a single-step batch download of annual NPP-VIIRS-Like imagery for the 2020-2021 period followed by raster subtraction to identify development dynamics.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS-Like",
+          "time_range_input": "2020 to 2021",
+          "out_name": "Shanghai_NTL.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Locate the two auto-named files in 'inputs/' (e.g., 'Shanghai_NTL_2020.tif' and 'Shanghai_NTL_2021.tif'). Using rasterio, perform pixel-wise subtraction (2021 - 2020) and save the radiance difference map as 'outputs/Shanghai_NTL_Diff_2021_2020.tif'.",
+        "name": "geospatial_code_step_2"
+      }
+    ],
+    "output": "outputs/Shanghai_NTL_Diff_2021_2020.tif"
+  },
+  {
+    "task_id": "Q18",
+    "task_name": "Trend analysis of NTL in Shanghai (2010–2020)",
+    "category": "NTL statistics",
+    "description": "Examine the long-term luminosity dynamics of Shanghai by performing a spatiotemporal trend analysis (Sen's Slope and Mann-Kendall test) on annual NPP-VIIRS-Like data from 2010 to 2020.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS-Like",
+          "time_range_input": "2010 to 2020",
+          "out_name": "Shanghai_NTL.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "Analyze_NTL_trend",
+        "input": {
+          "raster_files": [
+            "Shanghai_NTL_2010.tif",
+            "Shanghai_NTL_2011.tif",
+            "Shanghai_NTL_2012.tif",
+            "Shanghai_NTL_2013.tif",
+            "Shanghai_NTL_2014.tif",
+            "Shanghai_NTL_2015.tif",
+            "Shanghai_NTL_2016.tif",
+            "Shanghai_NTL_2017.tif",
+            "Shanghai_NTL_2018.tif",
+            "Shanghai_NTL_2019.tif",
+            "Shanghai_NTL_2020.tif"
+          ],
+          "save_subfolder": "Shanghai_Trend_2010_2020"
+        }
+      }
+    ],
+    "output": [
+      "outputs/Shanghai_Trend_2010_2020/slope_map.tif",
+      "outputs/Shanghai_Trend_2010_2020/significance_map.tif"
+    ]
+  },
+  {
+    "task_id": "Q19",
+    "task_name": "Estimate GDP using annual NTL brightness (2013–2022)",
+    "category": "Application and Modeling > Socio-economic indicator modeling",
+    "description": "Retrieve Shanghai's GDP data and the NPP-VIIRS NTL imagery from 2013 to 2022, analyze the relationship between annual average nighttime light (ANTL) and GDP using multiple regression models (OLS, Ridge, Lasso, and Random Forest), and select the best-fitting model based on R² and RMSE.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS",
+          "time_range_input": "2013 to 2022",
+          "out_name": "Shanghai_NTL.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "get_administrative_division_data",
+        "input": {
+          "city_name": "上海市",
+          "output_name": "Shanghai_boundary.shp"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "NTL_raster_statistics",
+        "input": {
+          "ntl_tif_path": "Shanghai_NTL.tif",
+          "shapefile_path": "Shanghai_boundary.shp",
+          "output_csv_path": "Shanghai_ANTL_2013_2022.csv",
+          "selected_indices": [
+            "ANTL"
+          ]
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "1. Load annual ANTL values from 'outputs/Shanghai_ANTL_2013_2022.csv'. 2. Retrieve aligned official GDP statistics for 2013-2022 from authoritative sources (prefer structured official APIs/tools) and merge by year. 3. Fit four regression models: Ordinary Least Squares (OLS), Ridge, Lasso, and Random Forest. 4. Evaluate and compare models using computed R? and RMSE, then select the best model based on current run metrics (do not assume a fixed winner). 5. Save the final model performance report to 'outputs/GDP_Regression_Report.csv'.",
+        "name": "geospatial_code_step_4"
+      }
+    ],
+    "output": "outputs/GDP_Regression_Report.csv"
+  },
+  {
+    "task_id": "Q20",
+    "task_name": "Earthquake Impact Assessment in Myanmar using Daily NTL (2025)",
+    "category": "Application and Modeling > Disaster monitoring",
+    "description": "Assess the impact of the 2025 Mw7.7 Mandalay earthquake on urban power infrastructure. The workflow retrieves official earthquake parameters (USGS/ReliefWeb), defines multi-scale epicenter buffers (25 km, 50 km, and 100 km), and utilizes the GEE Python API to compare daily VNP46A2 radiance across three critical periods: pre-event baseline, the first post-event overpass night, and the post-disaster recovery phase.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "tavily_search",
+        "input": {
+          "query": "2025 Myanmar earthquake official USGS ReliefWeb epicenter magnitude event time"
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "1. Parse event date/time (UTC), epicenter coordinates, and magnitude from Step 1 official sources. 2. Convert event time to epicenter local time and determine the first post-event overpass night for VNP46A2 (typical local overpass ~01:30). If the event occurs after that nightly overpass on day D, use day D+1 as the first post-event night (not day D). 3. Initialize GEE and define three epicenter buffers: 25 km, 50 km, and 100 km. 4. Load 'NASA/VIIRS/002/VNP46A2' daily radiance data and compute spatial mean ANTL for each buffer across three windows: pre-event baseline (event-14d to event-7d), first post-event overpass night, and post-event recovery (event+7d to event+14d). 5. Save period-level statistics to 'outputs/Myanmar_Earthquake_ANTL_2025.csv' with fields: buffer_km, period, start_date, end_date, mean_antl.",
+        "name": "geospatial_code_step_2"
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Read 'outputs/Myanmar_Earthquake_ANTL_2025.csv' and compute blackout impact metrics dynamically for each buffer (e.g., drop_pct = (event_night - baseline) / baseline * 100). In the report, explicitly document the first-night selection rule and the actual first post-event overpass date/time used. Generate a structured JSON impact report in 'outputs/Impact_Assessment_Report.json' including assumptions, formulas, per-buffer computed values (25/50/100 km), cross-buffer comparisons, and cited official event metadata from Step 1.",
+        "name": "geospatial_code_step_3"
+      }
+    ],
+    "output": "outputs/Impact_Assessment_Report.json"
+  },
+  {
+    "task_id": "Q21",
+    "task_name": "Extract built-up areas from 2020 NTL and calculate district-wise proportions",
+    "category": "Application and Modeling > Urban spatial structure analyses",
+    "description": "Extract urban built-up areas from Shanghai's 2020 annual NTL imagery using an automated change-point thresholding method, and then calculate the built-up area proportion for each district through zonal statistics on the resulting binary mask.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS",
+          "time_range_input": "2020 to 2020",
+          "out_name": "Shanghai_NTL_2020.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "get_administrative_division_data",
+        "input": {
+          "city_name": "上海市",
+          "output_name": "Shanghai_districts.shp"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "Extract_Urban_Area_by_Thresholding",
+        "input": {
+          "tif_filename": "Shanghai_NTL_2020.tif",
+          "output_filename": "Shanghai_Urban_Mask_2020.tif"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "NTL_raster_statistics",
+        "input": {
+          "ntl_tif_path": "Shanghai_Urban_Mask_2020.tif",
+          "shapefile_path": "Shanghai_districts.shp",
+          "output_csv_path": "Shanghai_District_Urban_Proportions.csv",
+          "selected_indices": [
+            "ANTL"
+          ]
+        }
+      }
+    ],
+    "output": "outputs/Shanghai_District_Urban_Proportions.csv"
+  },
+  {
+    "task_id": "Q22",
+    "task_name": "Classify nightlight types using SDGSAT-1 spectral indices",
+    "category": "Application and Modeling > Urban spatial structure extraction",
+    "description": "Perform spectral-based light type classification on SDGSAT-1 RGB imagery. This involves computing the Ratio Red Light Index (RRLI) and Ratio Blue Light Index (RBLI) to distinguish between Warm White LED (WLED), Cool White LED (CLED), and other light sources based on peer-reviewed thresholds.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "SDGSAT1_compute_index",
+        "input": {
+          "radiance_filename": "SDG_rgb.tif",
+          "output_filename": "SDG_RRLI.tif",
+          "index_type": "RRLI"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "SDGSAT1_compute_index",
+        "input": {
+          "radiance_filename": "SDG_rgb.tif",
+          "output_filename": "SDG_RBLI.tif",
+          "index_type": "RBLI"
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "1. Load 'outputs/SDG_RRLI.tif' and 'outputs/SDG_RBLI.tif'. 2. Apply the classification logic from the NTL Knowledge Base: WLED (Warm White LED) if RRLI <= 9 AND RBLI > 0.57; CLED (Cool White LED) if RRLI > 9; Other Lights for all other cases. 3. Generate a thematic classification map and save as 'outputs/Light_classification.tif'.",
+        "name": "geospatial_code_step_3"
+      }
+    ],
+    "output": "outputs/Light_classification.tif"
+  },
+  {
+    "task_id": "Q23",
+    "task_name": "Compute Vegetation Nighttime Condition Index (VNCI) using NDVI and NTL",
+    "category": "Data Retrieval and Preprocessing",
+    "description": "Quantify the vegetation-urban interaction intensity in Shanghai for 2021 by calculating the Vegetation Nighttime Condition Index (VNCI). This involves constructing a triangular feature space between annual NDVI and NTL radiance to evaluate environmental conditions.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS",
+          "time_range_input": "2021 to 2021",
+          "out_name": "Shanghai_NTL_2021.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Utilize GEE (MODIS/061/MOD13A2) to retrieve the 2021 annual median NDVI composite for Shanghai. Ensure the spatial resolution and CRS match the NTL data, then save the result to 'inputs/Shanghai_NDVI_2021.tif'.",
+        "name": "geospatial_code_step_2"
+      },
+      {
+        "type": "builtin_tool",
+        "name": "VNCI_Compute",
+        "input": {
+          "ntl_tif": "Shanghai_NTL_2021.tif",
+          "ndvi_tif": "Shanghai_NDVI_2021.tif",
+          "output_tif": "Shanghai_VNCI_2021.tif"
+        }
+      }
+    ],
+    "output": "outputs/Shanghai_VNCI_2021.tif"
+  },
+  {
+    "task_id": "Q24",
+    "task_name": "Preprocess DMSP-OLS NTL using EANTLI transformation (2000–2012)",
+    "category": "Data Preprocessing > Cross-sensor harmonization",
+    "description": "Enhance historical DMSP-OLS NTL datasets (2000–2012) by applying the EANTLI (Enhanced Vegetation Adjusted Nighttime Light Index) formula. This method integrates NTL brightness with annual EVI composites to mitigate sensor saturation and bloom effects, facilitating temporal consistency with modern VIIRS data.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "DMSP-OLS",
+          "time_range_input": "2012 to 2012",
+          "out_name": "Shanghai_DMSP_2012.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Utilize GEE (MODIS/061/MOD13A2) to retrieve the 2012 annual median EVI (Enhanced Vegetation Index) composite for Shanghai. Resample and align it to match the DMSP-OLS resolution, then save to 'inputs/Shanghai_EVI_2012.tif'.",
+        "name": "geospatial_code_step_2"
+      },
+      {
+        "type": "builtin_tool",
+        "name": "DMSP_Preprocess",
+        "input": {
+          "dmsp_tif": "Shanghai_DMSP_2012.tif",
+          "evi_tif": "Shanghai_EVI_2012.tif",
+          "output_tif": "Shanghai_EANTLI_2012.tif"
+        }
+      }
+    ],
+    "output": "outputs/Shanghai_EANTLI_2012.tif"
+  },
+  {
+    "task_id": "Q25",
+    "task_name": "Assess SDG 7.1.1: Electrification Rate in Shanghai (2020)",
+    "category": "Application and Modeling > Socio-economic indicator modeling",
+    "description": "Evaluate the electricity access rate in Shanghai for 2020 (SDG 7.1.1) by integrating NPP-VIIRS NTL data and LandScan population grids. The workflow uses specialized thresholding to identify electrified areas and aggregates population data to compute the final accessibility percentage.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS",
+          "time_range_input": "2020 to 2020",
+          "out_name": "Shanghai_NTL_2020.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "LandScan_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "time_range_input": "2020 to 2020",
+          "out_name": "inputs/landscan_shanghai_2020",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "get_administrative_division_data",
+        "input": {
+          "city_name": "上海市",
+          "output_name": "Shanghai_boundary.shp"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "Detect_Electrified_Areas_by_Thresholding",
+        "input": {
+          "input_tif": "Shanghai_NTL_2020.tif",
+          "output_tif": "Shanghai_Electrified_Mask_2020.tif",
+          "threshold": 5.0
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "1. Resolve the LandScan raster from Step 2 output_files (fallback: first matching file under 'inputs/landscan_shanghai_2020/*.tif') and load the binary mask 'outputs/Shanghai_Electrified_Mask_2020.tif'. 2. Align raster grids and calculate total population (sum of all population pixels) and electrified population (sum where mask == 1). 3. Compute the SDG 7.1.1 electrification rate and save 'Total Population, Electrified Population, Rate' to 'outputs/SDG_7_1_1_Final_Report.csv'.",
+        "name": "geospatial_code_step_5"
+      }
+    ],
+    "output": "outputs/SDG_7_1_1_Final_Report.csv"
+  },
+  {
+    "task_id": "Q26",
+    "task_name": "Extract urban areas in Shanghai using SVM on NOAA-20 NTL imagery",
+    "category": "Application and Modeling > Urban spatial structure extraction",
+    "description": "Develop a machine learning-based urban extraction framework for Shanghai using 2021 annual NOAA-20 (NPP-VIIRS) NTL imagery. This workflow utilizes a pre-trained Support Vector Machine (SVM) to perform pixel-wise classification, providing a robust urban built-up area mask in the outputs folder.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS",
+          "time_range_input": "2021 to 2021",
+          "out_name": "Shanghai_NTL_2021.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "Detect_Urban_Area_by_SVM",
+        "input": {
+          "tif_filename": "Shanghai_NTL_2021.tif",
+          "output_filename": "Shanghai_Urban_SVM_2021.tif"
+        }
+      }
+    ],
+    "output": "outputs/Shanghai_Urban_SVM_2021.tif"
+  },
+  {
+    "task_id": "Q27",
+    "task_name": "Estimate provincial Electric Power Consumption (EPC) using NOAA-20 NTL (2021)",
+    "category": "Application and Modeling > Socio-economic indicator estimation",
+    "description": "Establish a predictive model for provincial Electric Power Consumption (EPC) in China using 2021 average nighttime light intensity (ANTL). The workflow automates the retrieval of official energy statistics via web search and correlates them with NPP-VIIRS radiance data through linear regression.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "中国",
+          "scale_level": "country",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS",
+          "time_range_input": "2021 to 2021",
+          "out_name": "China_NTL_2021.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "tavily_search",
+        "input": {
+          "query": "2021年中国各省份全社会用电量 (EPC) 官方统计数据列表"
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "1. Retrieve Chinese provincial administrative boundaries using the GEE API (e.g., FAO GAUL) and save to 'inputs/China_Provinces.shp'. 2. Align the CRS of the boundary file with 'inputs/China_NTL_2021.tif'.",
+        "name": "geospatial_code_step_3"
+      },
+      {
+        "type": "builtin_tool",
+        "name": "NTL_raster_statistics",
+        "input": {
+          "ntl_tif_path": "China_NTL_2021.tif",
+          "shapefile_path": "China_Provinces.shp",
+          "output_csv_path": "Provincial_ANTL_EPC_2021.csv",
+          "selected_indices": [
+            "ANTL"
+          ]
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "1. Load provincial ANTL indices from 'outputs/Provincial_ANTL_EPC_2021.csv'. 2. Extract and match EPC values from the search results. 3. Perform OLS linear regression to model the relationship between ANTL (predictor) and EPC (target). 4. Save the model performance metrics (R², RMSE) and the fitted dataset to 'outputs/Provincial_EPC_Regression_Report.csv'.",
+        "name": "geospatial_code_step_5"
+      }
+    ],
+    "output": "outputs/Provincial_EPC_Regression_Report.csv"
+  },
+  {
+    "task_id": "Q29",
+    "task_name": "Compute District-Level Nighttime Light Landscape Metrics for Shanghai (2020)",
+    "category": "NTL statistics",
+    "description": "Quantify the spatial configuration and luminosity characteristics of Shanghai's districts (e.g., Huangpu, Jing'an) using 3D NTL landscape metrics. The analysis characterizes urban-rural differentiation through 7 key indices: TNTL (volume), LArea (space), 3DPLand (abundance), 3DED (dispersion), 3DLPI (concentration), ANTL (level), and DNTL (homogeneity).",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS",
+          "time_range_input": "2020 to 2020",
+          "out_name": "Shanghai_NTL_2020.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "get_administrative_division_data",
+        "input": {
+          "city_name": "上海市",
+          "output_name": "Shanghai_Districts.shp"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "NTL_raster_statistics",
+        "input": {
+          "ntl_tif_path": "Shanghai_NTL_2020.tif",
+          "shapefile_path": "Shanghai_Districts.shp",
+          "output_csv_path": "Shanghai_District_Landscape_Metrics.csv",
+          "selected_indices": [
+            "TNTL",
+            "LArea",
+            "3DPLand",
+            "3DED",
+            "3DLPI",
+            "ANTL",
+            "DNTL"
+          ]
+        }
+      }
+    ],
+    "output": "outputs/Shanghai_District_Landscape_Metrics.csv"
+  },
+  {
+    "task_id": "Q30",
+    "task_name": "Extract urban main roads using SDGSAT-1 Glimmer imagery",
+    "category": "Application and Modeling > Urban spatial structure extraction",
+    "description": "Extract urban road networks from high-resolution SDGSAT-1 GLI imagery. The workflow implements a standard preprocessing chain: first removing sensor-induced striping, then performing radiometric calibration to derive a grayscale luminance map, and finally applying Otsu thresholding and morphological skeletonization to extract road centerlines.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "SDGSAT-1_strip_removal_tool",
+        "input": {
+          "img_input": "Shanghai_SDG_raw.tif",
+          "img_output": "Shanghai_SDG_destriped.tif",
+          "method": "median"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "SDGSAT1_radiometric_calibration_tool",
+        "input": {
+          "input_filename": "Shanghai_SDG_destriped.tif",
+          "output_rgb_filename": "Shanghai_SDG_radiance_rgb.tif",
+          "output_gray_filename": "Shanghai_SDG_luminance.tif"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "Extract_Road",
+        "input": {
+          "input_tif": "Shanghai_SDG_luminance.tif",
+          "output_tif": "Shanghai_Road_Network_Otsu.tif"
+        }
+      }
+    ],
+    "output": "outputs/Shanghai_Road_Network_Otsu.tif"
+  },
+  {
+    "task_id": "Q31",
+    "task_name": "Detect urban centers and hierarchy using NTL contour tree (Shanghai, Dec 2014)",
+    "category": "Application and Modeling > Urban spatial structure extraction",
+    "description": "Identify the hierarchical urban center system of Shanghai for December 2014. By constructing localized NTL contour trees from NPP-VIIRS monthly composites, the tool identifies primary centers and sub-centers, characterizing the urban polycentric spatial structure and the morphological attributes of each center.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "monthly",
+          "dataset_name": "NPP-VIIRS",
+          "time_range_input": "2014-12 to 2014-12",
+          "out_name": "Shanghai_NTL_2014_12.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "Detect_Urban_Centres_and_Spatial_Structure",
+        "input": {
+          "ntl_tif": "Shanghai_NTL_2014_12.tif",
+          "output_shp": "Shanghai_Urban_Centers_2014.shp",
+          "output_csv": "Shanghai_Center_Hierarchy_Attributes.csv"
+        }
+      }
+    ],
+    "output": [
+      "outputs/Shanghai_Urban_Centers_2014.shp",
+      "outputs/Shanghai_Center_Hierarchy_Attributes.csv"
+    ]
+  }
+]

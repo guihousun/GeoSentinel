@@ -1,0 +1,8 @@
+{
+    "Language": "Python",
+    "Platform": "Python",
+    "Library": "rasterio",
+    "Title": "",
+    "Description": "",
+    "Code": "from __future__ import division\nimport numpy as np\nimport rasterio\nimport subprocess\n\nwith rasterio.Env(CPL_DEBUG=True):\n\n    # Read raster bands directly to Numpy arrays.\n    with rasterio.open('tests/data/RGB.byte.tif') as src:\n        r, g, b = src.read()\n\n    # Combine arrays using the 'iadd' ufunc. Expecting that the sum will\n    # exceed the 8-bit integer range, initialize it as 16-bit. Adding other\n    # arrays to it in-place converts those arrays up and preserves the type\n    # of the total array.\n    total = np.zeros(r.shape, dtype=rasterio.uint16)\n    for band in (r, g, b):\n        total += band\n    total = total // 3\n\n    # Write the product as a raster band to a new 8-bit file. For keyword\n    # arguments, we start with the meta attributes of the source file, but\n    # then change the band count to 1, set the dtype to uint8, and specify\n    # LZW compression.\n    kwargs = src.meta\n    kwargs.update(\n        dtype=rasterio.uint8,\n        count=1,\n        compress='lzw')\n\n    with rasterio.open('example-total.tif', 'w', **kwargs) as dst:\n        dst.write(total.astype(rasterio.uint8), indexes=1)\n\n# Dump out gdalinfo's report card and open the image.\ninfo = subprocess.check_output(\n    ['gdalinfo', '-stats', 'example-total.tif'])\nprint(info)\nsubprocess.call(['open', 'example-total.tif'])\n"
+}

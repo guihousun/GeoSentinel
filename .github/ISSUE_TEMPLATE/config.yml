@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security report
+    url: https://github.com/guihousun/NTL-GPT-Clone/security
+    about: Report vulnerabilities privately; do not publish credentials or exploit details.

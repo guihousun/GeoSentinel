@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "manifest": "ntl.tool.migration.v1",
+  "service": "ntl-gis-core",
+  "scope": "Local GIS and nighttime-light capabilities only; network download and GEE tools remain outside this rollout.",
+  "parity_note": "Task 10 routes the listed local LangChain operations through ntl_toolkit.core while retaining their public StructuredTool names and input schemas. The focused parity suite is packages/ntl_toolkit/tests/test_langchain_parity.py; GEE and network-download branches remain outside this local MCP rollout.",
+  "entries": [
+    {
+      "legacy_capability": "Environment and dependency readiness check",
+      "legacy_source": "check_env.py and local runtime imports",
+      "mcp_tool": "validate_environment",
+      "core_function": "runtime environment validation",
+      "status": "planned",
+      "parity_tests": []
+    },
+    {
+      "legacy_capability": "Local vector metadata inspection",
+      "legacy_source": "tools/geodata_inspector_tool.py::inspect_geospatial_assets",
+      "mcp_tool": "inspect_vector",
+      "core_function": "vector.inspect_vector",
+      "status": "migrated",
+      "parity_tests": ["feature_count", "crs", "geometry_types", "bounds"]
+    },
+    {
+      "legacy_capability": "Local raster metadata and statistics inspection",
+      "legacy_source": "tools/geodata_inspector_tool.py::inspect_geospatial_assets",
+      "mcp_tool": "inspect_raster",
+      "core_function": "raster.inspect_raster",
+      "status": "migrated",
+      "parity_tests": ["grid_metadata", "nodata_masking", "band_statistics"]
+    },
+    {
+      "legacy_capability": "Conflict event points filtered by an administrative polygon",
+      "legacy_source": "conflictntl-gis-tools compatibility server::filter_points_by_polygon",
+      "mcp_tool": "filter_points_by_polygon",
+      "core_function": "vector.filter_points_by_polygon",
+      "status": "parity_testing",
+      "parity_tests": ["within_count", "csv_point_input", "output_reopen"]
+    },
+    {
+      "legacy_capability": "Conflict event points joined to administrative identifiers",
+      "legacy_source": "conflictntl-gis-tools compatibility server::spatial_join_points_to_admin",
+      "mcp_tool": "spatial_join_points_to_admin",
+      "core_function": "vector.spatial_join_points_to_admin",
+      "status": "parity_testing",
+      "parity_tests": ["matched_count", "unmatched_count", "output_reopen"]
+    },
+    {
+      "legacy_capability": "Point-centered metric buffers",
+      "legacy_source": "conflictntl-gis-tools compatibility server::buffer_points_aeqd",
+      "mcp_tool": "buffer_points_aeqd",
+      "core_function": "vector.buffer_points_aeqd",
+      "status": "parity_testing",
+      "parity_tests": ["feature_count", "aeqd_area", "output_reopen"]
+    },
+    {
+      "legacy_capability": "Overlapping event-buffer cluster dissolve",
+      "legacy_source": "conflictntl-gis-tools compatibility server::dissolve_intersections",
+      "mcp_tool": "dissolve_intersections",
+      "core_function": "vector.dissolve_intersections",
+      "status": "parity_testing",
+      "parity_tests": ["cluster_count", "cluster_id", "output_reopen"]
+    },
+    {
+      "legacy_capability": "Raster extraction by a local vector extent",
+      "legacy_source": "No direct Task 10 legacy wrapper; shared raster capability",
+      "mcp_tool": "clip_raster",
+      "core_function": "raster.clip_raster",
+      "status": "planned",
+      "parity_tests": ["extent", "nodata", "output_reopen"]
+    },
+    {
+      "legacy_capability": "Raster CRS conversion for local analysis",
+      "legacy_source": "No direct Task 10 legacy wrapper; shared raster capability",
+      "mcp_tool": "reproject_raster",
+      "core_function": "raster.reproject_raster",
+      "status": "planned",
+      "parity_tests": ["destination_crs", "readability", "output_reopen"]
+    },
+    {
+      "legacy_capability": "Spatial raster union/mosaic",
+      "legacy_source": "tools/NTL_Composite.py::build_ntl_mean_composite_local (overlapping local use case)",
+      "mcp_tool": "mosaic_rasters",
+      "core_function": "raster.mosaic_rasters",
+      "status": "planned",
+      "parity_tests": ["union_bounds", "grid_alignment", "output_reopen"]
+    },
+    {
+      "legacy_capability": "NTL zonal landscape indices",
+      "legacy_source": "tools/NTL_raster_stats.py::NTL_raster_statistics",
+      "mcp_tool": "calculate_zonal_statistics",
+      "core_function": "ntl.calculate_zonal_statistics",
+      "status": "migrated",
+      "parity_tests": ["global_summary", "per_feature_rows", "selected_indices", "csv_reopen"]
+    },
+    {
+      "legacy_capability": "Read-only NTL raster metrics",
+      "legacy_source": "tools/NTL_raster_stats.py::calc_* metric helpers",
+      "mcp_tool": "calculate_ntl_metrics",
+      "core_function": "ntl.calculate_ntl_metrics_for_raster",
+      "status": "parity_testing",
+      "parity_tests": ["TNTL", "ANTL", "nodata_exclusion", "no_output_files"]
+    },
+    {
+      "legacy_capability": "Local temporal NTL mean composite",
+      "legacy_source": "tools/NTL_Composite.py::build_ntl_mean_composite_local",
+      "mcp_tool": "composite_ntl_rasters",
+      "core_function": "ntl.composite_ntl_rasters",
+      "status": "migrated_with_safety_contract",
+      "parity_tests": ["mean_values", "nodata_exclusion", "duplicate_output_naming"]
+    },
+    {
+      "legacy_capability": "Masked pixel-wise NTL trend analysis",
+      "legacy_source": "tools/NTL_trend_detection_tool.py::analyze_ntl_trend_masked_logic",
+      "mcp_tool": "analyze_ntl_trend",
+      "core_function": "ntl.analyze_ntl_trend",
+      "status": "migrated",
+      "parity_tests": ["chronological_series", "slope_output", "p_value_output"]
+    },
+    {
+      "legacy_capability": "Z-score NTL anomaly mask",
+      "legacy_source": "tools/NTL_anomaly_detection_tool.py::detect_ntl_anomaly",
+      "mcp_tool": "detect_ntl_anomaly",
+      "core_function": "ntl.detect_ntl_anomaly",
+      "status": "migrated_with_safety_contract",
+      "parity_tests": ["latest_target", "baseline_exclusion", "anomaly_pixel_count"]
+    },
+    {
+      "legacy_capability": "Combined local raster/vector readiness and compatibility check",
+      "legacy_source": "tools/geodata_inspector_tool.py::inspect_geospatial_assets",
+      "mcp_tool": "validate_geodata",
+      "core_function": "raster.validate_geodata",
+      "status": "parity_testing",
+      "parity_tests": ["readability", "crs_mismatch", "bounds_intersection", "grid_compatibility"]
+    }
+  ]
+}

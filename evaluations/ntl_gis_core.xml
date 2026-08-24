@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<evaluation_suite id="ntl-gis-core-v1" service="ntl-gis-core" read_only_assets="true">
+  <description>Stable local MCP evaluation cases. Copy fixtures to a temporary MCP workdir; discard eval-output after each run.</description>
+  <fixtures root="fixtures">
+    <fixture id="admin" path="admin.geojson" description="Two adjacent EPSG:4326 administrative polygons named west and east." />
+    <fixture id="points" path="points.geojson" description="Three EPSG:4326 event points; two are inside admin and one is outside." />
+    <fixture id="points_csv" path="points.csv" description="The same point coordinates as a UTF-8 CSV with longitude and latitude columns." />
+    <fixture id="ntl_2020" path="ntl_2020.tif" description="2x2 EPSG:4326 NTL raster with one nodata cell and values 1, 2, 3." />
+    <fixture id="ntl_2021" path="ntl_2021.tif" description="Aligned 2x2 NTL raster with values 2, 4, 6 and one nodata cell." />
+    <fixture id="ntl_2022" path="ntl_2022.tif" description="Aligned 2x2 NTL raster with values 3, 6, 9 and one nodata cell." />
+    <fixture id="ntl_2023_spike" path="ntl_2023_spike.tif" description="Aligned target raster with one deliberate brightness spike." />
+    <fixture id="ntl_right" path="ntl_right.tif" description="Adjacent 2x2 raster for a four-column mosaic case." />
+    <fixture id="admin_mercator" path="admin_mercator.geojson" description="The same extent in EPSG:3857 for CRS mismatch diagnosis." />
+    <fixture id="shifted" path="ntl_shifted.tif" description="Same CRS and dimensions as ntl_2020 but shifted by half a pixel." />
+    <fixture id="invalid_vector" path="invalid_vector.geojson" description="Readable GeoJSON containing an empty geometry for negative validation variants." />
+  </fixtures>
+  <cases>
+    <case id="01-environment" tool="validate_environment" side_effect="none" question="Are the local GIS dependencies available for ntl-gis-core?">
+      <arguments />
+      <expect path="status" equals="succeeded" />
+      <expect path="metrics.versions" contains="rasterio" />
+    </case>
+    <case id="02-vector-metadata" tool="inspect_vector" side_effect="none" question="How many administrative features are in the test boundary and what CRS do they use?">
+      <arguments><arg name="path">fixtures/admin.geojson</arg></arguments>
+      <expect path="status" equals="succeeded" /><expect path="metrics.feature_count" equals="2" /><expect path="metrics.crs" equals="EPSG:4326" />
+    </case>
+    <case id="03-raster-metadata" tool="inspect_raster" side_effect="none" question="What are the dimensions, CRS, and nodata value of the 2020 NTL raster?">
+      <arguments><arg name="path">fixtures/ntl_2020.tif</arg><arg name="mode">full</arg><arg name="sample_pixels">4</arg></arguments>
+      <expect path="status" equals="succeeded" /><expect path="metrics.width" equals="2" /><expect path="metrics.height" equals="2" /><expect path="metrics.nodata" equals="-9999.0" />
+    </case>
+    <case id="04-filter-points" tool="filter_points_by_polygon" side_effect="new_output" question="Which of the three event points fall inside the administrative boundary?">
+      <arguments><arg name="points">fixtures/points.geojson</arg><arg name="polygon">fixtures/admin.geojson</arg><arg name="output">eval-output/filtered.geojson</arg><arg name="predicate">within</arg></arguments>
+      <expect path="status" equals="succeeded" /><expect path="metrics.feature_count" equals="2" /><expect path="outputs[0].media_type" equals="application/geo+json" />
+    </case>
+    <case id="05-spatial-join" tool="spatial_join_points_to_admin" side_effect="new_output" question="How many event points can be assigned an administrative name and ISO code?">
+      <arguments><arg name="points">fixtures/points.geojson</arg><arg name="admin">fixtures/admin.geojson</arg><arg name="output">eval-output/joined.geojson</arg></arguments>
+      <expect path="status" equals="succeeded" /><expect path="metrics.matched_count" equals="2" /><expect path="metrics.unmatched_count" equals="1" />
+    </case>
+    <case id="06-buffer-points" tool="buffer_points_aeqd" side_effect="new_output" question="Can the three event points be converted into 10 km local metric buffers?">
+      <arguments><arg name="points">fixtures/points.csv</arg><arg name="output">eval-output/buffers.geojson</arg><arg name="radius_km">10</arg></arguments>
+      <expect path="status" equals="succeeded" /><expect path="metrics.feature_count" equals="3" /><expect path="outputs[0].media_type" equals="application/geo+json" />
+    </case>
+    <case id="07-dissolve" tool="dissolve_intersections" side_effect="new_output" question="How many connected polygon clusters result when the two adjacent administrative polygons are dissolved?">
+      <arguments><arg name="polygons">fixtures/admin.geojson</arg><arg name="output">eval-output/clusters.geojson</arg></arguments>
+      <expect path="status" equals="succeeded" /><expect path="metrics.cluster_count" equals="1" />
+    </case>
+    <case id="08-clip" tool="clip_raster" side_effect="new_output" question="Can the 2020 raster be clipped to the western administrative polygon?">
+      <arguments><arg name="raster">fixtures/ntl_2020.tif</arg><arg name="vector">fixtures/admin.geojson</arg><arg name="output">eval-output/clipped.tif</arg></arguments>
+      <expect path="status" equals="succeeded" /><expect path="outputs[0].media_type" equals="image/tiff" />
+    </case>
+    <case id="09-reproject" tool="reproject_raster" side_effect="new_output" question="Can the 2020 raster be reprojected to Web Mercator for a map overlay?">
+      <arguments><arg name="raster">fixtures/ntl_2020.tif</arg><arg name="output">eval-output/projected.tif</arg><arg name="dst_crs">EPSG:3857</arg><arg name="resampling">nearest</arg></arguments>
+      <expect path="status" equals="succeeded" /><expect path="outputs[0].media_type" equals="image/tiff" />
+    </case>
+    <case id="10-mosaic" tool="mosaic_rasters" side_effect="new_output" question="Can the west and adjacent right raster tiles be mosaicked without a grid mismatch?">
+      <arguments><arg name="raster_paths" type="json">["fixtures/ntl_2020.tif", "fixtures/ntl_right.tif"]</arg><arg name="output">eval-output/mosaic.tif</arg><arg name="method">first</arg></arguments>
+      <expect path="status" equals="succeeded" /><expect path="metrics.width" equals="4" /><expect path="outputs[0].media_type" equals="image/tiff" />
+    </case>
+    <case id="11-zonal-statistics" tool="calculate_zonal_statistics" side_effect="new_output" question="What are the selected NTL indices for the 2020 raster in each administrative polygon and globally?">
+      <arguments><arg name="raster_paths" type="json">["fixtures/ntl_2020.tif"]</arg><arg name="vector">fixtures/admin.geojson</arg><arg name="output">eval-output/zonal.csv</arg><arg name="selected_indices" type="json">["TNTL", "ANTL"]</arg><arg name="only_global">false</arg></arguments>
+      <expect path="status" equals="succeeded" /><expect path="outputs[0].media_type" equals="text/csv" />
+    </case>
+    <case id="12-ntl-metrics" tool="calculate_ntl_metrics" side_effect="none" question="What are the total and average NTL values after excluding the nodata cell in the 2020 raster?">
+      <arguments><arg name="raster_path">fixtures/ntl_2020.tif</arg><arg name="band">1</arg><arg name="selected_indices" type="json">["TNTL", "ANTL", "MaxNTL", "MinNTL"]</arg></arguments>
+      <expect path="status" equals="succeeded" /><expect path="metrics.TNTL" equals="6.0" /><expect path="metrics.ANTL" equals="2.0" /><expect path="outputs" length="0" />
+    </case>
+    <case id="13-composite" tool="composite_ntl_rasters" side_effect="new_output" question="What mean composite is produced from the aligned 2020 and 2021 NTL rasters?">
+      <arguments><arg name="raster_paths" type="json">["fixtures/ntl_2020.tif", "fixtures/ntl_2021.tif"]</arg><arg name="output">eval-output/composite.tif</arg><arg name="method">mean</arg></arguments>
+      <expect path="status" equals="succeeded" /><expect path="outputs[0].media_type" equals="image/tiff" />
+    </case>
+    <case id="14-trend" tool="analyze_ntl_trend" side_effect="new_output" question="Does the three-date NTL series show a positive trend inside the administrative extent?">
+      <arguments><arg name="raster_paths" type="json">["fixtures/ntl_2020.tif", "fixtures/ntl_2021.tif", "fixtures/ntl_2022.tif"]</arg><arg name="vector">fixtures/admin.geojson</arg><arg name="output_prefix">eval-output/trend</arg></arguments>
+      <expect path="status" equals="succeeded" /><expect path="outputs" length="2" />
+    </case>
+    <case id="15-anomaly" tool="detect_ntl_anomaly" side_effect="new_output" question="Does the 2023 target raster contain the deliberate brightness spike relative to the three-image baseline?">
+      <arguments><arg name="raster_paths" type="json">["fixtures/ntl_2020.tif", "fixtures/ntl_2021.tif", "fixtures/ntl_2022.tif", "fixtures/ntl_2023_spike.tif"]</arg><arg name="output">eval-output/anomaly.tif</arg><arg name="target_index">3</arg><arg name="k_sigma">3</arg></arguments>
+      <expect path="status" equals="succeeded" /><expect path="metrics.anomaly_pixel_count" equals="1" />
+    </case>
+    <case id="16-geodata-validation" tool="validate_geodata" side_effect="none" question="Can the service diagnose that the shifted raster is not grid-compatible with the reference raster?">
+      <arguments><arg name="raster_paths" type="json">["fixtures/ntl_2020.tif", "fixtures/ntl_shifted.tif"]</arg><arg name="vector_paths" type="json">["fixtures/admin.geojson", "fixtures/admin_mercator.geojson"]</arg></arguments>
+      <expect path="status" equals="succeeded" /><expect path="metrics.raster_pair_reports[0].grid_compatible" equals="false" /><expect path="metrics.raster_vector_reports[1].crs_match" equals="false" />
+    </case>
+  </cases>
+</evaluation_suite>

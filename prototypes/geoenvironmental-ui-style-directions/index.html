@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <title>地缘环境智能计算平台 · UI 视觉方向</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-direction="atlas">
+  <svg class="symbol-library" aria-hidden="true">
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3z"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></symbol>
+    <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="M8 6h4a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h7"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 19h14"/></symbol>
+    <symbol id="i-attach" viewBox="0 0 24 24"><path d="m8 12 6-6a4 4 0 1 1 6 6l-8 8a6 6 0 0 1-8-8l8-8"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7M12 5v14"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5zM3 12l9 5 9-5M3 16l9 5 9-5"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M22 12h-3M12 22v-3M2 12h3"/></symbol>
+  </svg>
+
+  <div class="prototype-stamp" id="prototype-stamp">方向 01 · 测绘档案</div>
+
+  <div class="app-shell">
+    <aside class="rail" aria-label="平台控制台">
+      <div class="brand-mark"><span>GI</span><small>GEOINTELLIGENCE</small></div>
+
+      <section class="account-panel">
+        <span>当前账号</span><strong>simon</strong><svg><use href="#i-chevron"/></svg>
+      </section>
+
+      <section class="thread-panel">
+        <p class="section-label">研究任务</p>
+        <button class="select-like"><span>你好</span><svg><use href="#i-chevron"/></svg></button>
+        <button class="rail-command"><svg><use href="#i-plus"/></svg><span>新建研究任务</span></button>
+      </section>
+
+      <button class="evidence-row"><span><svg><use href="#i-folder"/></svg>资料与产出</span><b>0</b><svg><use href="#i-chevron"/></svg></button>
+
+      <nav class="primary-nav" aria-label="研究空间">
+        <p class="section-label">研究空间</p>
+        <button class="nav-item active"><svg><use href="#i-globe"/></svg><span>全球态势</span></button>
+        <button class="nav-item"><svg><use href="#i-user"/></svg><span>国家专题</span></button>
+        <button class="nav-subitem"><svg><use href="#i-route"/></svg><span><strong>粮食物流与可达性</strong><small>缅甸专题 / FOOD LOGISTICS</small></span></button>
+      </nav>
+
+      <div class="rail-coordinate"><span>31.2304° N</span><span>121.4737° E</span><b>研究环境已连接</b></div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div class="title-block"><p>GEOSPATIAL RESEARCH WORKBENCH</p><h1>地缘环境智能计算平台</h1></div>
+        <button class="primary-action"><svg><use href="#i-download"/></svg><span>导出简报</span></button>
+      </header>
+
+      <div class="desk-grid">
+        <section class="chat-pane surface" aria-label="任务对话">
+          <div class="panel-head chat-head"><div><p>RESEARCH / 01</p><h2>任务对话</h2></div><span class="ready-state"><i></i>地缘分析师已就绪</span></div>
+
+          <div class="chat-messages">
+            <article class="message user-message">
+              <div class="avatar">HY</div>
+              <div class="message-body"><header><strong>研究者</strong><time>00:11</time></header><p>你好</p></div>
+            </article>
+            <article class="message agent-message">
+              <div class="avatar">AI</div>
+              <div class="message-body">
+                <header><strong>地缘分析师</strong><time>00:11</time></header>
+                <p>你好！我是地缘分析师，可以围绕夜间灯光、行政区、城市、灾害与冲突事件开展空间研究。</p>
+                <ul>
+                  <li>获取并核验目标区域、时间范围与公开数据来源</li>
+                  <li>比较事件前后的夜间灯光变化与空间暴露</li>
+                  <li>整理地图、统计结果和可下载研究产出</li>
+                </ul>
+                <p>请描述希望研究的地区、时间范围或需要核验的问题。</p>
+                <small class="runtime">耗时：3.1 秒</small>
+              </div>
+            </article>
+          </div>
+
+          <form class="chat-composer">
+            <button type="button" aria-label="添加数据上下文"><svg><use href="#i-attach"/></svg></button>
+            <textarea rows="1" aria-label="输入研究问题" placeholder="输入研究问题，或描述需要核验的地缘政治因素"></textarea>
+            <button class="send-button" type="button" aria-label="发送任务"><svg><use href="#i-send"/></svg></button>
+          </form>
+        </section>
+
+        <aside class="right-rail" aria-label="全球监测与事件队列">
+          <section class="map-pane surface">
+            <div class="map-toolbar">
+              <div class="map-title"><i></i><div><strong>全球监测</strong><small>公开事件 · 空间线索</small></div></div>
+              <div class="map-actions"><button aria-label="重置视图"><svg><use href="#i-target"/></svg></button><button aria-label="切换图层"><svg><use href="#i-layers"/></svg></button></div>
+            </div>
+            <div class="map-canvas" role="img" aria-label="概念预览中的世界监测地图">
+              <svg viewBox="0 0 700 330" preserveAspectRatio="none" aria-hidden="true">
+                <g class="map-grid"><path d="M0 55h700M0 110h700M0 165h700M0 220h700M0 275h700M116 0v330M233 0v330M350 0v330M467 0v330M584 0v330"/></g>
+                <g class="land">
+                  <path d="M42 85 80 43l68 8 42 29 23 51-18 28-53-5-24 46-32-28-31-7-18-44z"/>
+                  <path d="m175 205 44 17 28 54-18 50-25-12-9-51-30-34z"/>
+                  <path d="m298 64 53-24 72 10 43 22 89-5 84 46-15 39-82-2-32 38-56-12-36-31-32 22-39-23-58 3-26-36z"/>
+                  <path d="m356 169 56 12 25 47-17 75-42 8-35-66z"/>
+                  <path d="m579 231 55-5 31 27-24 37-62-8-17-30z"/>
+                </g>
+                <g class="contours"><path d="M312 92c49-48 116-31 150 0s85 21 116-5M332 111c38-29 91-23 121 1s78 18 111-2M368 213c19-33 54-32 75-6s12 64-8 78"/></g>
+              </svg>
+              <span class="map-event high" style="--x:79%;--y:32%"><i></i></span>
+              <span class="map-event medium" style="--x:75%;--y:43%"><i></i></span>
+              <span class="map-event low" style="--x:58%;--y:67%"><i></i></span>
+              <span class="map-event low" style="--x:20%;--y:74%"><i></i></span>
+              <small class="map-disclaimer">概念预览 · 非实时数据</small>
+            </div>
+            <div class="map-legend"><span><i class="high"></i>高关注</span><span><i class="medium"></i>持续跟踪</span><span><i class="low"></i>观察</span></div>
+          </section>
+
+          <section class="monitor-pane surface">
+            <div class="panel-head"><div><p>MONITOR / QUEUE</p><h2>监测队列</h2></div><span class="sync-state">排版样例</span></div>
+            <button class="monitor-prompt"><span>待研判</span><strong>点击事件可直接生成研究问题</strong></button>
+            <div class="monitor-list">
+              <article class="monitor-event"><span>01</span><div><strong>野火 Windmill</strong><small>NASA EONET · Stillwater, Montana · 4 天前</small><button>进入研判 →</button></div><em>持续跟踪</em></article>
+              <article class="monitor-event"><span>02</span><div><strong>野火 North Heglar</strong><small>NASA EONET · Cassia, Idaho · 4 天前</small><button>进入研判 →</button></div><em>持续跟踪</em></article>
+              <article class="monitor-event"><span>03</span><div><strong>台风 Saudel</strong><small>NASA EONET · Typhoon Saudel · 10 小时前</small><button>进入研判 →</button></div><em>高关注</em></article>
+            </div>
+          </section>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const directions = {
+      atlas: "方向 01 · 测绘档案",
+      ledger: "方向 02 · 证据台账",
+      polar: "方向 03 · 极夜测绘"
+    };
+    const selected = new URLSearchParams(location.search).get("direction") || "atlas";
+    document.body.dataset.direction = directions[selected] ? selected : "atlas";
+    document.getElementById("prototype-stamp").textContent = directions[document.body.dataset.direction];
+  </script>
+</body>
+</html>

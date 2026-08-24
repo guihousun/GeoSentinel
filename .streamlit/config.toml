@@ -1,0 +1,10 @@
+[server]
+address = "0.0.0.0"
+port = 8501
+headless = true
+enableCORS = true
+enableXsrfProtection = false
+
+[browser]
+gatherUsageStats = false
+serverAddress = "139.9.165.59"

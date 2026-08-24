@@ -1,0 +1,14 @@
+{
+  "dataset": "geoBoundaries gbOpen MMR ADM1",
+  "boundary_id": "MMR-ADM1-20573499",
+  "country": "Myanmar",
+  "iso3": "MMR",
+  "boundary_type": "ADM1",
+  "boundary_year_represented": 2019,
+  "unit_count": 14,
+  "source": "Myanmar Analytics Project, geoBoundaries",
+  "license": "CC BY 4.0",
+  "api_url": "https://www.geoboundaries.org/api/current/gbOpen/MMR/ADM1/",
+  "download_url": "https://github.com/wmgeolab/geoBoundaries/raw/9469f09/releaseData/gbOpen/MMR/ADM1/geoBoundaries-MMR-ADM1_simplified.geojson",
+  "retrieved_on": "2026-08-15"
+}

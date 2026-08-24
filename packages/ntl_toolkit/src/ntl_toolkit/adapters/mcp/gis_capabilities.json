@@ -1,0 +1,245 @@
+[
+  {
+    "name": "validate_environment",
+    "purpose": "Check whether the required local GIS and NTL Python dependencies are installed and importable.",
+    "side_effects": "None.",
+    "accepted_formats": [],
+    "common_error_codes": [
+      "DEPENDENCY_MISSING"
+    ]
+  },
+  {
+    "name": "inspect_vector",
+    "purpose": "Inspect a vector dataset and report metadata such as CRS, bounds, columns, and geometry types.",
+    "side_effects": "Reads an existing vector dataset without modification.",
+    "accepted_formats": [
+      ".geojson",
+      ".json",
+      ".gpkg",
+      ".shp"
+    ],
+    "common_error_codes": [
+      "INPUT_NOT_FOUND",
+      "CRS_MISSING",
+      "INVALID_GEOMETRY",
+      "INVALID_PARAMETER"
+    ]
+  },
+  {
+    "name": "inspect_raster",
+    "purpose": "Inspect a raster dataset and optionally sample summary statistics from the first band.",
+    "side_effects": "Reads an existing raster dataset without modification.",
+    "accepted_formats": [
+      ".tif",
+      ".tiff"
+    ],
+    "common_error_codes": [
+      "INPUT_NOT_FOUND",
+      "RASTER_READ_FAILED",
+      "INVALID_PARAMETER"
+    ]
+  },
+  {
+    "name": "filter_points_by_polygon",
+    "purpose": "Filter points by a polygon predicate and write a new vector dataset.",
+    "side_effects": "Creates a new vector output file and never overwrites an existing file.",
+    "accepted_formats": [
+      "points: .csv, .geojson, .json, .gpkg, .shp",
+      "polygon: .geojson, .json, .gpkg, .shp",
+      "output: .geojson, .gpkg, .shp"
+    ],
+    "common_error_codes": [
+      "INPUT_NOT_FOUND",
+      "UNSUPPORTED_PREDICATE",
+      "INVALID_GEOMETRY",
+      "COLUMN_NOT_FOUND",
+      "INVALID_PARAMETER"
+    ]
+  },
+  {
+    "name": "spatial_join_points_to_admin",
+    "purpose": "Attach admin attributes to points and write a new joined vector dataset.",
+    "side_effects": "Creates a new vector output file and never overwrites an existing file.",
+    "accepted_formats": [
+      "points: .csv, .geojson, .json, .gpkg, .shp",
+      "admin: .geojson, .json, .gpkg, .shp",
+      "output: .geojson, .gpkg, .shp"
+    ],
+    "common_error_codes": [
+      "INPUT_NOT_FOUND",
+      "COLUMN_NOT_FOUND",
+      "INVALID_GEOMETRY",
+      "INVALID_PARAMETER"
+    ]
+  },
+  {
+    "name": "buffer_points_aeqd",
+    "purpose": "Create AEQD buffers around points and write a new polygon dataset.",
+    "side_effects": "Creates a new vector output file and never overwrites an existing file.",
+    "accepted_formats": [
+      "points: .csv, .geojson, .json, .gpkg, .shp",
+      "output: .geojson, .gpkg, .shp"
+    ],
+    "common_error_codes": [
+      "INPUT_NOT_FOUND",
+      "INVALID_PARAMETER",
+      "INVALID_GEOMETRY"
+    ]
+  },
+  {
+    "name": "dissolve_intersections",
+    "purpose": "Dissolve intersecting polygons into clustered geometries and write a new vector dataset.",
+    "side_effects": "Creates a new vector output file and never overwrites an existing file.",
+    "accepted_formats": [
+      "polygons: .geojson, .json, .gpkg, .shp",
+      "output: .geojson, .gpkg, .shp"
+    ],
+    "common_error_codes": [
+      "INPUT_NOT_FOUND",
+      "INVALID_GEOMETRY",
+      "INVALID_PARAMETER"
+    ]
+  },
+  {
+    "name": "clip_raster",
+    "purpose": "Clip a raster using vector geometries and write a new raster file.",
+    "side_effects": "Creates a new raster output file and never overwrites an existing file.",
+    "accepted_formats": [
+      "raster: .tif, .tiff",
+      "vector: .geojson, .json, .gpkg, .shp",
+      "output: .tif, .tiff"
+    ],
+    "common_error_codes": [
+      "INPUT_NOT_FOUND",
+      "NO_SPATIAL_OVERLAP",
+      "CRS_MISSING",
+      "INVALID_GEOMETRY",
+      "INVALID_PARAMETER"
+    ]
+  },
+  {
+    "name": "reproject_raster",
+    "purpose": "Reproject a raster into a destination CRS and write a new raster file.",
+    "side_effects": "Creates a new raster output file and never overwrites an existing file.",
+    "accepted_formats": [
+      "raster: .tif, .tiff",
+      "output: .tif, .tiff"
+    ],
+    "common_error_codes": [
+      "INPUT_NOT_FOUND",
+      "CRS_MISSING",
+      "UNSUPPORTED_RESAMPLING",
+      "INVALID_PARAMETER"
+    ]
+  },
+  {
+    "name": "mosaic_rasters",
+    "purpose": "Mosaic multiple rasters into a new raster output.",
+    "side_effects": "Creates a new raster output file and never overwrites an existing file.",
+    "accepted_formats": [
+      "raster_paths: .tif, .tiff",
+      "output: .tif, .tiff"
+    ],
+    "common_error_codes": [
+      "INPUT_NOT_FOUND",
+      "CRS_MISMATCH",
+      "BAND_COUNT_MISMATCH",
+      "DTYPE_MISMATCH",
+      "INVALID_PARAMETER"
+    ]
+  },
+  {
+    "name": "calculate_zonal_statistics",
+    "purpose": "Calculate zonal nighttime-light metrics for one or more rasters and write a tabular output.",
+    "side_effects": "Creates a new tabular output file and never overwrites an existing file.",
+    "accepted_formats": [
+      "raster_paths: .tif, .tiff",
+      "vector: .geojson, .json, .gpkg, .shp",
+      "output: .csv"
+    ],
+    "common_error_codes": [
+      "INPUT_NOT_FOUND",
+      "INVALID_PARAMETER",
+      "VECTOR_READ_FAILED",
+      "RASTER_READ_FAILED",
+      "CRS_MISSING"
+    ]
+  },
+  {
+    "name": "calculate_ntl_metrics",
+    "purpose": "Calculate nighttime-light metrics for a raster band without creating output files.",
+    "side_effects": "Reads an existing raster dataset without modification.",
+    "accepted_formats": [
+      ".tif",
+      ".tiff"
+    ],
+    "common_error_codes": [
+      "INPUT_NOT_FOUND",
+      "INVALID_PARAMETER",
+      "RASTER_READ_FAILED",
+      "CRS_MISSING"
+    ]
+  },
+  {
+    "name": "composite_ntl_rasters",
+    "purpose": "Create a new composite raster from aligned nighttime-light rasters.",
+    "side_effects": "Creates a new raster output file and never overwrites an existing file.",
+    "accepted_formats": [
+      "raster_paths: .tif, .tiff",
+      "output: .tif, .tiff"
+    ],
+    "common_error_codes": [
+      "INPUT_NOT_FOUND",
+      "GRID_MISMATCH",
+      "OUTPUT_WRITE_FAILED",
+      "INVALID_PARAMETER"
+    ]
+  },
+  {
+    "name": "analyze_ntl_trend",
+    "purpose": "Analyze nighttime-light trend across aligned rasters inside a vector extent and write slope and p-value rasters.",
+    "side_effects": "Creates new raster output files and never overwrites existing files.",
+    "accepted_formats": [
+      "raster_paths: .tif, .tiff",
+      "vector: .geojson, .json, .gpkg, .shp",
+      "output_prefix: output prefix without extension"
+    ],
+    "common_error_codes": [
+      "INPUT_NOT_FOUND",
+      "GRID_MISMATCH",
+      "NO_SPATIAL_OVERLAP",
+      "VECTOR_READ_FAILED",
+      "INVALID_PARAMETER"
+    ]
+  },
+  {
+    "name": "detect_ntl_anomaly",
+    "purpose": "Detect anomalous nighttime-light pixels from an aligned raster series and write a new anomaly mask raster.",
+    "side_effects": "Creates a new raster output file and never overwrites an existing file.",
+    "accepted_formats": [
+      "raster_paths: .tif, .tiff",
+      "output: .tif, .tiff"
+    ],
+    "common_error_codes": [
+      "INPUT_NOT_FOUND",
+      "GRID_MISMATCH",
+      "OUTPUT_WRITE_FAILED",
+      "INVALID_PARAMETER"
+    ]
+  },
+  {
+    "name": "validate_geodata",
+    "purpose": "Validate raster and vector inputs for readability, CRS alignment, and spatial compatibility.",
+    "side_effects": "Reads existing datasets without modification.",
+    "accepted_formats": [
+      "raster_paths: .tif, .tiff",
+      "vector_paths: .geojson, .json, .gpkg, .shp"
+    ],
+    "common_error_codes": [
+      "INPUT_NOT_FOUND",
+      "RASTER_READ_FAILED",
+      "VECTOR_READ_FAILED",
+      "INVALID_PARAMETER"
+    ]
+  }
+]

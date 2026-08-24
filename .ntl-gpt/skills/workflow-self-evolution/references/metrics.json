@@ -1,0 +1,555 @@
+{
+  "schema": "workflow.self.evolution.metrics.v1",
+  "last_updated": "2026-04-28T00:00:00Z",
+  "workflows": {
+    "statistical_analysis_Q11_adapted": {
+      "task_description": "Calculate ANTL for Wuhan lockdown period vs baseline",
+      "usage_count": 1,
+      "success_rate": 1.0,
+      "avg_confidence": 0.85,
+      "last_used": "2026-02-28T15:30:00Z",
+      "failure_patterns": ["missing_data_2019_01"],
+      "notes": "Adapted from Q11 for date-range specific analysis"
+    },
+    "regression_indicator_estimation_Q19": {
+      "task_description": "Shanghai GDP-NTL regression analysis (2013-2022)",
+      "usage_count": 1,
+      "success_rate": 1.0,
+      "avg_confidence": 0.92,
+      "last_used": "2026-02-28T17:45:00Z",
+      "failure_patterns": ["column_name_mismatch"],
+      "resolution_applied": "light_fix_column_rename",
+      "best_model": "Random Forest",
+      "best_r2": 0.9785,
+      "notes": "Q19 workflow executed successfully with minor column name fix"
+    },
+    "earthquake_ntl_impact_q20_initial_adhoc": {
+      "task_description": "Myanmar 2025 earthquake NTL impact (initial ad-hoc - SKIPPED router)",
+      "usage_count": 1,
+      "success_rate": 0.0,
+      "avg_confidence": 0.65,
+      "last_used": "2026-02-28T18:30:00Z",
+      "failure_patterns": ["protocol_violation_skipped_ntl_workflow_guidance"],
+      "notes": "FAILED: Skipped ntl-workflow-guidance, only 50km buffer, incomplete analysis"
+    },
+    "earthquake_ntl_impact_q20_corrected": {
+      "task_description": "Myanmar 2025 earthquake NTL impact (Q20 workflow compliant)",
+      "usage_count": 1,
+      "success_rate": 1.0,
+      "avg_confidence": 0.95,
+      "last_used": "2026-02-28T18:45:00Z",
+      "failure_patterns": [],
+      "workflow_source": "event_impact_assessment.json -> Q20",
+      "compliance_checklist": ["router_queried", "multi_scale_25_50_100km", "first_night_rule", "usgs_sources", "csv_json_outputs"],
+      "notes": "SUCCESS: Full Q20 compliance after user feedback"
+    },
+    "earthquake_ntl_impact_q20_final": {
+      "task_description": "Myanmar 2025 earthquake NTL impact - complete damage assessment report",
+      "usage_count": 1,
+      "success_rate": 1.0,
+      "avg_confidence": 0.97,
+      "last_used": "2026-02-28T19:15:00Z",
+      "failure_patterns": [],
+      "workflow_source": "event_impact_assessment.json -> Q20",
+      "compliance_checklist": ["router_queried", "multi_scale_25_50_100km", "first_night_rule", "usgs_sources", "csv_json_outputs", "impact_report_generated"],
+      "output_files": ["Impact_Assessment_Report.json", "Myanmar_Earthquake_ANTL_2025.csv", "myanmar_earthquake_antl_analysis.py"],
+      "notes": "SUCCESS: Complete Q20 workflow with comprehensive damage assessment, blackout metrics, and comparative analysis. All 3 buffers (25/50/100km) and 3 periods (baseline/first_night/recovery) computed successfully."
+    },
+    "earthquake_ntl_impact_q20_tibet_dingri_2025": {
+      "task_description": "Tibet Dingri 2025 earthquake NTL impact assessment (Q20 workflow compliant)",
+      "usage_count": 1,
+      "success_rate": 1.0,
+      "avg_confidence": 0.90,
+      "last_used": "2026-02-28T19:30:00Z",
+      "failure_patterns": ["no_valid_ntl_data_high_altitude_winter"],
+      "workflow_source": "event_impact_assessment.json -> Q20",
+      "compliance_checklist": ["router_queried", "multi_scale_25_50_100km", "first_night_rule", "official_sources_cited", "csv_json_outputs", "impact_report_generated"],
+      "output_files": ["Tibet_Dingri_Impact_Assessment_Report.json", "Tibet_Dingri_Earthquake_ANTL_2025.csv", "tibet_dingri_earthquake_antl_analysis.py"],
+      "data_quality_note": "No valid VNP46A2 pixels available for Tibet Dingri region (28.50°N, 87.45°E) during January 2025 due to high-altitude remote location, winter snow/ice masking, and limited VIIRS swath coverage",
+      "notes": "SUCCESS: Full Q20 workflow compliance. NTL-based damage assessment not feasible due to data availability limitations in Himalayan region. Official damage statistics documented instead."
+    },
+    "earthquake_ntl_impact_q20_with_visualization": {
+      "task_description": "Myanmar 2025 earthquake NTL impact assessment + visualization charts (Q20 extended)",
+      "usage_count": 1,
+      "success_rate": 1.0,
+      "avg_confidence": 0.97,
+      "last_used": "2026-04-19T23:16:00Z",
+      "failure_patterns": ["band_name_mismatch_BRDF_Corrected_Radiance_vs_DNB_BRDF_Corrected_NTL"],
+      "resolution_applied": "code_assistant_light_fix_band_rename",
+      "workflow_source": "event_impact_assessment.json -> Q20",
+      "compliance_checklist": ["router_queried", "multi_scale_25_50_100km", "first_night_rule", "usgs_sources_cited", "csv_json_outputs", "impact_report_generated", "visualization_charts_generated"],
+      "output_files": ["Myanmar_Earthquake_ANTL_2025.csv", "Impact_Assessment_Report.json", "myanmar_earthquake_impact_v1.py", "Myanmar_Earthquake_Impact_Charts.png", "Myanmar_Earthquake_ANTL_Comparison.png"],
+      "technical_details": {
+        "dataset": "NASA/VIIRS/002/VNP46A2",
+        "band": "DNB_BRDF_Corrected_NTL",
+        "spatial_resolution": "500m",
+        "gee_project": "empyrean-caster-430308-m2",
+        "first_night_date": "2025-03-29",
+        "event_date": "2025-03-28",
+        "event_magnitude": 7.7,
+        "epicenter": "22.011N, 95.936E",
+        "buffers_km": [25, 50, 100],
+        "pre_event_window": "2025-03-14 to 2025-03-21",
+        "recovery_window": "2025-04-04 to 2025-04-11",
+        "visualization": {
+          "dashboard_charts": "4-panel (ANTL bars, drop %, recovery trajectory, recovery ratio)",
+          "comparison_chart": "grouped bar chart by period and buffer",
+          "style": "dark theme (#1a1a2e background), 150 DPI, value labels"
+        },
+        "key_metrics": {
+          "25km_first_night_drop_pct": -42.1,
+          "25km_recovery_ratio_pct": 70.4,
+          "severity_classification_25km": "SEVERE",
+          "severity_classification_50km": "MILD",
+          "severity_classification_100km": "MILD"
+        }
+      },
+      "notes": "SUCCESS: Q20 workflow executed with full compliance + visualization extension. Band name corrected (contract said BRDF-Corrected_Radiance, actual is DNB_BRDF_Corrected_NTL). Generated 4-panel impact dashboard + comparison bar chart. 25km epicenter zone showed severe initial impact (-42.1%) with strong partial recovery (70.4%)."
+    }
+    "country_scale_province_ntl_statistics": {
+      "task_description": "China 2020 annual mean NTL for all 34 provincial-level administrative regions via GEE reduceRegions",
+      "usage_count": 1,
+      "success_rate": 1.0,
+      "avg_confidence": 0.88,
+      "last_used": "2026-04-22T00:00:00Z",
+      "failure_patterns": [
+        "NTL_annual_image_null_NOAA_VIIRS_DNB_ANNUAL_V22_2020_not_accessible",
+        "maxPixels_not_valid_for_reduceRegions",
+        "geoBoundaries_CHN_excludes_Taiwan"
+      ],
+      "resolution_applied": "v2_monthly_composite_fallback + removed_maxPixels + v3_taiwan_polygon_addition",
+      "workflow_source": "statistical_analysis.json (adapted for country-scale)",
+      "task_level": "L3",
+      "task_level_reason_codes": ["country_or_multi_province", "no_built_in_complete_match", "custom_GEE_reduceRegions_required"],
+      "gee_project": "empyrean-caster-430308-m2",
+      "ntl_source": "NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG (2020 12-month mean composite)",
+      "ntl_band": "avg_rad",
+      "boundary_source": "WM/geoLab/geoBoundaries/600/ADM1 (shapeGroup=CHN) + manual Taiwan polygon",
+      "province_count": 34,
+      "compliance_checklist": [
+        "gee_server_side_reduceRegions",
+        "maxPixels_removed_from_reduceRegions",
+        "monthly_composite_fallback_for_annual",
+        "taiwan_explicitly_included",
+        "ranked_csv_output"
+      ],
+      "output_files": ["china_province_ntl_2020.csv", "china_province_ntl_2020_v2.py", "china_province_ntl_2020_v3.py"],
+      "key_lessons": [
+        "NOAA/VIIRS/DNB/ANNUAL_V22/2020 not directly accessible as ee.Image; use monthly composite .mean() as reliable fallback",
+        "ee.Image.reduceRegions does NOT accept maxPixels or tileScale params (only reduceRegion does)",
+        "geoBoundaries ADM1 shapeGroup=CHN returns 33 features excluding Taiwan; Taiwan must be added as explicit ee.Feature polygon",
+        "Country-scale tasks MUST use GEE server-side reduceRegions; never download country-scale rasters (>50MB limit)"
+      ],
+      "notes": "SUCCESS: 34 provinces ranked by 2020 ANTL. Taiwan included at rank 9 (2.41). Required 3 script iterations (v1->v2->v3) to resolve dataset, parameter, and boundary issues."
+    },
+    "china_2020_ntl_mean_ranking": {
+      "task_description": "China 2020 annual NTL mean for 34 provinces via GEE reduceRegions with fallback asset (projects/empyrean-caster-430308-m2/assets/province)",
+      "usage_count": 1,
+      "success_rate": 1.0,
+      "avg_confidence": 0.95,
+      "last_used": "2026-04-25T00:00:00Z",
+      "failure_patterns": [],
+      "workflow_source": "statistical_analysis.json (adapted for country-scale)",
+      "task_level": "L3",
+      "gee_project": "sound-dream-441705-m7",
+      "ntl_source": "projects/sat-io/open-datasets/npp-viirs-ntl (band b1, annual 2020)",
+      "ntl_band": "b1",
+      "boundary_source": "projects/empyrean-caster-430308-m2/assets/province (fallback, Chinese names)",
+      "province_count": 34,
+      "compliance_checklist": [
+        "gee_server_side_reduceRegions",
+        "sat_io_dataset_used_for_annual",
+        "fallback_asset_direct_load",
+        "dual_language_presence_check_CN_EN"
+      ],
+      "output_files": ["china_province_ntl_mean_2020.csv", "china_province_ntl_2020.py"],
+      "key_lessons": [
+        "sat-io npp-viirs-ntl dataset (b1) provides direct annual composites for 2020, more reliable than NOAA V22 annual images",
+        "GeoBoundaries fallback asset uses Chinese province names; presence check must support both EN and CN substrings",
+        "Boundary validation: check actual property names from asset before hardcoding required_regions list"
+      ],
+      "notes": "SUCCESS: 34 provinces ranked descending by NTL mean. Top: 澳门(78.36), 香港(17.62), 上海(17.16). Bottom: 西藏(0.009)."
+    },
+    "china_2020_tntl_gdp_correlation": {
+      "task_description": "TNTL (sum) vs GDP correlation for China 34 provinces 2020. Validates TNTL as aggregate metric for GDP estimation.",
+      "usage_count": 1,
+      "success_rate": 1.0,
+      "avg_confidence": 0.92,
+      "last_used": "2026-04-25T00:00:00Z",
+      "failure_patterns": [],
+      "workflow_source": "statistical_analysis.json + regression_indicator_estimation (multi-step)",
+      "task_level": "L3",
+      "gee_project": "sound-dream-441705-m7",
+      "ntl_source": "projects/sat-io/open-datasets/npp-viirs-ntl (band b1, annual 2020)",
+      "ntl_band": "b1",
+      "reducer": "ee.Reducer.sum()",
+      "province_count": 34,
+      "spearman_rho": 0.8188,
+      "p_value": "3.27e-09",
+      "compliance_checklist": [
+        "gee_server_side_reduceRegions_sum",
+        "tntl_vs_gdp_merge",
+        "spearman_correlation_computed",
+        "dual_language_presence_check_CN_EN",
+        "log_log_scatter_plot_CJK"
+      ],
+      "output_files": [
+        "china_province_tntl_2020.csv",
+        "china_2020_tntl_vs_gdp.csv",
+        "china_2020_tntl_vs_gdp_scatter.png"
+      ],
+      "key_lessons": [
+        "TNTL (sum) strongly correlates with GDP (ρ=0.82), confirming aggregate metric is appropriate for GDP estimation",
+        "NTL mean is intensity metric, poor GDP proxy (ρ=0.28) — never use mean for GDP estimation",
+        "NTL mean strongly correlates with population density (ρ=0.96) — use mean for density-type variables",
+        "Indicator selection rule: mean→density, sum→aggregate — mandatory decision gate for NTL estimation workflows"
+      ],
+      "notes": "SUCCESS: TNTL vs GDP ρ=0.8188. Top TNTL: 江苏(1.75M), 广东(1.59M), 山东(1.30M). Validated indicator selection methodology."
+    },
+    "china_2020_ntl_mean_vs_population_density": {
+      "task_description": "NTL mean vs population density correlation for China 34 provinces 2020. Validates NTL mean as proxy for density-type variables.",
+      "usage_count": 1,
+      "success_rate": 1.0,
+      "avg_confidence": 0.92,
+      "last_used": "2026-04-25T00:00:00Z",
+      "failure_patterns": [],
+      "workflow_source": "statistical_analysis.json + gee-dataset-selection (multi-step)",
+      "task_level": "L3",
+      "gee_project": "sound-dream-441705-m7",
+      "ntl_source": "projects/sat-io/open-datasets/npp-viirs-ntl (band b1, annual 2020)",
+      "population_source": "国家统计局 第七次全国人口普查公报（第三号）2021-05-11",
+      "province_count": 34,
+      "spearman_rho": 0.9630,
+      "compliance_checklist": [
+        "gee_server_side_reduceRegions_mean",
+        "official_census_data_used",
+        "NTL_mean_vs_density_merge",
+        "spearman_correlation_computed",
+        "log_log_scatter_plot_CJK"
+      ],
+      "output_files": [
+        "china_2020_ntl_vs_population_density.csv",
+        "china_2020_ntl_vs_density_scatter.png"
+      ],
+      "key_lessons": [
+        "NTL mean strongly correlates with population density (ρ=0.9630) — excellent density proxy",
+        "Top 3 perfectly aligned: 澳门(#1/#1), 香港(#2/#2), 上海(#3/#3)",
+        "Largest deviation: 湖南(NTL #23, density #16, Δ+7) — dense but less urbanized night economy",
+        "Largest deviation: 宁夏(NTL #19, density #28, Δ-9) — energy/industrial lighting elevates NTL above population density"
+      ],
+      "notes": "SUCCESS: NTL mean vs population density ρ=0.9630. Strongest correlation among all 3 tested dimensions. Validates mean as density-type indicator."
+    }
+  },
+  "global_metrics": {
+    "total_executions": 16,
+    "overall_success_rate": 0.9375,
+    "avg_confidence": 0.906,
+    "escalation_rate": 0.0625,
+    "learning_count": 9,
+    "noise_filter_rate": 1.0,
+    "trends": {
+      "success_rate_7d": [1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+      "confidence_7d": [0.85, 0.92, 0.65, 0.95, 0.97, 0.90, 0.90, 0.95, 0.90, 0.97, 0.88, 0.95, 0.92, 0.92, 0.92, 0.92],
+      "escalation_rate_7d": [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    }
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-28T15:30:00Z",
+      "task_id": "wuhan_lockdown_antl_analysis",
+      "workflow_used": "statistical_analysis (adapted)",
+      "status": "success",
+      "confidence": 0.85,
+      "issues": ["missing_2019_01_data"],
+      "resolution": "proceeded_with_feb_apr_only",
+      "user_satisfaction": null
+    },
+    {
+      "timestamp": "2026-02-28T17:45:00Z",
+      "task_id": "shanghai_gdp_ntl_regression_q19",
+      "workflow_used": "regression_indicator_estimation_Q19",
+      "status": "success",
+      "confidence": 0.92,
+      "issues": ["column_name_mismatch"],
+      "resolution": "light_fix_applied_column_rename",
+      "user_satisfaction": null,
+      "best_model": "Random Forest",
+      "best_r2": 0.9785,
+      "models_compared": 8
+    },
+    {
+      "timestamp": "2026-02-28T18:30:00Z",
+      "task_id": "myanmar_earthquake_2025_initial",
+      "workflow_used": "ad-hoc (SKIPPED router)",
+      "status": "partial",
+      "confidence": 0.65,
+      "issues": ["protocol_violation_skipped_ntl_workflow_guidance", "incomplete_analysis_only_50km"],
+      "resolution": "user_feedback_triggered_rerun_with_q20",
+      "user_satisfaction": "negative",
+      "learning_outcome": "failure_logged_to_failure_log.jsonl"
+    },
+    {
+      "timestamp": "2026-02-28T19:15:00Z",
+      "task_id": "myanmar_earthquake_2025_q20_final",
+      "workflow_used": "event_impact_assessment.json -> Q20",
+      "status": "success",
+      "confidence": 0.97,
+      "issues": [],
+      "resolution": "complete_q20_workflow_with_impact_report",
+      "user_satisfaction": null,
+      "output_artifacts": ["Impact_Assessment_Report.json", "Myanmar_Earthquake_ANTL_2025.csv", "myanmar_earthquake_antl_analysis.py"],
+      "key_findings": [
+        "25km buffer: -42.58% first-night drop, 78.08% recovery rate",
+        "50km buffer: -4.49% first-night drop, 81.48% recovery rate",
+        "100km buffer: +31.91% first-night anomaly (emergency lighting?), -22.36% recovery",
+        "All zones show partial recovery (77-81%) by 7-14 days post-event"
+      ],
+      "workflow_compliance": {
+        "router_queried": true,
+        "matching_workflow": "Q20",
+        "multi_scale_buffers": [25, 50, 100],
+        "first_night_rule_applied": true,
+        "first_night_date": "2025-03-29",
+        "outputs_generated": ["Myanmar_Earthquake_ANTL_2025.csv", "Impact_Assessment_Report.json"]
+      }
+    },
+    {
+      "timestamp": "2026-02-28T19:30:00Z",
+      "task_id": "tibet_dingri_earthquake_2025_q20",
+      "workflow_used": "event_impact_assessment.json -> Q20",
+      "status": "success",
+      "confidence": 0.90,
+      "issues": ["no_valid_ntl_data_high_altitude_winter"],
+      "resolution": "completed_q20_workflow_with_data_limitation_documentation",
+      "user_satisfaction": null,
+      "output_artifacts": ["Tibet_Dingri_Impact_Assessment_Report.json", "Tibet_Dingri_Earthquake_ANTL_2025.csv", "tibet_dingri_earthquake_antl_analysis.py"],
+      "data_limitation": "VNP46A2 Gap_Filled product contains no valid pixels for Tibet Dingri region (28.50°N, 87.45°E) during January 2025 due to high-altitude remote location, winter snow/ice masking, and limited VIIRS swath coverage",
+      "official_damage_reference": "126 fatalities, 188 injuries, 27,248 damaged buildings, 61,500 affected population (CEA official)",
+      "workflow_compliance": {
+        "router_queried": true,
+        "matching_workflow": "Q20",
+        "multi_scale_buffers": [25, 50, 100],
+        "first_night_rule_applied": true,
+        "first_night_date": "2025-01-08",
+        "official_sources_cited": ["CENC", "USGS", "CEA"],
+        "outputs_generated": ["Tibet_Dingri_Earthquake_ANTL_2025.csv", "Tibet_Dingri_Impact_Assessment_Report.json"]
+      }
+    },
+    {
+      "timestamp": "2026-03-01T12:00:00Z",
+      "task_id": "fuding_daily_ntl_animation_20200101_20200107",
+      "workflow_used": "data_retrieval_preprocessing + custom_visualization",
+      "status": "success",
+      "confidence": 0.90,
+      "issues": ["path_resolution_error_with_storage_manager"],
+      "resolution": "used_relative_paths_inputs_outputs_directly",
+      "user_satisfaction": null,
+      "output_artifacts": [
+        "fuding_ntl_2020-01-01.png",
+        "fuding_ntl_2020-01-02.png",
+        "fuding_ntl_2020-01-03.png",
+        "fuding_ntl_2020-01-04.png",
+        "fuding_ntl_2020-01-05.png",
+        "fuding_ntl_2020-01-06.png",
+        "fuding_ntl_2020-01-07.png",
+        "fuding_ntl_20200101_20200107_animation.gif",
+        "render_ntl_simple.py"
+      ],
+      "technical_details": {
+        "dataset": "NASA/VIIRS/002/VNP46A2",
+        "band": "Gap_Filled_DNB_BRDF_Corrected_NTL",
+        "spatial_resolution": "500m",
+        "temporal_range": "2020-01-01 to 2020-01-07 (7 days)",
+        "unified_brightness_range": [0.0, 113.228],
+        "colormap": "custom NTL (black->blue->green->yellow->white)",
+        "frame_duration_ms": 800,
+        "loop": "infinite"
+      },
+      "workflow_compliance": {
+        "data_searcher_used": true,
+        "task_level": "L2",
+        "code_assistant_execution": true,
+        "all_frames_same_rendering": true
+      }
+    },
+    {
+      "timestamp": "2026-04-19T23:16:00Z",
+      "task_id": "myanmar_earthquake_2025_q20_with_visualization",
+      "workflow_used": "event_impact_assessment.json -> Q20",
+      "status": "success",
+      "confidence": 0.97,
+      "issues": ["band_name_mismatch_BRDF_Corrected_Radiance_vs_DNB_BRDF_Corrected_NTL"],
+      "resolution": "code_assistant_light_fix_band_rename",
+      "user_satisfaction": null,
+      "output_artifacts": [
+        "Myanmar_Earthquake_ANTL_2025.csv",
+        "Impact_Assessment_Report.json",
+        "myanmar_earthquake_impact_v1.py",
+        "Myanmar_Earthquake_Impact_Charts.png",
+        "Myanmar_Earthquake_ANTL_Comparison.png",
+        "myanmar_earthquake_visualization.py"
+      ],
+      "key_findings": [
+        "25km buffer: -42.1% first-night drop (SEVERE), 70.4% recovery ratio",
+        "50km buffer: -12.3% first-night drop (MILD), 7.6% recovery ratio",
+        "100km buffer: -11.5% first-night drop (MILD), -145.3% recovery ratio (continued decline)",
+        "Epicenter zone most severely impacted but also showed strongest recovery"
+      ],
+      "workflow_compliance": {
+        "router_queried": true,
+        "matching_workflow": "Q20",
+        "multi_scale_buffers": [25, 50, 100],
+        "first_night_rule_applied": true,
+        "first_night_date": "2025-03-29",
+        "usgs_sources_cited": true,
+        "outputs_generated": ["Myanmar_Earthquake_ANTL_2025.csv", "Impact_Assessment_Report.json", "Myanmar_Earthquake_Impact_Charts.png", "Myanmar_Earthquake_ANTL_Comparison.png"]
+      }
+    },
+    {
+      "timestamp": "2026-04-22T00:00:00Z",
+      "task_id": "china_34_province_ntl_2020_ranking",
+      "workflow_used": "statistical_analysis (adapted for country-scale L3)",
+      "status": "success",
+      "confidence": 0.88,
+      "issues": [
+        "v1_NTL_annual_image_null_ANNUAL_V22_2020_not_accessible",
+        "v2_maxPixels_invalid_for_reduceRegions",
+        "v3_geoBoundaries_CHN_excludes_Taiwan"
+      ],
+      "resolution": "v2_monthly_composite_fallback + removed_maxPixels + v3_taiwan_polygon_addition",
+      "user_satisfaction": null,
+      "output_artifacts": [
+        "china_province_ntl_2020.csv",
+        "china_province_ntl_2020_v2.py",
+        "china_province_ntl_2020_v3.py"
+      ],
+      "key_findings": [
+        "34 provinces ranked by 2020 ANTL",
+        "Top 3: Macau (79.70), Shanghai (20.49), Hong Kong (16.01)",
+        "Taiwan rank 9 (2.41), close to Guangdong (2.43)",
+        "Bottom 3: Qinghai (0.33), Tibet (0.31), Inner Mongolia (0.41)"
+      ],
+      "workflow_compliance": {
+        "router_queried": true,
+        "matching_workflow": "statistical_analysis.json (country-scale adaptation)",
+        "gee_server_side_reduceRegions": true,
+        "task_level": "L3",
+        "task_level_reason_codes": ["country_or_multi_province", "no_built_in_complete_match", "custom_GEE_reduceRegions_required"],
+        "monthly_composite_fallback": true,
+        "taiwan_explicitly_included": true,
+        "outputs_generated": ["china_province_ntl_2020.csv"]
+      }
+    },
+    {
+      "timestamp": "2026-04-25T00:00:00Z",
+      "task_id": "china_34_province_ntl_mean_2020_v2",
+      "workflow_used": "statistical_analysis.json (adapted for country-scale L3, sat-io dataset)",
+      "status": "success",
+      "confidence": 0.95,
+      "issues": ["boundary_name_mismatch_CN_EN"],
+      "resolution": "dual_language_presence_check_with_CN_and_EN_substrings",
+      "user_satisfaction": null,
+      "output_artifacts": ["china_province_ntl_mean_2020.csv", "china_province_ntl_2020.py"],
+      "key_findings": [
+        "34 provinces ranked by 2020 NTL mean",
+        "Top 3: 澳门(78.36), 香港(17.62), 上海(17.16)",
+        "Bottom 3: 内蒙古(0.06), 青海(0.03), 西藏(0.01)"
+      ],
+      "workflow_compliance": {
+        "router_queried": true,
+        "matching_workflow": "statistical_analysis.json (country-scale adaptation)",
+        "gee_server_side_reduceRegions": true,
+        "gee_project": "sound-dream-441705-m7",
+        "task_level": "L3",
+        "ntl_source": "projects/sat-io/open-datasets/npp-viirs-ntl (b1)",
+        "fallback_asset_used": "projects/empyrean-caster-430308-m2/assets/province",
+        "dual_language_check": true,
+        "outputs_generated": ["china_province_ntl_mean_2020.csv"]
+      }
+    },
+    {
+      "timestamp": "2026-04-25T00:00:00Z",
+      "task_id": "china_34_province_ntl_mean_vs_population_density",
+      "workflow_used": "statistical_analysis + gee-dataset-selection (multi-step)",
+      "status": "success",
+      "confidence": 0.92,
+      "issues": [],
+      "resolution": "completed",
+      "user_satisfaction": null,
+      "output_artifacts": [
+        "china_2020_ntl_vs_population_density.csv",
+        "china_2020_ntl_vs_density_scatter.png"
+      ],
+      "key_findings": [
+        "NTL mean vs population density ρ=0.9630 (extreme positive correlation)",
+        "Top 3 perfectly aligned: 澳门(#1/#1), 香港(#2/#2), 上海(#3/#3)",
+        "Largest deviation: 湖南(NTL #23, density #16, Δ+7)",
+        "Largest deviation: 宁夏(NTL #19, density #28, Δ-9)"
+      ],
+      "workflow_compliance": {
+        "router_queried": true,
+        "official_census_data_used": true,
+        "spearman_correlation": 0.9630,
+        "cjk_scatter_plot": true,
+        "outputs_generated": ["china_2020_ntl_vs_population_density.csv", "china_2020_ntl_vs_density_scatter.png"]
+      }
+    },
+    {
+      "timestamp": "2026-04-25T00:00:00Z",
+      "task_id": "china_34_province_ntl_mean_vs_gdp",
+      "workflow_used": "statistical_analysis + regression_indicator_estimation (multi-step)",
+      "status": "success",
+      "confidence": 0.92,
+      "issues": [],
+      "resolution": "completed",
+      "user_satisfaction": null,
+      "output_artifacts": [
+        "china_2020_ntl_vs_gdp.csv",
+        "china_2020_ntl_vs_gdp_scatter.png"
+      ],
+      "key_findings": [
+        "NTL mean vs GDP ρ=0.2758 (weak positive correlation)",
+        "NTL mean is intensity metric, poor GDP proxy",
+        "Largest deviation: 四川(GDP #6, NTL #27, Δ+21)",
+        "Validates that mean should NOT be used for GDP estimation"
+      ],
+      "workflow_compliance": {
+        "router_queried": true,
+        "official_gdp_data_used": true,
+        "spearman_correlation": 0.2758,
+        "cjk_scatter_plot": true,
+        "outputs_generated": ["china_2020_ntl_vs_gdp.csv", "china_2020_ntl_vs_gdp_scatter.png"]
+      }
+    },
+    {
+      "timestamp": "2026-04-25T00:00:00Z",
+      "task_id": "china_34_province_tntl_vs_gdp",
+      "workflow_used": "statistical_analysis + regression_indicator_estimation (multi-step)",
+      "status": "success",
+      "confidence": 0.92,
+      "issues": [],
+      "resolution": "completed",
+      "user_satisfaction": null,
+      "output_artifacts": [
+        "china_province_tntl_2020.csv",
+        "china_2020_tntl_vs_gdp.csv",
+        "china_2020_tntl_vs_gdp_scatter.png"
+      ],
+      "key_findings": [
+        "TNTL (sum) vs GDP ρ=0.8188 (strong positive correlation)",
+        "TNTL validates as aggregate metric for GDP estimation",
+        "Top 3 TNTL: 江苏(1.75M), 广东(1.59M), 山东(1.30M)",
+        "Largest deviation: 台湾(GDP #29, TNTL #9, Δ+20)",
+        "Largest deviation: 新疆(GDP #24, TNTL #11, Δ+13)"
+      ],
+      "workflow_compliance": {
+        "router_queried": true,
+        "gee_server_side_reduceRegions_sum": true,
+        "official_gdp_data_used": true,
+        "spearman_correlation": 0.8188,
+        "cjk_scatter_plot": true,
+        "outputs_generated": ["china_province_tntl_2020.csv", "china_2020_tntl_vs_gdp.csv", "china_2020_tntl_vs_gdp_scatter.png"]
+      }
+    }
+  ]
+}

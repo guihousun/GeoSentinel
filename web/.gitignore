@@ -1,0 +1,4 @@
+# Temporary visual-verification artifacts.
+*.png
+*.yml
+.playwright-cli/

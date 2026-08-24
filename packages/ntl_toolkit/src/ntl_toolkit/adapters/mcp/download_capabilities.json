@@ -1,0 +1,50 @@
+[
+  {
+    "name": "download_vnp46a1_official_h5",
+    "purpose": "Run official NASA Earthdata VNP46A1 HDF5 download and clipped daily radiance mosaics for one ISO3 country or WGS84 bounding box, optionally with UTC_Time companion rasters.",
+    "side_effects": "creates target geometry, run manifests, HDF5 files, radiance mosaics, optional UTC_Time mosaics, and audit files under output_root",
+    "common_error_codes": ["INVALID_PARAMETER", "EARTHDATA_TOKEN_MISSING", "VNP46A1_PHASE_FAILED", "VNP46A1_AUDIT_INCOMPLETE"]
+  },
+  {
+    "name": "validate_download_environment",
+    "purpose": "Inspect local GEE/Earthdata download readiness without exposing credentials.",
+    "side_effects": "none",
+    "common_error_codes": ["DEPENDENCY_MISSING", "GEE_NOT_INITIALIZED"]
+  },
+  {
+    "name": "download_gee_raster",
+    "purpose": "Export a validated Earth Engine Image or ImageCollection reduction as a single- or multi-band GeoTIFF, with controlled optical/QA/index preprocessing presets.",
+    "side_effects": "creates a new GeoTIFF and a suffixed name when necessary",
+    "common_error_codes": ["INVALID_PARAMETER", "GEE_NOT_INITIALIZED", "GEE_DOWNLOAD_FAILED"]
+  },
+  {
+    "name": "submit_gee_batch_export",
+    "purpose": "Submit a validated large GEE raster export to Drive, Cloud Storage, or an Earth Engine asset and persist a recoverable task manifest.",
+    "side_effects": "creates a remote Earth Engine batch task and a local ntl.gee.export.v1 manifest",
+    "common_error_codes": ["INVALID_PARAMETER", "GEE_BATCH_SUBMIT_FAILED"]
+  },
+  {
+    "name": "inspect_gee_batch_export",
+    "purpose": "Refresh live progress, terminal state, and failure details for a submitted Earth Engine export.",
+    "side_effects": "updates status history in the existing local export manifest",
+    "common_error_codes": ["INVALID_PARAMETER", "GEE_BATCH_STATUS_FAILED"]
+  },
+  {
+    "name": "cancel_gee_batch_export",
+    "purpose": "Request cancellation for a non-terminal Earth Engine export while retaining its manifest history.",
+    "side_effects": "may cancel a remote Earth Engine task and updates its local export manifest",
+    "common_error_codes": ["INVALID_PARAMETER", "GEE_BATCH_CANCEL_FAILED"]
+  },
+  {
+    "name": "download_vnp46a2_official_h5_country",
+    "purpose": "Run official NASA Earthdata VNP46A2 HDF5 country mosaics and audit output coverage.",
+    "side_effects": "creates run manifests, HDF5 files, mosaics, and audit files under output_root",
+    "common_error_codes": ["EARTHDATA_TOKEN_MISSING", "VNP46A2_PHASE_FAILED", "VNP46A2_AUDIT_INCOMPLETE"]
+  },
+  {
+    "name": "inspect_download_run",
+    "purpose": "Read VNP46A1 or VNP46A2 runtime state during an active download, or a completed audit with exact retry/mosaic targets.",
+    "side_effects": "none",
+    "common_error_codes": ["VNP46A2_AUDIT_NOT_FOUND", "VNP46A2_AUDIT_INCOMPLETE"]
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "timestamp_utc": "20260219T005453Z",
+  "source_tool": "execute_geospatial_script_tool",
+  "thread_id": "c755b1e6-785",
+  "original_script_name": "shanghai_antl_2020.py",
+  "original_script_path": "E:\\NTL-GPT-Clone\\user_data\\c755b1e6-785\\outputs\\shanghai_antl_2020.py",
+  "content_hash": "06d05662d70db98ed2a563616ae883524ae5e0c083dca790d539bd57619324c3",
+  "stdout_excerpt": "[StorageManager] Resolving 'shanghai_districts_boundary.shp' for thread_id='c755b1e6-785'\n[StorageManager] Found in user workspace: E:\\NTL-GPT-Clone\\user_data\\c755b1e6-785\\inputs\\shanghai_districts_boundary.shp\nOutput saved to: E:\\NTL-GPT-Clone\\user_data\\c755b1e6-785\\outputs\\shanghai_districts_antl_2020.csv\n         ANTL  AdCode     Level  Name              Parent\n0   58.912135  310101  district   黄浦区  {'adcode': 310000}\n1   38.869929  310104  district   徐汇区  {'adcode': 310000}\n2   54.316601  310105  district   长宁区  {'adcode': 310000}\n3   44.033519  310106  district   静安区  {'adcode': 310000}\n4   41.471776  310107  district   普陀区  {'adcode': 310000}\n5   39.444204  310109  district   虹口区  {'adcode': 310000}\n6   35.196995  310110  district   杨浦区  {'adcode': 310000}\n7   30.226655  310112  district   闵行区  {'adcode': 310000}\n8   25.343429  310113  district   宝山区  {'adcode': 310000}\n9   21.175637  310114  district   嘉定区  {'adcode': 310000}\n10  25.651681  310115  district  浦东新区  {'adcode': 310000}\n11   9.139815  310116  district   金山区  {'adcode': 310000}\n12  15.388449  310117  district   松江区  {'adcode': 310000}\n13  13.587060  310118  district   青浦区  {'adcode': 310000}\n14  11.656496  310120  district   奉贤区  {'adcode': 310000}\n15   3.463600  310151  district   崇明区  {'adcode': 310000}\n"
+}

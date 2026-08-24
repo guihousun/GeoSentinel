@@ -1,0 +1,162 @@
+[
+  {
+    "task_id": "Q20",
+    "task_name": "Earthquake Impact Assessment in Myanmar using Daily NTL (2025)",
+    "category": "Application and Modeling > Disaster monitoring",
+    "description": "Assess the impact of the 2025 Mw7.7 Mandalay earthquake on urban power infrastructure. The workflow retrieves official earthquake parameters (USGS/ReliefWeb), defines multi-scale epicenter buffers (25 km, 50 km, and 100 km), and utilizes the GEE Python API to compare daily VNP46A2 radiance across three critical periods: pre-event baseline, the first post-event overpass night, and the post-disaster recovery phase.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "tavily_search",
+        "input": {
+          "query": "2025 Myanmar earthquake official USGS ReliefWeb epicenter magnitude event time"
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "1. Parse event date/time (UTC), epicenter coordinates, and magnitude from Step 1 official sources. 2. Convert event time to epicenter local time and determine the first post-event overpass night for VNP46A2. Do not assume a fixed 02:00 local overpass; use a candidate window such as 00:30-02:30 local and narrow it with pixel-level UTC_Time or official metadata when the UTC date boundary matters. Use GEE VNP46A1.UTC_Time only when VNP46A1 covers the target date; for recent events beyond GEE VNP46A1 coverage, use LAADS/CMR granule timing or official metadata. If the event occurs after that nightly overpass on day D, use day D+1 as the local first-night label (not D). Then convert the selected local first-night acquisition time or candidate range back to UTC before choosing any UTC-indexed image/file date. For the Myanmar 2025 event, a plausible local acquisition range around 2025-03-29 00:30-02:30 MMT maps to about 2025-03-28 18:00-20:00 UTC, so a UTC-indexed first-night image/file date is 2025-03-28. 3. Initialize GEE and define three epicenter buffers: 25 km, 50 km, and 100 km. 4. Load 'NASA/VIIRS/002/VNP46A2' daily radiance data and compute spatial mean ANTL for each buffer across three windows: pre-event baseline (event-14d to event-7d), first post-event overpass night, and post-event recovery (event+7d to event+14d). 5. Save period-level statistics to 'outputs/Myanmar_Earthquake_ANTL_2025.csv' with fields: buffer_km, period, start_date, end_date, mean_antl, and document both local_first_night_date and utc_file_date in the run notes/report.",
+        "name": "geospatial_code_step_2"
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Read 'outputs/Myanmar_Earthquake_ANTL_2025.csv' and compute blackout impact metrics dynamically for each buffer (e.g., drop_pct = (event_night - baseline) / baseline * 100). In the report, explicitly document the first-night selection rule, the local first post-event overpass date/time, the corresponding UTC acquisition time, and the UTC image/file date used for querying. Generate a structured JSON impact report in 'outputs/Impact_Assessment_Report.json' including assumptions, formulas, per-buffer computed values (25/50/100 km), cross-buffer comparisons, and cited official event metadata from Step 1.",
+        "name": "geospatial_code_step_3"
+      }
+    ],
+    "output": "outputs/Impact_Assessment_Report.json"
+  },
+  {
+    "task_id": "Q21",
+    "task_name": "Iran conflict nightlight impact assessment using official VJ102/VJ103",
+    "category": "Application and Modeling > Disaster monitoring",
+    "description": "Assess conflict-related nighttime light changes in Iran with official-source VJ102DNB/VJ103DNB daily products. The workflow runs official full-chain preprocessing, refreshes INSS strike points, and rebuilds the analysis report.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "official_vj_dnb_fullchain_tool",
+        "input": {
+          "start_date": "2026-02-28",
+          "end_date": "2026-03-02",
+          "bbox": "44.03,25.08,63.33,39.77",
+          "output_root": "official_vj_dnb_pipeline_runs",
+          "run_label": "iran_conflict_20260228_20260302",
+          "sources": "VJ102DNB,VJ103DNB",
+          "composite": "mean",
+          "resolution_m": 500.0,
+          "radius_m": 2000.0,
+          "radiance_scale": 1000000000.0,
+          "token_env": "EARTHDATA_TOKEN"
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Run tools/fetch_inss_arcgis_strikes.py with --end-date aligned to analysis window to refresh latest strike points and spatial summaries.",
+        "name": "refresh_inss_points"
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Run base_data/Iran_War/analysis/scripts/modular_refactor/rebuild_iran_event_report.py to regenerate combined report with updated rasters and strike points.",
+        "name": "rebuild_conflict_report"
+      }
+    ],
+    "output": [
+      "outputs/official_vj_dnb_pipeline_runs/<run_label>/processed_tif/daily_4326/*.tif",
+      "base_data/Iran_War/analysis/inss_arcgis_strikes_latest/inss_arcgis_strikes_merged.geojson",
+      "base_data/Iran_War/analysis/results/ntl_combined_report.html"
+    ],
+    "_evolution": {
+      "added_at": "2026-03-04",
+      "reason": "Add reusable event-impact workflow for official VJ102/VJ103 conflict analysis and report rebuild.",
+      "capability_scope": "conflict_event_assessment_official_viirs_daily"
+    }
+  },
+  {
+    "task_id": "Q22",
+    "task_name": "Iran conflict local-topic mapping with official VJ146A1 QA-controlled Tehran and Hormuz views",
+    "category": "Application and Modeling > Disaster monitoring",
+    "description": "Generate Tehran and Strait of Hormuz local topic maps and GIFs from official VJ146A1 daily products. The workflow uses the formal fullchain tool in gridded mode with explicit qa_mode, prepares case-specific Tehran map inputs in the workflow layer, and renders two white-basemap viridis outputs without hardcoding these presets into generic tools.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "official_vj_dnb_fullchain_tool",
+        "input": {
+          "start_date": "2026-02-25",
+          "end_date": "2026-03-05",
+          "bbox": "44.03,25.08,63.33,39.77",
+          "output_root": "official_vj_dnb_pipeline_runs",
+          "run_label": "iran_conflict_vj146a1_20260225_20260305_strict",
+          "sources": "VJ146A1",
+          "qa_mode": "strict",
+          "generate_gif": false,
+          "token_env": "EARTHDATA_TOKEN"
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Read `base_data/Iran_War/data/boundaries/iran_geoboundaries_all_levels_shp/iran_geoboundaries_adm2.shp` and extract the Tehran polygon to `/data/processed/workflow_cases/q22_iran_vj146a1_tehran_hormuz/map_inputs/tehran_boundary.geojson`. Then read `base_data/Iran_War/data/event_feeds/inss_arcgis_strikes_latest/inss_arcgis_strikes_merged.geojson`, clip recent events within the Tehran display window for 2026-02-25..2026-03-05, and save `/data/processed/workflow_cases/q22_iran_vj146a1_tehran_hormuz/map_inputs/tehran_recent_strikes.geojson`.",
+        "name": "prepare_tehran_case_inputs"
+      },
+      {
+        "type": "builtin_tool",
+        "name": "official_vj_dnb_gif_tool",
+        "input": {
+          "input_dir": "/data/processed/official_vj_dnb_pipeline_runs/iran_conflict_vj146a1_20260225_20260305_strict/gridded_workspace/outputs/VJ146A1",
+          "output_root": "official_vj_dnb_gif_runs",
+          "run_label": "tehran_0225_0305_strict_white_viridis",
+          "style_palette": "white_viridis",
+          "boundary_vector": "/data/processed/workflow_cases/q22_iran_vj146a1_tehran_hormuz/map_inputs/tehran_boundary.geojson",
+          "overlay_vector": "/data/processed/workflow_cases/q22_iran_vj146a1_tehran_hormuz/map_inputs/tehran_recent_strikes.geojson",
+          "boundary_edge_color": "#4b5563",
+          "boundary_linewidth": 1.25,
+          "boundary_alpha": 0.95,
+          "view_bbox": "51.0090099001868,35.4614815995962,51.86879269992319,35.999977199887894",
+          "title_prefix": "Tehran VJ146A1 Strict",
+          "basemap_style": "light",
+          "basemap_provider": "CartoDB.Positron",
+          "basemap_alpha": 1.0,
+          "ntl_alpha": 0.93,
+          "transparent_below": 0.25,
+          "duration_ms": 850,
+          "cmap": "viridis"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "official_vj_dnb_gif_tool",
+        "input": {
+          "input_dir": "/data/processed/official_vj_dnb_pipeline_runs/iran_conflict_vj146a1_20260225_20260305_strict/gridded_workspace/outputs/VJ146A1",
+          "output_root": "official_vj_dnb_gif_runs",
+          "run_label": "hormuz_0225_0305_strict_white_viridis",
+          "style_palette": "white_viridis",
+          "overlay_vector": "/shared/Iran_War/data/ports/hormuz/hormuz_ports.geojson",
+          "overlay_label_field": "name",
+          "point_legend_label": "Hormuz Ports",
+          "view_bbox": "55.589999999999996,24.77,58.213,27.5333",
+          "title_prefix": "Hormuz VJ146A1 Strict",
+          "basemap_style": "light",
+          "basemap_provider": "CartoDB.Positron",
+          "basemap_alpha": 1.0,
+          "ntl_alpha": 0.93,
+          "transparent_below": 0.25,
+          "duration_ms": 850,
+          "cmap": "viridis"
+        }
+      }
+    ],
+    "output": [
+      "/data/processed/official_vj_dnb_pipeline_runs/iran_conflict_vj146a1_20260225_20260305_strict/gridded_workspace/outputs/VJ146A1/*/*.tif",
+      "/data/processed/official_vj_dnb_gif_runs/tehran_0225_0305_strict_white_viridis/ntl_daily_animation.gif",
+      "/data/processed/official_vj_dnb_gif_runs/hormuz_0225_0305_strict_white_viridis/ntl_daily_animation.gif"
+    ],
+    "_evolution": {
+      "added_at": "2026-03-07",
+      "reason": "Move Tehran/Hormuz case presets into workflow guidance instead of embedding regional assumptions into generic tools.",
+      "capability_scope": "conflict_event_assessment_vj146a1_local_topic_maps"
+    }
+  }
+]

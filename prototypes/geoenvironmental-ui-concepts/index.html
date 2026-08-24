@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>地缘环境智能计算平台</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%2310233e'/%3E%3Ctext x='16' y='21' text-anchor='middle' font-family='Arial' font-size='12' fill='white'%3EGI%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet" />
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=research-views-20260823c" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="rail" aria-label="平台控制台">
+      <div class="brand-lockup">
+        <div class="brand-mark" aria-hidden="true">GI</div>
+        <div>
+          <p class="eyebrow">地缘环境智能计算 / GI</p>
+          <h1>地缘智能计算</h1>
+        </div>
+      </div>
+
+      
+
+      <nav class="primary-nav" aria-label="研究模块">
+        <p class="section-label">研究空间</p>
+        <button class="nav-item active" type="button" data-nav="situation" aria-current="page"><i data-lucide="scan-search"></i><span>全球态势</span></button>
+        <button class="nav-item" type="button" data-nav="events"><i data-lucide="radar"></i><span>事件监测</span></button>
+        <button class="nav-item" type="button" data-nav="profiles"><i data-lucide="contact-round"></i><span>国家画像</span></button>
+      </nav>
+
+      <div class="rail-divider"></div>
+      <nav class="secondary-nav" aria-label="专题案例">
+        <p class="section-label">专题案例</p>
+        <a class="nav-item specialty-nav" href="#logistics" data-nav="logistics" aria-label="打开粮食物流与可达性专题">
+          <i data-lucide="route"></i>
+          <span class="nav-label"><strong>粮食物流与可达性</strong><small>FOOD LOGISTICS</small></span>
+          <b>案例</b>
+        </a>
+      </nav>
+      <div class="rail-divider"></div>
+      <div class="rail-focus" aria-label="当前演示案例">
+        <p class="section-label">当前案例</p>
+        <strong>缅甸西部粮食安全</strong>
+        <small>节点 · 走廊 · 可达性</small>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">GEOENVIRONMENTAL INTELLIGENCE / RESEARCH WORKSPACE</p>
+          <h2 id="workspace-title">地缘环境智能计算平台</h2>
+        </div>
+        <div class="topbar-actions">
+          <span class="data-state" id="workspace-context">当前任务：全球态势研判</span>
+          <button class="primary-action" id="export-brief" type="button"><i data-lucide="download"></i><span>导出简报</span></button>
+        </div>
+      </header>
+
+      <div class="workspace-view workspace-view-primary desk-grid" id="primary-workspace" data-view="situation">
+        <div class="center-stack">
+          <section class="map-pane surface" aria-label="全球事件态势地图">
+            <div class="map-toolbar">
+              <div class="map-title"><span class="live-dot"></span><strong>全球关注区域</strong><small>事件 · 通道 · 空间风险</small></div>
+              <div class="map-actions"><button class="map-tool" type="button" data-map-action="reset" title="重置视图" aria-label="重置视图"><i data-lucide="locate-fixed"></i></button><button class="map-tool" type="button" data-map-action="layers" title="切换空间图层" aria-label="切换空间图层"><i data-lucide="layers-3"></i></button></div>
+            </div>
+            <div id="atlas-map" class="map-canvas"><div class="map-loading">正在载入空间底图</div></div>
+            <div class="map-legend"><span><i class="legend-dot high"></i>高关注</span><span><i class="legend-dot medium"></i>持续跟踪</span><span><i class="legend-dot low"></i>观察</span></div>
+          </section>
+
+          <section class="chat-pane surface" aria-label="智能体对话">
+            <div class="chat-head"><div><p class="eyebrow">研究任务 / AGENT CHAT</p><h4>任务对话</h4></div><span class="thread-status"><span class="status-dot"></span>地缘分析师已连接</span></div>
+            <div class="chat-messages" id="chat-messages" aria-live="polite">
+              <div class="chat-empty-state"><i data-lucide="message-square-text"></i><strong>开始一项研究</strong><p>输入研究问题，地缘分析师将根据任务需要调度事件、数据和证据工具。</p></div>
+            </div>
+            <form class="chat-composer" id="chat-form">
+              <button class="composer-tool" type="button" title="添加数据上下文" aria-label="添加数据上下文"><i data-lucide="paperclip"></i></button>
+              <textarea id="chat-input" rows="1" placeholder="输入研究问题，或描述需要核验的地缘政治因素" aria-label="输入研究问题"></textarea>
+              <button class="send-button" type="submit" title="发送任务" aria-label="发送任务"><i data-lucide="arrow-up"></i></button>
+            </form>
+            <div class="composer-meta"><span><i data-lucide="sparkles"></i>由地缘分析师负责调度</span><span>Enter 发送 · Shift + Enter 换行</span></div>
+          </section>
+        </div>
+
+        <aside class="agent-pane surface" aria-label="智能体运行看板">
+          <div class="panel-head"><div><p class="eyebrow">智能体协作 / ORCHESTRATION</p><h4>任务协作</h4></div><span class="board-state"><span class="status-dot"></span>任务已就绪</span></div>
+          <div class="agent-list">
+            <button class="agent-row" type="button" data-agent="地缘分析师"><span class="agent-icon engineer"><i data-lucide="route"></i></span><span class="agent-copy"><strong>地缘分析师</strong><small>任务规划与结论汇总 · GEO ANALYST</small></span><span class="agent-state">待命</span></button>
+            <button class="agent-row" type="button" data-agent="数据检索助手"><span class="agent-icon searcher"><i data-lucide="search-check"></i></span><span class="agent-copy"><strong>数据检索助手</strong><small>事件与空间数据 · DATA RETRIEVER</small></span><span class="agent-state">待命</span></button>
+            <button class="agent-row" type="button" data-agent="知识库助手"><span class="agent-icon knowledge"><i data-lucide="book-open-check"></i></span><span class="agent-copy"><strong>知识库助手</strong><small>理论与概念补充 · KNOWLEDGE ASSISTANT</small></span><span class="agent-state">按需</span></button>
+            <button class="agent-row" type="button" data-agent="代码助手"><span class="agent-icon code"><i data-lucide="braces"></i></span><span class="agent-copy"><strong>代码助手</strong><small>复杂脚本复核与验证 · CODE ASSISTANT</small></span><span class="agent-state">按需</span></button>
+          </div>
+        </aside>
+      </div>
+
+      <section class="workspace-view workspace-view-secondary module-stage" id="events-module" data-view="events" hidden aria-labelledby="events-module-title">
+        <header class="module-page-head">
+          <div>
+            <p class="eyebrow">事件监测 / EVENT MONITORING</p>
+            <h3 id="events-module-title">事件监测</h3>
+            <p>将公开事件转为可定位、可核验并可继续追问的空间研究任务。</p>
+          </div>
+          <span class="module-status"><span class="status-dot"></span>监测任务</span>
+        </header>
+
+        <div class="module-demo-grid">
+          <section class="module-map-pane surface" aria-label="事件监测地图">
+            <div class="map-toolbar">
+              <div class="map-title"><span class="live-dot"></span><strong>全球监测视图</strong><small>待研判空间信号</small></div>
+            </div>
+            <div id="events-map" class="map-canvas"><div class="map-loading">载入事件监测地图</div></div>
+            <div class="map-legend"><span><i class="legend-dot high"></i>高优先级</span><span><i class="legend-dot medium"></i>持续跟踪</span><span><i class="legend-dot low"></i>常规观察</span></div>
+          </section>
+
+          <aside class="module-side surface" aria-label="事件监测队列">
+            <div class="panel-head"><div><p class="eyebrow">监测队列 / QUEUE</p><h4>优先研判</h4></div><span class="panel-kicker">可转为任务</span></div>
+            <div class="monitor-filters"><span>空间定位</span><span>来源核验</span><span>跨境影响</span></div>
+            <div class="monitor-list">
+              <article class="monitor-event high"><span>01</span><div><strong>红海航运扰动</strong><small>航线通行、港口拥堵与替代通道</small><button type="button" data-event-task="评估红海航运扰动对区域物流和港口连接的空间影响。">进入研判</button></div><em>高优先级</em></article>
+              <article class="monitor-event high"><span>02</span><div><strong>缅甸边境通行变化</strong><small>口岸、道路与人道通道的空间关联</small><button type="button" data-event-task="核验缅甸西部边境通行变化与粮食物流节点可达性的关系。">进入研判</button></div><em>专题关联</em></article>
+              <article class="monitor-event medium"><span>03</span><div><strong>高加索基础设施风险</strong><small>能源设施与跨境运输节点风险</small><button type="button" data-event-task="梳理高加索基础设施风险涉及的跨境连接节点和公开证据。">进入研判</button></div><em>持续跟踪</em></article>
+            </div>
+            <div class="module-note"><i data-lucide="shield-check"></i><p>每项监测任务将沉淀来源、时间范围、空间范围与核验状态，并进入同一研究线程。</p></div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="workspace-view workspace-view-secondary module-stage" id="profiles-module" data-view="profiles" hidden aria-labelledby="profiles-module-title">
+        <header class="module-page-head">
+          <div>
+            <p class="eyebrow">国家画像 / COUNTRY PROFILE</p>
+            <h3 id="profiles-module-title">国家画像</h3>
+            <p>将国家结构、跨境连接和空间暴露汇集为可更新的研究基线。</p>
+          </div>
+          <span class="module-status"><span class="status-dot"></span>当前案例 · 缅甸</span>
+        </header>
+
+        <div class="profile-demo-grid">
+          <section class="module-map-pane surface" aria-label="缅甸国家画像地图">
+            <div class="map-toolbar">
+              <div class="map-title"><span class="live-dot amber-dot"></span><strong>缅甸 · 国家尺度基线</strong><small>一级行政区划参考</small></div>
+            </div>
+            <div id="profile-map" class="map-canvas"><div class="map-loading">载入缅甸行政区划</div></div>
+          </section>
+
+          <aside class="profile-brief surface" aria-label="国家画像摘要">
+            <div class="panel-head"><div><p class="eyebrow">研究维度 / PROFILE</p><h4>缅甸画像摘要</h4></div><span class="panel-kicker">案例</span></div>
+            <dl class="profile-facts">
+              <div><dt>政治与安全</dt><dd>冲突事件、治理结构与边境态势</dd></div>
+              <div><dt>经济与供应</dt><dd>走廊、口岸、港口与关键物资网络</dd></div>
+              <div><dt>社会与人道</dt><dd>人口、居民点、粮食与服务可达性</dd></div>
+              <div><dt>空间暴露</dt><dd>行政区、基础设施与专题风险图层</dd></div>
+            </dl>
+            <div class="profile-output"><span>专题入口</span><strong>粮食物流与可达性</strong><small>沿 Kaladan 走廊核验关键节点、生产腹地和居民点可达性。</small><button class="secondary-action profile-action" id="profile-open-logistics" type="button"><i data-lucide="route"></i><span>进入粮食物流专题</span></button></div>
+          </aside>
+        </div>
+
+        <section class="profile-dimension-grid" aria-label="国家画像模块说明">
+          <article><i data-lucide="landmark"></i><div><strong>政治安全</strong><small>事件、行动体、制度与边境态势</small></div></article>
+          <article><i data-lucide="route"></i><div><strong>经济连接</strong><small>贸易、能源、物流与关键节点</small></div></article>
+          <article><i data-lucide="users-round"></i><div><strong>社会民生</strong><small>人口、服务可达性与人道暴露</small></div></article>
+        </section>
+      </section>
+
+      <section class="workspace-view workspace-view-specialty specialty-module" id="logistics-module" data-view="logistics" hidden aria-labelledby="logistics-module-title">
+        <header class="specialty-head">
+          <div class="topic-route">
+            <p class="eyebrow">专题分析 / FOOD LOGISTICS</p>
+            <h3 id="logistics-module-title">缅甸西部粮食物流与可达性</h3>
+            <span>Kaladan corridor · 专题会话</span>
+          </div>
+          <div class="specialty-head-actions">
+            <span class="module-status"><span class="status-dot"></span>与当前研究线程同步</span>
+            <button class="secondary-action" id="back-to-situation" type="button"><i data-lucide="arrow-left"></i><span>返回全球态势</span></button>
+          </div>
+        </header>
+
+        <div class="case-main-grid case-chat-grid">
+          <section class="logistics-map-pane surface" aria-label="粮食物流专题地图">
+            <div class="map-toolbar">
+              <div class="map-title"><span class="live-dot amber-dot"></span><strong>缅甸粮食供应网络</strong><small id="logistics-layer-state">行政区划 + 三类空间证据</small></div>
+              <div class="map-actions">
+                <button class="map-tool" type="button" data-logistics-action="reset" title="重置专题视图" aria-label="重置专题视图"><i data-lucide="locate-fixed"></i></button>
+                <button class="map-tool" type="button" data-logistics-action="layers" title="切换专题图层" aria-label="切换专题图层"><i data-lucide="layers-3"></i></button>
+              </div>
+            </div>
+            <div id="logistics-map" class="map-canvas"><div class="map-loading">进入专题后载入物流节点图层</div></div>
+            <div class="map-legend logistics-legend" id="logistics-network-legend"><span><i class="legend-dot source"></i>生产源 / 转运界面</span><span><i class="legend-dot chokepoint"></i>战略瓶颈点</span><span><i class="legend-dot gateway"></i>跨境门户</span></div>
+            <section class="logistics-layer-panel" id="logistics-layer-panel" aria-label="专题数据图层">
+              <div class="layer-panel-head"><div><p class="eyebrow">空间证据图层 / DATA LAYERS</p><strong>默认叠加空间证据</strong></div><span>数据预览</span></div>
+              <label class="layer-choice"><input type="checkbox" data-logistics-layer="admin" checked><span><i data-lucide="map"></i></span><b>缅甸一级行政区划</b><em>geoBoundaries ADM1 · 2019</em></label>
+              <label class="layer-choice layer-network-choice"><input type="checkbox" data-logistics-layer="network" checked><span><i data-lucide="route"></i></span><b>节点与供应走廊</b><em>案例网络</em></label>
+              <fieldset class="raster-layer-group">
+                <legend>基础栅格（默认叠加显示）</legend>
+                <label class="layer-choice"><input type="checkbox" data-logistics-raster="food" checked><span><i data-lucide="wheat"></i></span><b>粮食生产强度</b><em>SPAM 2020 · 约 10 km</em></label>
+                <label class="layer-choice"><input type="checkbox" data-logistics-raster="settlement" checked><span><i data-lucide="house"></i></span><b>居民点分布</b><em>真实栅格 · 约 30 m</em></label>
+                <label class="layer-choice"><input type="checkbox" data-logistics-raster="accessibility" checked><span><i data-lucide="route"></i></span><b>可达性成本表面</b><em>真实栅格 · 约 30 m</em></label>
+              </fieldset>
+              <p class="layer-preview-note" id="logistics-layer-note">默认叠加行政区划、供应网络与三类空间栅格；居民点仅增强真实已占用像元的可见性。</p>
+            </section>
+          </section>
+
+          <section class="logistics-chat-pane surface" aria-label="粮食物流专题问答">
+            <div class="chat-head topic-chat-head">
+              <div><p class="eyebrow">专题问答 / SPECIALTY CHAT</p><h4>和地缘分析师一起研判</h4></div>
+              <span class="thread-status"><span class="status-dot"></span>已连接</span>
+            </div>
+
+            <div class="topic-context" aria-live="polite">
+              <i data-lucide="map-pin"></i>
+              <div>
+                <span>当前空间焦点</span>
+                <strong id="logistics-context-node">尚未选择节点</strong>
+                <small id="logistics-context-copy">点击地图中的节点，将其作为本次问题的空间上下文。</small>
+              </div>
+            </div>
+
+            <div class="chat-messages topic-chat-messages" id="logistics-chat-messages" aria-live="polite">
+              <article class="message assistant">
+                <span class="message-avatar ai">AI</span>
+                <div>
+                  <div class="message-meta"><strong>地缘分析师</strong><time>已就绪</time></div>
+                  <p>专题资料已载入。可以围绕节点失效、走廊替代、粮食生产、居民点暴露或可达性成本直接提问；地图图层和已选节点会进入同一研究线程。</p>
+                  <div class="message-tags"><span>专题上下文</span><span>空间证据已载入</span></div>
+                </div>
+              </article>
+            </div>
+
+            <div class="topic-prompts" aria-label="推荐问题">
+              <button type="button" data-logistics-prompt="Paletwa–Kaladan 受阻时，哪些环节最可能先受到影响？">评估 Paletwa–Kaladan 受阻</button>
+              <button type="button" data-logistics-prompt="请切换粮食生产图层，并解释供应腹地与走廊的空间关系。">查看粮食生产腹地</button>
+              <button type="button" data-logistics-prompt="Rikhawdar–Mizoram 是否可能成为替代跨境入口？需要核验哪些证据？">比较替代跨境入口</button>
+            </div>
+
+            <details class="topic-reference">
+              <summary><span>论文案例参考：关键节点失效情景</span><i data-lucide="chevron-down"></i></summary>
+              <p>已归档案例中，移除介数最高的前 5% 节点后，最大连通分量约保留 7%。该数值仅作对照基线，不是本次页面的实时计算结果。</p>
+            </details>
+
+            <form class="chat-composer topic-chat-composer" id="logistics-chat-form">
+              <button class="composer-tool" type="button" title="当前地图与图层将作为上下文" aria-label="当前地图与图层将作为上下文"><i data-lucide="map"></i></button>
+              <textarea id="logistics-chat-input" rows="1" placeholder="例如：如果关键节点受阻 7 天，哪些居民点可能优先失去可达性？" aria-label="输入专题问题"></textarea>
+              <button class="send-button" type="submit" title="发送专题问题" aria-label="发送专题问题"><i data-lucide="arrow-up"></i></button>
+            </form>
+            <div class="composer-meta"><span><i data-lucide="sparkles"></i>地图图层与选中节点会一并进入上下文</span><span>Enter 发送</span></div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="assets/data-layers/layer-manifest.js"></script>
+<script src="app.js?v=research-views-20260823c"></script>
+</body>
+</html>

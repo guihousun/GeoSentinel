@@ -1,0 +1,8 @@
+{
+    "Language": "Python",
+    "Platform": "Python",
+    "Library": "rasterio",
+    "Title": "",
+    "Description": "",
+    "Code": "import pprint\n\nimport rasterio\nfrom rasterio.features import shapes\n\nwith rasterio.open('tests/data/shade.tif') as src:\n    image = src.read(1)\n\n# Print the first two shapes...\npprint.pprint(\n    list(shapes(image))[:2]\n)\n"
+}

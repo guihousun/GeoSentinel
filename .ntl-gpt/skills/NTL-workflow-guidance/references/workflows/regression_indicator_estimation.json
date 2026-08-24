@@ -1,0 +1,269 @@
+[
+  {
+    "task_id": "Q19",
+    "task_name": "Estimate GDP using annual NTL brightness (2013–2022)",
+    "category": "Application and Modeling > Socio-economic indicator modeling",
+    "description": "Retrieve Shanghai's GDP data and the NPP-VIIRS NTL imagery from 2013 to 2022, analyze the relationship between annual average nighttime light (ANTL) and GDP using multiple regression models (OLS, Ridge, Lasso, and Random Forest), and select the best-fitting model based on R² and RMSE.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS",
+          "time_range_input": "2013 to 2022",
+          "out_name": "Shanghai_NTL.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "get_administrative_division_data",
+        "input": {
+          "city_name": "上海市",
+          "output_name": "Shanghai_boundary.shp"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "NTL_raster_statistics",
+        "input": {
+          "ntl_tif_path": "Shanghai_NTL.tif",
+          "shapefile_path": "Shanghai_boundary.shp",
+          "output_csv_path": "Shanghai_ANTL_2013_2022.csv",
+          "selected_indices": [
+            "ANTL"
+          ]
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "1. Load annual ANTL values from 'outputs/Shanghai_ANTL_2013_2022.csv'. 2. Retrieve aligned official GDP statistics for 2013-2022 from authoritative sources (prefer structured official APIs/tools) and merge by year. 3. Fit four regression models: Ordinary Least Squares (OLS), Ridge, Lasso, and Random Forest. 4. Evaluate and compare models using computed R? and RMSE, then select the best model based on current run metrics (do not assume a fixed winner). 5. Save the final model performance report to 'outputs/GDP_Regression_Report.csv'.",
+        "name": "geospatial_code_step_4"
+      }
+    ],
+    "output": "outputs/GDP_Regression_Report.csv"
+  },
+  {
+    "task_id": "Q19b",
+    "task_name": "Quick GDP estimation from TNTL (single year)",
+    "category": "Application and Modeling > Socio-economic indicator estimation",
+    "description": "Quickly estimate provincial GDP using Total Nighttime Light (TNTL) value with pre-trained regression model. Use this for rapid estimation without full regression analysis.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_raster_statistics",
+        "input": {
+          "ntl_tif_path": "region_NTL.tif",
+          "shapefile_path": "region_boundary.shp",
+          "output_csv_path": "region_stats.csv",
+          "selected_indices": ["TNTL"],
+          "only_global": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "NTL_Estimate_Indicator_Provincial",
+        "input": {
+          "tntl": 12345.67,
+          "indicator": "GDP",
+          "province": "上海市"
+        }
+      }
+    ],
+    "output": "Estimated GDP value with confidence interval"
+  },
+  {
+    "task_id": "Q19c",
+    "task_name": "Estimate population distribution using NTL",
+    "category": "Application and Modeling > Socio-economic indicator estimation",
+    "description": "Estimate population distribution at grid level using NTL data and dasymetric mapping approach. Combines NTL intensity with land use data for improved accuracy.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "研究区",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS-Like",
+          "time_range_input": "2020 to 2020",
+          "out_name": "NTL_2020.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "LandScan_download_tool",
+        "input": {
+          "study_area": "研究区",
+          "scale_level": "province",
+          "time_range_input": "2020 to 2020",
+          "out_name": "landscan_2020",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "1. Load NTL and LandScan data. 2. Calculate NTL intensity weights. 3. Apply dasymetric mapping: population_grid = total_population * (NTL_grid / sum(NTL_all_grids)). 4. Validate against census data. 5. Save gridded population estimate.",
+        "name": "geospatial_code_step_3"
+      }
+    ],
+    "output": "outputs/population_distribution_2020.tif - Gridded population estimates"
+  },
+  {
+    "task_id": "Q19d",
+    "task_name": "Estimate CO2 emissions from NTL data",
+    "category": "Application and Modeling > Socio-economic indicator estimation",
+    "description": "Estimate provincial CO2 emissions using NTL data and pre-trained emission model. Requires province name for accurate regional calibration.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "省份",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS-Like",
+          "time_range_input": "2020 to 2020",
+          "out_name": "province_NTL.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "NTL_raster_statistics",
+        "input": {
+          "ntl_tif_path": "province_NTL.tif",
+          "shapefile_path": "province_boundary.shp",
+          "output_csv_path": "province_stats.csv",
+          "selected_indices": ["TNTL"],
+          "only_global": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "NTL_Estimate_Indicator_Provincial",
+        "input": {
+          "tntl": 54321.09,
+          "indicator": "CO2 emissions",
+          "province": "江苏省"
+        }
+      }
+    ],
+    "output": "Estimated CO2 emissions (tons) with uncertainty range"
+  },
+  {
+    "task_id": "Q25",
+    "task_name": "Assess SDG 7.1.1: Electrification Rate in Shanghai (2020)",
+    "category": "Application and Modeling > Socio-economic indicator modeling",
+    "description": "Evaluate the electricity access rate in Shanghai for 2020 (SDG 7.1.1) by integrating NPP-VIIRS NTL data and LandScan population grids. The workflow uses specialized thresholding to identify electrified areas and aggregates population data to compute the final accessibility percentage.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS",
+          "time_range_input": "2020 to 2020",
+          "out_name": "Shanghai_NTL_2020.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "LandScan_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "time_range_input": "2020 to 2020",
+          "out_name": "inputs/landscan_shanghai_2020",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "get_administrative_division_data",
+        "input": {
+          "city_name": "上海市",
+          "output_name": "Shanghai_boundary.shp"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "Detect_Electrified_Areas_by_Thresholding",
+        "input": {
+          "input_tif": "Shanghai_NTL_2020.tif",
+          "output_tif": "Shanghai_Electrified_Mask_2020.tif",
+          "threshold": 5.0
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "1. Resolve the LandScan raster from Step 2 output_files (fallback: first matching file under 'inputs/landscan_shanghai_2020/*.tif') and load the binary mask 'outputs/Shanghai_Electrified_Mask_2020.tif'. 2. Align raster grids and calculate total population (sum of all population pixels) and electrified population (sum where mask == 1). 3. Compute the SDG 7.1.1 electrification rate and save 'Total Population, Electrified Population, Rate' to 'outputs/SDG_7_1_1_Final_Report.csv'.",
+        "name": "geospatial_code_step_5"
+      }
+    ],
+    "output": "outputs/SDG_7_1_1_Final_Report.csv"
+  },
+  {
+    "task_id": "Q27",
+    "task_name": "Estimate provincial Electric Power Consumption (EPC) using NOAA-20 NTL (2021)",
+    "category": "Application and Modeling > Socio-economic indicator estimation",
+    "description": "Establish a predictive model for provincial Electric Power Consumption (EPC) in China using 2021 average nighttime light intensity (ANTL). The workflow automates the retrieval of official energy statistics via web search and correlates them with NPP-VIIRS radiance data through linear regression.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "中国",
+          "scale_level": "country",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS",
+          "time_range_input": "2021 to 2021",
+          "out_name": "China_NTL_2021.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "tavily_search",
+        "input": {
+          "query": "2021年中国各省份全社会用电量 (EPC) 官方统计数据列表"
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "1. Retrieve Chinese provincial administrative boundaries using the GEE API (e.g., FAO GAUL) and save to 'inputs/China_Provinces.shp'. 2. Align the CRS of the boundary file with 'inputs/China_NTL_2021.tif'.",
+        "name": "geospatial_code_step_3"
+      },
+      {
+        "type": "builtin_tool",
+        "name": "NTL_raster_statistics",
+        "input": {
+          "ntl_tif_path": "China_NTL_2021.tif",
+          "shapefile_path": "China_Provinces.shp",
+          "output_csv_path": "Provincial_ANTL_EPC_2021.csv",
+          "selected_indices": [
+            "ANTL"
+          ]
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "1. Load provincial ANTL indices from 'outputs/Provincial_ANTL_EPC_2021.csv'. 2. Extract and match EPC values from the search results. 3. Perform OLS linear regression to model the relationship between ANTL (predictor) and EPC (target). 4. Save the model performance metrics (R², RMSE) and the fitted dataset to 'outputs/Provincial_EPC_Regression_Report.csv'.",
+        "name": "geospatial_code_step_5"
+      }
+    ],
+    "output": "outputs/Provincial_EPC_Regression_Report.csv"
+  }
+]

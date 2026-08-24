@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>地缘环境智能计算平台 · 大型产品参考配色</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23f4f4f4'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%23007ac2'/%3E%3C/svg%3E">
+  <style>
+    html, body { width:100%; height:100%; margin:0; overflow:hidden; background:#e9eef1; }
+    iframe { display:block; width:100%; height:100%; border:0; }
+  </style>
+</head>
+<body>
+  <iframe id="lab" src="palette-lab.html" title="大型产品参考配色实验室"></iframe>
+  <script>
+    const palettes = [
+      { id:"B1", cls:"b1", name:"Calcite 空间白", note:"参考 Esri｜地图内容优先", vars:{bg:"#f7f7f7",rail:"#ebebeb",surface:"#ffffff",surface2:"#f2f2f2",line:"#d4d4d4",text:"#141414",text2:"#4a4a4a",muted:"#6b6b6b",accent:"#007ac2",signal:"#288835",warn:"#da7c0b",danger:"#d83020"} },
+      { id:"B2", cls:"b2", name:"Calcite 夜间", note:"参考 Esri｜深灰而非蓝黑", vars:{bg:"#212121",rail:"#2b2b2b",surface:"#363636",surface2:"#404040",line:"#545454",text:"#ffffff",text2:"#bfbfbf",muted:"#9e9e9e",accent:"#009af2",signal:"#36da43",warn:"#f89927",danger:"#fe583e"} },
+      { id:"B3", cls:"b3", name:"Carbon 白层级", note:"参考 IBM｜白与灰10交替", vars:{bg:"#ffffff",rail:"#f4f4f4",surface:"#ffffff",surface2:"#f4f4f4",line:"#c6c6c6",text:"#161616",text2:"#525252",muted:"#6f6f6f",accent:"#0f62fe",signal:"#198038",warn:"#b28600",danger:"#da1e28"} },
+      { id:"B4", cls:"b4", name:"Carbon 灰90", note:"参考 IBM｜逐层变亮的深色", vars:{bg:"#262626",rail:"#161616",surface:"#393939",surface2:"#525252",line:"#6f6f6f",text:"#f4f4f4",text2:"#c6c6c6",muted:"#a8a8a8",accent:"#4589ff",signal:"#42be65",warn:"#f1c21b",danger:"#fa4d56"} },
+      { id:"B5", cls:"b5", name:"Fluent 柔光", note:"参考 Microsoft｜轻阴影与柔灰", vars:{bg:"#f5f5f5",rail:"#fafafa",surface:"#ffffff",surface2:"#f0f0f0",line:"#d1d1d1",text:"#242424",text2:"#424242",muted:"#616161",accent:"#0f6cbd",signal:"#107c41",warn:"#9d5d00",danger:"#c50f1f"} },
+      { id:"B6", cls:"b6", name:"Fiori 双层外壳", note:"参考 SAP｜深壳＋亮内容", vars:{bg:"#edeff0",rail:"#354a5f",surface:"#ffffff",surface2:"#f7f7f7",line:"#b0b8bf",text:"#32363a",text2:"#5f6468",muted:"#737a80",accent:"#0a6ed1",signal:"#2b7d2b",warn:"#b86600",danger:"#bb0000"} },
+      { id:"B7", cls:"b7", name:"Cloud 中性蓝", note:"参考 Atlassian｜语义强调分级", vars:{bg:"#f7f8f9",rail:"#f1f2f4",surface:"#ffffff",surface2:"#f7f8f9",line:"#dcdfe4",text:"#172b4d",text2:"#44546f",muted:"#626f86",accent:"#0c66e4",signal:"#216e4e",warn:"#a54800",danger:"#ae2e24"} },
+      { id:"B8", cls:"b8", name:"Maps 极简地图", note:"参考 Google｜减色与内容聚焦", vars:{bg:"#f1f3f4",rail:"#ffffff",surface:"#ffffff",surface2:"#f8f9fa",line:"#dadce0",text:"#202124",text2:"#3c4043",muted:"#5f6368",accent:"#1a73e8",signal:"#188038",warn:"#b06000",danger:"#d93025"} }
+    ];
+
+    document.getElementById("lab").addEventListener("load", (event) => {
+      const doc = event.currentTarget.contentDocument;
+      doc.title = "地缘环境智能计算平台 · 大型产品参考配色";
+      doc.querySelector(".lab-head > div > p").textContent = "BENCHMARK STUDY · OFFICIAL DESIGN SYSTEMS";
+      doc.querySelector(".lab-head h1").textContent = "大型产品参考｜第二组 8 套配色";
+      doc.querySelector(".lab-note").textContent = "提取官方设计系统的中性色层级、操作色占比和状态色策略；仅转译方法，不复制品牌视觉。";
+      const link = doc.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "benchmark-overrides.css";
+      doc.head.append(link);
+
+      [...doc.querySelectorAll(".palette-card")].forEach((card, index) => {
+        const palette = palettes[index];
+        card.querySelector(".card-head span").textContent = palette.id;
+        card.querySelector(".card-head h2").textContent = palette.name;
+        card.querySelector(".card-head p").textContent = palette.note;
+        const ui = card.querySelector(".mini-ui");
+        ui.className = `mini-ui ${palette.cls}`;
+        for (const [name, value] of Object.entries(palette.vars)) ui.style.setProperty(`--${name.replace(/2$/, "-2")}`, value);
+        const swatches = card.querySelector(".swatches");
+        swatches.replaceChildren();
+        for (const key of ["bg", "rail", "surface", "accent", "signal", "danger"]) {
+          const chip = doc.createElement("i");
+          chip.style.setProperty("--swatch", palette.vars[key]);
+          chip.title = palette.vars[key];
+          swatches.append(chip);
+        }
+      });
+    });
+  </script>
+</body>
+</html>

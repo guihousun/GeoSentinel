@@ -1,0 +1,8 @@
+{
+  "type": "FeatureCollection",
+  "name": "admin_mercator",
+  "crs": {"type": "name", "properties": {"name": "EPSG:3857"}},
+  "features": [
+    {"type": "Feature", "properties": {"shapeName": "mercator_extent", "iso3": "TST"}, "geometry": {"type": "Polygon", "coordinates": [[[0, 0], [111319, 0], [111319, 111325], [0, 111325], [0, 0]]]}}
+  ]
+}

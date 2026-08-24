@@ -1,0 +1,184 @@
+[
+  {
+    "task_id": "Q21",
+    "task_name": "Extract built-up areas from 2020 NTL and calculate district-wise proportions",
+    "category": "Application and Modeling > Urban spatial structure analyses",
+    "description": "Extract urban built-up areas from Shanghai's 2020 annual NTL imagery using an automated change-point thresholding method, and then calculate the built-up area proportion for each district through zonal statistics on the resulting binary mask.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS",
+          "time_range_input": "2020 to 2020",
+          "out_name": "Shanghai_NTL_2020.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "get_administrative_division_data",
+        "input": {
+          "city_name": "上海市",
+          "output_name": "Shanghai_districts.shp"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "Extract_Urban_Area_by_Thresholding",
+        "input": {
+          "tif_filename": "Shanghai_NTL_2020.tif",
+          "output_filename": "Shanghai_Urban_Mask_2020.tif"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "NTL_raster_statistics",
+        "input": {
+          "ntl_tif_path": "Shanghai_Urban_Mask_2020.tif",
+          "shapefile_path": "Shanghai_districts.shp",
+          "output_csv_path": "Shanghai_District_Urban_Proportions.csv",
+          "selected_indices": [
+            "ANTL"
+          ]
+        }
+      }
+    ],
+    "output": "outputs/Shanghai_District_Urban_Proportions.csv"
+  },
+  {
+    "task_id": "Q22",
+    "task_name": "Classify nightlight types using SDGSAT-1 spectral indices",
+    "category": "Application and Modeling > Urban spatial structure extraction",
+    "description": "Perform spectral-based light type classification on SDGSAT-1 RGB imagery. This involves computing the Ratio Red Light Index (RRLI) and Ratio Blue Light Index (RBLI) to distinguish between Warm White LED (WLED), Cool White LED (CLED), and other light sources based on peer-reviewed thresholds.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "SDGSAT1_compute_index",
+        "input": {
+          "radiance_filename": "SDG_rgb.tif",
+          "output_filename": "SDG_RRLI.tif",
+          "index_type": "RRLI"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "SDGSAT1_compute_index",
+        "input": {
+          "radiance_filename": "SDG_rgb.tif",
+          "output_filename": "SDG_RBLI.tif",
+          "index_type": "RBLI"
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "1. Load 'outputs/SDG_RRLI.tif' and 'outputs/SDG_RBLI.tif'. 2. Apply the classification logic from the NTL Knowledge Base: WLED (Warm White LED) if RRLI <= 9 AND RBLI > 0.57; CLED (Cool White LED) if RRLI > 9; Other Lights for all other cases. 3. Generate a thematic classification map and save as 'outputs/Light_classification.tif'.",
+        "name": "geospatial_code_step_3"
+      }
+    ],
+    "output": "outputs/Light_classification.tif"
+  },
+  {
+    "task_id": "Q26",
+    "task_name": "Extract urban areas in Shanghai using SVM on NOAA-20 NTL imagery",
+    "category": "Application and Modeling > Urban spatial structure extraction",
+    "description": "Develop a machine learning-based urban extraction framework for Shanghai using 2021 annual NOAA-20 (NPP-VIIRS) NTL imagery. This workflow utilizes a pre-trained Support Vector Machine (SVM) to perform pixel-wise classification, providing a robust urban built-up area mask in the outputs folder.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS",
+          "time_range_input": "2021 to 2021",
+          "out_name": "Shanghai_NTL_2021.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "Detect_Urban_Area_by_SVM",
+        "input": {
+          "tif_filename": "Shanghai_NTL_2021.tif",
+          "output_filename": "Shanghai_Urban_SVM_2021.tif"
+        }
+      }
+    ],
+    "output": "outputs/Shanghai_Urban_SVM_2021.tif"
+  },
+  {
+    "task_id": "Q30",
+    "task_name": "Extract urban main roads using SDGSAT-1 Glimmer imagery",
+    "category": "Application and Modeling > Urban spatial structure extraction",
+    "description": "Extract urban road networks from high-resolution SDGSAT-1 GLI imagery. The workflow implements a standard preprocessing chain: first removing sensor-induced striping, then performing radiometric calibration to derive a grayscale luminance map, and finally applying Otsu thresholding and morphological skeletonization to extract road centerlines.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "SDGSAT-1_strip_removal_tool",
+        "input": {
+          "img_input": "Shanghai_SDG_raw.tif",
+          "img_output": "Shanghai_SDG_destriped.tif",
+          "method": "median"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "SDGSAT1_radiometric_calibration_tool",
+        "input": {
+          "input_filename": "Shanghai_SDG_destriped.tif",
+          "output_rgb_filename": "Shanghai_SDG_radiance_rgb.tif",
+          "output_gray_filename": "Shanghai_SDG_luminance.tif"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "Extract_Road",
+        "input": {
+          "input_tif": "Shanghai_SDG_luminance.tif",
+          "output_tif": "Shanghai_Road_Network_Otsu.tif"
+        }
+      }
+    ],
+    "output": "outputs/Shanghai_Road_Network_Otsu.tif"
+  },
+  {
+    "task_id": "Q31",
+    "task_name": "Detect urban centers and hierarchy using NTL contour tree (Shanghai, Dec 2014)",
+    "category": "Application and Modeling > Urban spatial structure extraction",
+    "description": "Identify the hierarchical urban center system of Shanghai for December 2014. By constructing localized NTL contour trees from NPP-VIIRS monthly composites, the tool identifies primary centers and sub-centers, characterizing the urban polycentric spatial structure and the morphological attributes of each center.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "monthly",
+          "dataset_name": "NPP-VIIRS",
+          "time_range_input": "2014-12 to 2014-12",
+          "out_name": "Shanghai_NTL_2014_12.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "Detect_Urban_Centres_and_Spatial_Structure",
+        "input": {
+          "ntl_tif": "Shanghai_NTL_2014_12.tif",
+          "output_shp": "Shanghai_Urban_Centers_2014.shp",
+          "output_csv": "Shanghai_Center_Hierarchy_Attributes.csv"
+        }
+      }
+    ],
+    "output": [
+      "outputs/Shanghai_Urban_Centers_2014.shp",
+      "outputs/Shanghai_Center_Hierarchy_Attributes.csv"
+    ]
+  }
+]

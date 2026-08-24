@@ -1,0 +1,62 @@
+name: Bug report
+description: Report reproducible incorrect behavior in NTL-GPT
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include API keys, tokens, passwords, private data, or `.env` contents.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: Commit SHA or branch name
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Streamlit UI
+        - Agent routing
+        - GEE or Earthdata download
+        - Local GIS or NTL processing
+        - MCP service
+        - Storage or authentication
+        - Installation or deployment
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Include the prompt, command, or workflow without secrets.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and logs
+      description: Redact usernames, file paths, database URLs, and credentials when needed.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: OS, Python, Streamlit, deployment mode, and relevant data product
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed all secrets and private data from this report.
+          required: true

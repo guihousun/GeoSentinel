@@ -1,0 +1,8 @@
+{
+    "Language": "Python",
+    "Platform": "Python",
+    "Library": "rasterio",
+    "Title": "",
+    "Description": "",
+    "Code": "import numpy as np\nimport rasterio\n\n# Read raster bands directly to Numpy arrays.\n#\nwith rasterio.open('tests/data/RGB.byte.tif') as src:\n    r, g, b = src.read()\n\n# Combine arrays in place. Expecting that the sum will\n# temporarily exceed the 8-bit integer range, initialize it as\n# a 64-bit float (the numpy default) array. Adding other\n# arrays to it in-place converts those arrays \"up\" and\n# preserves the type of the total array.\ntotal = np.zeros(r.shape)\n\nfor band in r, g, b:\n    total += band\n\ntotal /= 3\n\n# Write the product as a raster band to a new 8-bit file. For\n# the new file's profile, we start with the meta attributes of\n# the source file, but then change the band count to 1, set the\n# dtype to uint8, and specify LZW compression.\nprofile = src.profile\nprofile.update(dtype=rasterio.uint8, count=1, compress='lzw')\n\nwith rasterio.open('example-total.tif', 'w', **profile) as dst:\n    dst.write(total.astype(rasterio.uint8), 1)"
+}

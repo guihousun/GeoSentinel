@@ -1,0 +1,8 @@
+{
+    "Language": "Python",
+    "Platform": "Python",
+    "Library": "rasterio",
+    "Title": "",
+    "Description": "",
+    "Code": "#!/usr/bin/env python\n#\n# sieve: demonstrate sieving and polygonizing of raster features.\n\nimport subprocess\n\nimport numpy as np\nimport rasterio\nfrom rasterio.features import sieve, shapes\n\n\n# Register GDAL and OGR drivers.\nwith rasterio.Env():\n\n    # Read a raster to be sieved.\n    with rasterio.open('tests/data/shade.tif') as src:\n        shade = src.read(1)\n\n    # Print the number of shapes in the source raster.\n    print(\"Slope shapes: %d\" % len(list(shapes(shade))))\n\n    # Sieve out features 13 pixels or smaller.\n    sieved = sieve(shade, 13, out=np.zeros(src.shape, src.dtypes[0]))\n\n    # Print the number of shapes in the sieved raster.\n    print(\"Sieved (13) shapes: %d\" % len(list(shapes(sieved))))\n\n    # Write out the sieved raster.\n    kwargs = src.meta\n    kwargs['transform'] = rasterio.transform.guard_transform(kwargs['transform'])\n    with rasterio.open('example-sieved.tif', 'w', **kwargs) as dst:\n        dst.write(sieved, indexes=1)\n\n# Dump out gdalinfo's report card and open (or \"eog\") the TIFF.\nprint(subprocess.check_output(\n    ['gdalinfo', '-stats', 'example-sieved.tif']))\nsubprocess.call(['open', 'example-sieved.tif'])\n"
+}

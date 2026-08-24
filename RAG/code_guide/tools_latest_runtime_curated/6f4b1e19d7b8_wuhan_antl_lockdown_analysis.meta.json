@@ -1,0 +1,9 @@
+{
+  "timestamp_utc": "20260218T074809Z",
+  "source_tool": "execute_geospatial_script_tool",
+  "thread_id": "case_1771399476_4",
+  "original_script_name": "wuhan_antl_lockdown_analysis.py",
+  "original_script_path": "E:\\NTL-GPT-Clone\\user_data\\case_1771399476_4\\outputs\\wuhan_antl_lockdown_analysis.py",
+  "content_hash": "6f4b1e19d7b8777b71000ce0918d4ee5f992365b29827bef34011737fcdf2c71",
+  "stdout_excerpt": "[StorageManager] Resolving 'wuhan_boundary.shp' for thread_id='case_1771399476_4'\n[StorageManager] Found in user workspace: E:\\NTL-GPT-Clone\\user_data\\case_1771399476_4\\inputs\\wuhan_boundary.shp\nFull daily data saved to: E:\\NTL-GPT-Clone\\user_data\\case_1771399476_4\\outputs\\wuhan_antl_lockdown_analysis.csv\n\n=== Wuhan ANTL Lockdown Analysis ===\nLockdown period (2020-01-23 to 2020-04-08): 77 days\n  ANTL (mean): 6.1384\n\nComparison period (2019-01-23 to 2019-04-08): 76 days\n  ANTL (mean): 4.7335\n\nPercentage change (lockdown vs comparison): 29.68%\n  (Negative value indicates decrease in nighttime light during lockdown)\n"
+}

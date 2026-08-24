@@ -1,0 +1,16 @@
+/* Structural variants used by the benchmark-derived palette lab. */
+.b6 .mini-rail { color: #eef5fb; }
+.b6 .mini-logo { border-color: #91c8f6; color: #d8ecfa; }
+.b6 .mini-nav { border-color: #4f6376; background: #40566b; }
+.b6 .mini-nav.active { border-color: #6d879e; background: #486982; box-shadow: inset 2px 0 #91c8f6; }
+.b6 .mini-status { background: #abe2ab; }
+
+.b2 .mini-map,
+.b4 .mini-map { background: color-mix(in srgb, var(--surface) 78%, var(--bg)); }
+
+.b5 .mini-chat,
+.b5 .mini-map,
+.b5 .mini-queue { box-shadow: 0 2px 6px rgba(0,0,0,.08); }
+
+.b8 .mini-map { background: #e9eef1; }
+.b8 .mini-map::after { border-color: #8ab4f8; background: rgba(138,180,248,.18); }

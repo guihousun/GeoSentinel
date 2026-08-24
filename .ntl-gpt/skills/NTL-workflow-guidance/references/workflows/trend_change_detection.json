@@ -1,0 +1,141 @@
+[
+  {
+    "task_id": "Q18",
+    "task_name": "Trend analysis of NTL in Shanghai (2010–2020)",
+    "category": "NTL statistics",
+    "description": "Examine the long-term luminosity dynamics of Shanghai by performing a spatiotemporal trend analysis (Sen's Slope and Mann-Kendall test) on annual NPP-VIIRS-Like data from 2010 to 2020.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "上海市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS-Like",
+          "time_range_input": "2010 to 2020",
+          "out_name": "Shanghai_NTL.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "Analyze_NTL_trend",
+        "input": {
+          "raster_files": [
+            "Shanghai_NTL_2010.tif",
+            "Shanghai_NTL_2011.tif",
+            "Shanghai_NTL_2012.tif",
+            "Shanghai_NTL_2013.tif",
+            "Shanghai_NTL_2014.tif",
+            "Shanghai_NTL_2015.tif",
+            "Shanghai_NTL_2016.tif",
+            "Shanghai_NTL_2017.tif",
+            "Shanghai_NTL_2018.tif",
+            "Shanghai_NTL_2019.tif",
+            "Shanghai_NTL_2020.tif"
+          ],
+          "save_subfolder": "Shanghai_Trend_2010_2020"
+        }
+      }
+    ],
+    "output": [
+      "outputs/Shanghai_Trend_2010_2020/slope_map.tif",
+      "outputs/Shanghai_Trend_2010_2020/significance_map.tif"
+    ]
+  },
+  {
+    "task_id": "Q18b",
+    "task_name": "Detect NTL anomalies and sudden changes (2020-2024)",
+    "category": "NTL statistics",
+    "description": "Identify sudden brightness spikes or significant fluctuations in NTL time-series data using statistical Z-Score method. Useful for detecting post-disaster recovery, large-scale construction, or unexpected economic activity.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "研究区",
+          "scale_level": "city",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS-Like",
+          "time_range_input": "2020 to 2024",
+          "out_name": "NTL_time_series.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "Detect_NTL_anomaly",
+        "input": {
+          "raster_files": [
+            "NTL_2020.tif",
+            "NTL_2021.tif",
+            "NTL_2022.tif",
+            "NTL_2023.tif",
+            "NTL_2024.tif"
+          ],
+          "k_sigma": 3.0,
+          "target_index": null,
+          "save_filename": "NTL_anomaly_mask.tif"
+        }
+      }
+    ],
+    "output": "outputs/NTL_anomaly_mask.tif - Binary mask showing anomalous areas"
+  },
+  {
+    "task_id": "Q18c",
+    "task_name": "Multi-city NTL trend comparison (2015-2024)",
+    "category": "NTL statistics",
+    "description": "Compare NTL growth trends across multiple cities using annual NPP-VIIRS-Like data. Calculates Sen's Slope and Mann-Kendall significance for each city and ranks them by growth rate.",
+    "steps": [
+      {
+        "type": "builtin_tool",
+        "name": "NTL_download_tool",
+        "input": {
+          "study_area": "多个城市",
+          "scale_level": "province",
+          "temporal_resolution": "annual",
+          "dataset_name": "NPP-VIIRS-Like",
+          "time_range_input": "2015 to 2024",
+          "out_name": "multi_city_NTL.tif",
+          "is_in_China": true
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "get_administrative_division_data",
+        "input": {
+          "city_name": "多个城市",
+          "output_name": "city_boundaries.shp"
+        }
+      },
+      {
+        "type": "builtin_tool",
+        "name": "Analyze_NTL_trend",
+        "input": {
+          "raster_files": [
+            "multi_city_NTL_2015.tif",
+            "multi_city_NTL_2016.tif",
+            "multi_city_NTL_2017.tif",
+            "multi_city_NTL_2018.tif",
+            "multi_city_NTL_2019.tif",
+            "multi_city_NTL_2020.tif",
+            "multi_city_NTL_2021.tif",
+            "multi_city_NTL_2022.tif",
+            "multi_city_NTL_2023.tif",
+            "multi_city_NTL_2024.tif"
+          ],
+          "vector_file": "city_boundaries.shp",
+          "out_prefix": "multi_city_trend"
+        }
+      },
+      {
+        "type": "geospatial_code",
+        "language": "Python",
+        "description": "Read trend results CSV, calculate mean slope per city using zonal statistics, rank cities by growth rate, and generate comparison report.",
+        "name": "geospatial_code_step_4"
+      }
+    ],
+    "output": "outputs/multi_city_trend_comparison.csv - Ranked list of cities by NTL growth rate"
+  }
+]
