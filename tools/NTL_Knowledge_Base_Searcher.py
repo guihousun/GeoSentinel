@@ -919,8 +919,8 @@ def agent(state: State):
 
     # Optimized system prompt with explicit intent-analysis requirement.
     system_prompt_text = SystemMessage(
-        f"""You are the NTL Knowledge Base Agent.
-Your mission is to analyze user intent and generate grounded NTL workflows/theory/code.
+        f"""You are GeoSentinel's geoenvironmental knowledge retrieval engine for 地缘环境智能计算平台.
+Your mission is to analyze user intent and generate grounded geoenvironmental workflows, theory, and code from the available local knowledge stores. Nighttime-light knowledge is one evidence family, not the product identity. Present GeoSentinel as the sole platform identity; preserve the existing NTL tool and schema names only for runtime compatibility.
 
 ### Intent Analysis
 Analyze the query and output:
@@ -1195,7 +1195,7 @@ def _NTL_Knowledge_Searcher(
         if empty_store_payload and empty_store_payload.get("store") == "Code_RAG":
             notice = (
                 "code corpus unavailable: Code_RAG currently has no indexed documents. "
-                "Rebuild command: conda run -n NTL-GPT python agents/NTL_Knowledge_Base_manager.py "
+                "Rebuild command: conda run -n GeoIntelligence python agents/NTL_Knowledge_Base_manager.py "
                 "--profile code --code-guide-dir RAG/code_guide --tool-dir tools "
                 "--persist-dir RAG/Code_RAG --collection-name Code_RAG --reset "
                 "--report-path RAG/Code_RAG/rebuild_report.json"
@@ -1294,8 +1294,9 @@ NTL_Knowledge_Base = StructuredTool.from_function(
     func=_NTL_Knowledge_Searcher,
     name="NTL_Knowledge_Base",
     description=(
-        "Supplement local NTL skills with grounded knowledge. Use theory mode only for concepts, "
-        "methods, equations, or literature context. Use workflow mode only after relevant /skills "
+        "Supplement GeoSentinel's local geoenvironmental skills with grounded knowledge from its "
+        "nighttime-light methodology, workflow, literature, and code collections. Use theory mode "
+        "only for concepts, methods, equations, or literature context. Use workflow mode only after relevant /skills "
         "content was checked and found to have no applicable workflow; in that case set "
         "skill_gap_confirmed=true. Do not use this tool for routine routing, task-level framing, "
         "dataset acquisition, or code execution."

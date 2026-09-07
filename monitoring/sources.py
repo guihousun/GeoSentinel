@@ -5,6 +5,7 @@ import html
 import json
 import os
 import re
+import subprocess
 import time
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
@@ -37,16 +38,79 @@ def _bounded_int(name: str, default: int, minimum: int, maximum: int) -> int:
     return max(minimum, min(maximum, value))
 
 
+def _eonet_curl_fallback(
+    url: str,
+    *,
+    params: dict[str, Any] | None,
+    request_headers: dict[str, str],
+    timeout_seconds: int,
+) -> requests.Response:
+    prepared_url = requests.Request("GET", url, params=params).prepare().url
+    if not prepared_url or not prepared_url.startswith("https://eonet.gsfc.nasa.gov/"):
+        raise ValueError("curl fallback is restricted to the NASA EONET HTTPS origin")
+    if any(name.lower() in {"authorization", "cookie", "proxy-authorization"} for name in request_headers):
+        raise ValueError("curl fallback does not accept sensitive request headers")
+
+    command = [
+        "curl.exe",
+        "--silent",
+        "--show-error",
+        "--location",
+        "--http1.1",
+        "--max-time",
+        str(timeout_seconds),
+        "--user-agent",
+        request_headers["User-Agent"],
+        "--header",
+        f"Accept: {request_headers['Accept']}",
+        "--write-out",
+        "\n%{http_code}",
+        prepared_url,
+    ]
+    completed = subprocess.run(
+        command,
+        capture_output=True,
+        check=False,
+        timeout=timeout_seconds + 5,
+    )
+    if completed.returncode != 0:
+        message = completed.stderr.decode("utf-8", errors="replace").strip()
+        raise requests.exceptions.SSLError(f"NASA EONET curl fallback failed: {message[:180]}")
+    body, separator, status = completed.stdout.rpartition(b"\n")
+    if not separator or not status.isdigit():
+        raise requests.exceptions.ConnectionError("NASA EONET curl fallback returned no HTTP status")
+
+    response = requests.Response()
+    response.status_code = int(status)
+    response._content = body
+    response.url = prepared_url
+    response.encoding = "utf-8"
+    response.headers["Content-Type"] = "application/json"
+    response.headers["X-GeoSentinel-Transport"] = "curl-http1.1"
+    return response
+
+
 def _request(url: str, *, params: dict[str, Any] | None = None, headers: dict[str, str] | None = None) -> requests.Response:
     request_headers = {"User-Agent": USER_AGENT, "Accept": "application/json, application/xml, text/xml;q=0.9, */*;q=0.5"}
     request_headers.update(headers or {})
-    return requests.get(
-        url,
-        params=params,
-        timeout=_bounded_int("NTL_MONITOR_REQUEST_TIMEOUT_S", REQUEST_TIMEOUT_SECONDS, 5, 60),
-        verify=certifi.where(),
-        headers=request_headers,
-    )
+    timeout_seconds = _bounded_int("NTL_MONITOR_REQUEST_TIMEOUT_S", REQUEST_TIMEOUT_SECONDS, 5, 60)
+    try:
+        return requests.get(
+            url,
+            params=params,
+            timeout=timeout_seconds,
+            verify=certifi.where(),
+            headers=request_headers,
+        )
+    except requests.exceptions.SSLError as exc:
+        if not url.startswith("https://eonet.gsfc.nasa.gov/") or "UNEXPECTED_EOF" not in str(exc).upper():
+            raise
+        return _eonet_curl_fallback(
+            url,
+            params=params,
+            request_headers=request_headers,
+            timeout_seconds=timeout_seconds,
+        )
 
 
 def _clean_text(value: Any, limit: int = 520) -> str:
@@ -229,7 +293,8 @@ def fetch_eonet_events(limit: int | None = None) -> tuple[list[dict[str, Any]], 
                 raw={"categories": categories, "geometry_date": geometry.get("date")},
             )
         )
-    return candidates, {"source": source_name, "status": "ok", "http_status": response.status_code, "count": len(candidates), "message": "NASA 自然事件观测目录。"}
+    transport = response.headers.get("X-GeoSentinel-Transport", "requests")
+    return candidates, {"source": source_name, "status": "ok", "http_status": response.status_code, "count": len(candidates), "message": "NASA 自然事件观测目录。", "transport": transport}
 
 
 def _acled_token() -> str:

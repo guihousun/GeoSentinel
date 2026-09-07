@@ -1,0 +1,9 @@
+{
+  "timestamp_utc": "20260905T134605Z",
+  "source_tool": "execute_geospatial_script_tool",
+  "thread_id": "62663213-2309c7",
+  "original_script_name": "d1_diagnostic.py",
+  "original_script_path": "D:\\GeoSentinel\\user_data\\62663213-2309c7\\outputs\\d1_diagnostic.py",
+  "content_hash": "99a9121a0a938aaf404440d5700059e6c24aba6b6a2126226b91fc1da531d575",
+  "stdout_excerpt": "DIAG_OK checked=1421 mismatches=0\nWarning 3: Cannot find gdalvrt.xsd (GDAL_DATA is not defined)\nC:\\ProgramData\\miniconda3\\envs\\GeoIntelligence\\Lib\\site-packages\\osgeo\\ogr.py:615: FutureWarning: Neither ogr.UseExceptions() nor ogr.DontUseExceptions() has been explicitly called. In GDAL 4.0, exceptions will be enabled by default.\n  warnings.warn(\n"
+}

@@ -1,0 +1,9 @@
+{
+  "timestamp_utc": "20260905T133701Z",
+  "source_tool": "execute_geospatial_script_tool",
+  "thread_id": "62663213-2309c7",
+  "original_script_name": "s0b_vector_profile.py",
+  "original_script_path": "D:\\GeoSentinel\\user_data\\62663213-2309c7\\outputs\\s0b_vector_profile.py",
+  "content_hash": "3f7e1c9c3164c09bcadc255a4ec9f6b5cf72b6fa399e77a614dc6300fc49a60e",
+  "stdout_excerpt": "VECPROFILE_OK n=56 fold_crossing_rings=0\nC:\\ProgramData\\miniconda3\\envs\\GeoIntelligence\\Lib\\site-packages\\osgeo\\ogr.py:615: FutureWarning: Neither ogr.UseExceptions() nor ogr.DontUseExceptions() has been explicitly called. In GDAL 4.0, exceptions will be enabled by default.\n  warnings.warn(\n"
+}

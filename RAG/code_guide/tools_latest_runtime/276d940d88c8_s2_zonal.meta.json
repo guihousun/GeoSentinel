@@ -1,0 +1,9 @@
+{
+  "timestamp_utc": "20260905T134933Z",
+  "source_tool": "execute_geospatial_script_tool",
+  "thread_id": "62663213-2309c7",
+  "original_script_name": "s2_zonal.py",
+  "original_script_path": "D:\\GeoSentinel\\user_data\\62663213-2309c7\\outputs\\s2_zonal.py",
+  "content_hash": "276d940d88c83e333f9134debc688b5ac554e3cc00b72afb5ece6e72aae3747b",
+  "stdout_excerpt": "S2_OK total_pop=342496086.4 rows=51 rel_diff_mask=3.657e-09\nWarning 3: Cannot find gdalvrt.xsd (GDAL_DATA is not defined)\nC:\\ProgramData\\miniconda3\\envs\\GeoIntelligence\\Lib\\site-packages\\osgeo\\ogr.py:615: FutureWarning: Neither ogr.UseExceptions() nor ogr.DontUseExceptions() has been explicitly called. In GDAL 4.0, exceptions will be enabled by default.\n  warnings.warn(\n"
+}

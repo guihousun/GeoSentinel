@@ -1,6 +1,6 @@
 # NTL Agent Memory
 
-This file is dedicated to NTL-GPT runtime memory and must not be mixed with Codex workspace policies.
+This file is dedicated to GeoSentinel（地缘环境智能计算平台）runtime memory and must not be mixed with Codex workspace policies. The `.ntl-gpt` directory and `NTL_*` identifiers are retained only for runtime compatibility; they are not the product identity.
 
 ## Scope
 - Domain: nighttime light (NTL) geospatial workflows.

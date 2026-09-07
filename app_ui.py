@@ -166,10 +166,7 @@ _TEST_CASE_LABEL_ZH_BY_ID = {
     "9": "行政边界",
     "10": "兴趣点",
     "11": "坐标查询",
-    "12": "SDGSAT-1 条带噪声去除",
-    "13": "SDGSAT-1 辐射定标",
     "14": "NOAA-20 预处理",
-    "15": "SDGSAT-1 RRLI 指数",
     "16": "分区统计",
     "17": "最亮像元坐标",
     "18": "最暗像元坐标",
@@ -193,9 +190,9 @@ _TEST_CASE_LABEL_ZH_BY_ID = {
     "37": "GDP 建模",
     "38": "COVID-19 封控影响",
     "39": "建成区提取",
-    "40": "城市主干道路提取",
     "41": "路灯类型分类",
 }
+_DISABLED_TEST_CASE_IDS = {"12", "13", "15", "40"}
 _TEST_CASE_QUERY_ZH_BY_ID = {
     "1": "检索 2019 至 2020 年上海市 NPP VIIRS 年度夜间灯光数据。",
     "2": "检索 2009 至 2010 年上海市 DMSP-OLS 年度夜间灯光数据。",
@@ -208,10 +205,7 @@ _TEST_CASE_QUERY_ZH_BY_ID = {
     "9": "从高德地图检索上海市行政边界。",
     "10": "从高德地图检索东方明珠塔周边 200 米范围内的兴趣点数据。",
     "11": "检索上海东方明珠塔的坐标。",
-    "12": "对 inputs/ 目录中的 SDGSAT-1 GLI 影像执行条带噪声去除。",
-    "13": "对 inputs/ 目录中的 SDGSAT-1 GLI 影像执行辐射定标。",
     "14": "对保存在 inputs/ 目录中的 NOAA-20 VIIRS 数据进行预处理。",
-    "15": "基于 inputs/ 目录中的 SDGSAT-1 GLI 影像计算 RRLI 指数。",
     "16": "在 2022 年类 NPP-VIIRS 影像中，识别上海市 ANTL 最高的区。",
     "17": "识别 2022 年上海市 NPP-VIIRS 夜间灯光影像中最亮像元的 WGS84 坐标。",
     "18": "识别 2022 年 6 月上海市 NPP-VIIRS 夜间灯光影像中最暗像元的 WGS84 坐标。",
@@ -235,7 +229,6 @@ _TEST_CASE_QUERY_ZH_BY_ID = {
     "37": "检索上海市 GDP 数据以及 2013 至 2022 年 NPP-VIIRS 夜间灯光影像，使用多种回归模型分析 ANTL 与 GDP 的关系，并选择拟合效果最佳的模型。",
     "38": "计算武汉市官方封控期（2020 年 1 月 23 日至 4 月 8 日）的 ANTL，并与 2019 年同期进行比较。",
     "39": "下载 2020 年上海市夜间灯光影像，使用 SVM 方法提取建成区，并计算上海市各区建成区占比。",
-    "40": "基于 inputs\\SDG_rgb.tif 中的 SDGSAT-1 GLI 夜间灯光影像提取城市主干道路，并将结果转换为 shapefile（.shp）。",
     "41": "基于 inputs\\SDG_rgb.tif 中的 RGB 夜间灯光影像计算红光比值指数（RRLI）和蓝光比值指数（RBLI），并按照 Jia 等（2024）的方法对像元进行类型分类。",
 }
 
@@ -476,7 +469,7 @@ def _load_ntl_availability_snapshot_once() -> dict:
 
     if not snapshot.get("ok"):
         try:
-            req = Request(MONITOR_API_URL, headers={"User-Agent": "NTL-GPT-UI/1.0"})
+            req = Request(MONITOR_API_URL, headers={"User-Agent": "GeoSentinel-UI/1.0"})
             with urlopen(req, timeout=6) as resp:  # noqa: S310
                 payload = json.loads(resp.read().decode("utf-8", errors="replace"))
             snapshot = _build_snapshot_from_payload(payload, source="monitor_api")
@@ -1181,7 +1174,7 @@ def inject_css():
         -webkit-text-fill-color: #334155 !important;
         opacity: 1 !important;
     }
-    /* Premium sidebar style overrides (NTL-GPT night console) */
+    /* Premium sidebar style overrides (GeoSentinel research console) */
     [data-testid="stSidebar"] [data-baseweb="select"] > div {
         background: rgba(10, 18, 40, 0.86) !important;
         border: 1px solid rgba(110, 151, 255, 0.42) !important;
@@ -2687,7 +2680,7 @@ def _render_auth_panel() -> None:
 def render_sidebar():
     """Render all sidebar controls."""
     with st.sidebar:
-        st.subheader(_tr("NTL-GPT 控制台", "NTL-GPT Console"))
+        st.subheader("GeoSentinel 地缘环境智能计算平台")
 
         workspace = storage_manager.get_workspace(st.session_state.get("thread_id", "debug"))
         if not st.session_state.get("authenticated"):
@@ -3038,6 +3031,8 @@ def render_sidebar():
                 categories = {}
                 for _, row in df_cases.iterrows():
                     case_id = _test_case_id_from_row(row)
+                    if case_id in _DISABLED_TEST_CASE_IDS:
+                        continue
                     case = _localized_test_case(
                         row['Category'].strip(),
                         row['Label'].strip(),
@@ -4814,10 +4809,13 @@ def _extract_latest_agent_text(logs: list, target_agent: str) -> str:
 
 def _display_agent_label(agent_name: str) -> str:
     mapping = {
-        "Knowledge_Base_Searcher": "Knowledge Base",
-        "Data_Searcher": "Data Searcher",
-        "Code_Assistant": "Code Assistant",
-        "NTL_Engineer": "NTL Engineer",
+        "Knowledge_Base_Searcher": "知识助手",
+        "Data_Searcher": "数据助手",
+        "NTL_Data_Searcher": "数据助手",
+        "NTL_Analyst": "分析助手",
+        "NTL_Event_Tracker": "事件助手",
+        "Code_Assistant": "代码助手",
+        "NTL_Engineer": "地缘分析师",
     }
     return mapping.get(str(agent_name or "").strip(), str(agent_name or "").replace("_", " "))
 

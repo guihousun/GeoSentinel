@@ -31,6 +31,7 @@ OPTIONAL_ENV = [
     "NTL_LANGGRAPH_POSTGRES_URL",
     "NTL_MAX_ACTIVE_RUNS",
     "NTL_MAX_ACTIVE_RUNS_PER_USER",
+    "NTL_MAX_LLM_CALLS_PER_RUN",
     "NTL_THREAD_WORKSPACE_QUOTA_MB",
     "NTL_USER_WORKSPACE_QUOTA_MB",
     "NTL_EMBEDDING_PROVIDER",
@@ -109,6 +110,7 @@ def _check_files() -> list[str]:
         "Streamlit.py",
         "web_api.py",
         "web_runtime.py",
+        "runtime_limits.py",
         "run_web.py",
         "web/index.html",
         "run_streamlit.py",
@@ -116,6 +118,7 @@ def _check_files() -> list[str]:
         "ssl_compat.py",
         "app_ui.py",
         "graph_factory.py",
+        "graph_factory_v2.py",
     ):
         if not (ROOT / rel).exists():
             missing.append(rel)

@@ -1,0 +1,9 @@
+{
+  "timestamp_utc": "20260825T023731Z",
+  "source_tool": "execute_geospatial_script_tool",
+  "thread_id": "6906d7a7-867231",
+  "original_script_name": "plot_us_strikes_iran_targets.py",
+  "original_script_path": "D:\\GeoSentinel\\user_data\\6906d7a7-867231\\outputs\\plot_us_strikes_iran_targets.py",
+  "content_hash": "b452c7900164583e588a69ab4dc9bb3b1fddfe44e8aa9e8e8b7f0f191ebf2cca",
+  "stdout_excerpt": "contract=ntl.script.contract.v2\ncjk_font=SimHei\nadmin0_features=1\nadmin1_features=32\nqom_feature_hits=1 isf_feature_hits=1\nbounds_deg=(44.01,25.06)-(63.32,39.77) aspect=1.185\ntarget_count=2\noutput_exists=True\noutput_bytes=389409\nDONE\nfindfont: Failed to find font weight bold, now using 400.\nfindfont: Failed to find font weight bold, now using 400.\nfindfont: Failed to find font weight bold, now using 400.\n"
+}

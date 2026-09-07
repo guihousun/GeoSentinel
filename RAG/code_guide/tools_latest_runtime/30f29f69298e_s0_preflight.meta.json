@@ -1,0 +1,9 @@
+{
+  "timestamp_utc": "20260905T133448Z",
+  "source_tool": "execute_geospatial_script_tool",
+  "thread_id": "62663213-2309c7",
+  "original_script_name": "s0_preflight.py",
+  "original_script_path": "D:\\GeoSentinel\\user_data\\62663213-2309c7\\outputs\\s0_preflight.py",
+  "content_hash": "30f29f69298e8ba6f643e2ffe73074a5a8582493666269654a964e9cd73e24bd",
+  "stdout_excerpt": "PREFLIGHT_OK vector_features=56\nWarning 3: Cannot find gdalvrt.xsd (GDAL_DATA is not defined)\n"
+}

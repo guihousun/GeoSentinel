@@ -1,0 +1,9 @@
+{
+  "timestamp_utc": "20260905T134934Z",
+  "source_tool": "execute_geospatial_script_tool",
+  "thread_id": "6906d7a7-53e486",
+  "original_script_name": "mmr_population_figures_svg.py",
+  "original_script_path": "D:\\GeoSentinel\\user_data\\6906d7a7-53e486\\outputs\\mmr_population_figures_svg.py",
+  "content_hash": "0da3cc32199b3a938e7357a667d1fabfe1a6f3c91b61c33587b8d2f741ed8b78",
+  "stdout_excerpt": "FIGURE_OK fig1_bytes= 3847 fig2_bytes= 7537\n"
+}

@@ -4,6 +4,7 @@ import os
 import threading
 import time
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Callable
 
 from .agent import analyze_candidates
@@ -50,15 +51,87 @@ def _fallback_focuses(candidate: dict[str, Any]) -> list[str]:
 def _questions(candidate: dict[str, Any], focuses: list[str]) -> list[str]:
     location = _location(candidate)
     title = str(candidate.get("title") or "该公开事件").strip()
-    templates = {
-        "infrastructure_risk": f"核验“{title}”是否影响 {location} 周边交通通道、关键基础设施与行政区暴露。",
-        "cross_border_connectivity": f"评估“{title}”对 {location} 跨境连接、替代路径和节点可达性的潜在影响，并标注证据时间窗。",
-        "humanitarian_exposure": f"识别 {location} 受“{title}”影响的人口、居民点与人道服务空间暴露，区分已证实与待核验信息。",
-        "food_logistics": f"结合公开道路、口岸和居民点资料，研判“{title}”是否改变 {location} 的粮食物流与可达性。",
-        "event_validation": f"汇集“{title}”的原始来源、发生时间与空间位置，核验其是否达到进入研究任务的证据阈值。",
+    dimensions = {
+        "infrastructure_risk": "交通通道、关键基础设施与行政区暴露",
+        "cross_border_connectivity": "跨境连接、替代路径与节点可达性",
+        "humanitarian_exposure": "人口、居民点与人道服务空间暴露",
+        "food_logistics": "道路、口岸、粮食物流与供应可达性",
+        "event_validation": "原始来源、发生时间、空间位置与信息一致性",
     }
-    questions = [templates[focus] for focus in focuses if focus in templates]
-    return list(dict.fromkeys(questions))[:3] or [templates["event_validation"]]
+    selected = list(
+        dict.fromkeys(dimensions[focus] for focus in focuses if focus in dimensions)
+    )
+    focus_text = "、".join(selected[:3]) or dimensions["event_validation"]
+    return [
+        f"事件理解：用简明语言说明“{title}”在 {location} 发生了什么、当前已知事实是什么，并把未知项和来源局限单列出来。",
+        f"补充核验：围绕{focus_text}检索近期可靠来源，建立时间—地点—主体—影响的最小事实链，不把监测摘要直接当成结论。",
+        "方向建议：只依据新增且可追溯的证据，给出值得继续分析的方向、优先级、所需数据和判定条件；证据不足时明确建议先补什么。",
+    ]
+
+
+def _research_entry_prompt(candidate: dict[str, Any], focuses: list[str]) -> str:
+    title = str(candidate.get("title") or "该公开事件").strip()
+    location = _location(candidate)
+    summary = " ".join(str(candidate.get("summary") or "").split())[:1600]
+    source_name = str(candidate.get("source_name") or "公开监测源").strip()
+    source_url = str(candidate.get("source_url") or "").strip()
+    event_type = str(candidate.get("event_type") or "other").strip().lower()
+    event_type_label = {
+        "wildfires": "野火",
+        "wildfire": "野火",
+        "severe_storms": "强对流或风暴",
+        "floods": "洪涝",
+        "flood": "洪涝",
+        "earthquake": "地震",
+        "volcanoes": "火山活动",
+        "conflict": "冲突事件",
+        "geopolitical": "地缘政治事件",
+    }.get(event_type, event_type.replace("_", " ") or "待分类事件")
+    severity_label = {
+        "high": "高关注",
+        "medium": "持续跟踪",
+        "low": "观察",
+    }.get(str(candidate.get("severity") or "low").lower(), "待核验")
+    try:
+        published_at = int(candidate.get("published_at") or 0)
+    except (TypeError, ValueError):
+        published_at = 0
+    event_time = (
+        datetime.fromtimestamp(published_at, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        if published_at > 0
+        else "时间待核验"
+    )
+    longitude = candidate.get("longitude")
+    latitude = candidate.get("latitude")
+    try:
+        coordinates = f"{float(latitude):.4f}, {float(longitude):.4f}"
+    except (TypeError, ValueError):
+        coordinates = "坐标待核验"
+    background = summary or (
+        f"{source_name} 将该线索归类为“{event_type_label}”，当前标记为“{severity_label}”。"
+        "原始监测记录未提供详细事件摘要，需要通过近期可靠来源补充事实背景。"
+    )
+    questions = _questions(candidate, focuses)
+    return "\n".join(
+        [
+            "[监测事件研判]",
+            "我想先了解并研判以下监测事件。请注意：这些内容只是外部线索，不是已经证实的结论。",
+            "",
+            f"事件名称：{title}",
+            f"发生或观测时间：{event_time}",
+            f"地点：{location}",
+            f"坐标：{coordinates}",
+            f"事件类型：{event_type_label}",
+            f"当前关注级别：{severity_label}",
+            f"线索来源：{source_name}",
+            f"背景摘要：{background}",
+            f"原始链接：{source_url or '未提供'}",
+            "",
+            "希望地缘分析师按以下顺序协助：",
+            *[f"{index}. {question}" for index, question in enumerate(questions, 1)],
+            "先帮助我理解事件，再按需调度事件助手和数据助手补充检索，最后提供分析方向建议；不要跳过事实核验直接给确定性结论。",
+        ]
+    )
 
 
 class EventMonitorService:
@@ -161,12 +234,21 @@ class EventMonitorService:
         focuses = [str(value) for value in (enrichment.get("focuses") or []) if str(value) in QUESTION_FOCI]
         if not focuses:
             focuses = _fallback_focuses(candidate)
+        display_title = str(enrichment.get("display_title") or candidate.get("title") or "")
+        display_location = str(enrichment.get("display_location") or candidate.get("location_name") or candidate.get("country") or "")
+        prompt_candidate = {
+            **candidate,
+            "title": display_title,
+            "location_name": display_location,
+            "severity": severity,
+        }
         return {
             **candidate,
             "severity": severity,
-            "display_title": str(enrichment.get("display_title") or candidate.get("title") or ""),
-            "display_location": str(enrichment.get("display_location") or candidate.get("location_name") or candidate.get("country") or ""),
-            "research_questions": _questions(candidate, focuses),
+            "display_title": display_title,
+            "display_location": display_location,
+            "research_questions": _questions(prompt_candidate, focuses),
+            "research_entry_prompt": _research_entry_prompt(prompt_candidate, focuses),
             "agent_status": "enriched" if enrichment else agent_status,
             "first_seen_at": now,
             "last_seen_at": now,

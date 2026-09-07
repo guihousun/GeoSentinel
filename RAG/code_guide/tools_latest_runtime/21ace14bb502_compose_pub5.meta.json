@@ -1,0 +1,9 @@
+{
+  "timestamp_utc": "20260830T175546Z",
+  "source_tool": "execute_geospatial_script_tool",
+  "thread_id": "62663213-7e4f50",
+  "original_script_name": "compose_pub5.py",
+  "original_script_path": "D:\\GeoSentinel\\user_data\\62663213-7e4f50\\outputs\\compose_pub5.py",
+  "content_hash": "21ace14bb502b0d19805ff1cadef5e5a8470e621023b106b826b105a5e0201dc",
+  "stdout_excerpt": "VALIDATION_JSON:{\"output\": \"outputs/pub5.tif\", \"shape\": [90, 90], \"crs\": \"GEOGCS[\\\"WGS 84\\\",DATUM[\\\"WGS_1984\\\",SPHEROID[\\\"WGS 84\\\",6378137,298.257223563,AUTHORITY[\\\"EPSG\\\",\\\"7030\\\"]],AUTHORITY[\\\"EPSG\\\",\\\"6326\\\"]],PRIMEM[\\\"Greenwich\\\",0,AUTHORITY[\\\"EPSG\\\",\\\"8901\\\"]],UNIT[\\\"degree\\\",0.0174532925199433,AUTHORITY[\\\"EPSG\\\",\\\"9122\\\"]],AXIS[\\\"Latitude\\\",NORTH],AXIS[\\\"Longitude\\\",EAST],AUTHORITY[\\\"EPSG\\\",\\\"4326\\\"]]\", \"bounds\": {\"left\": 121.19620655698525, \"right\": 121.60044843483902, \"top\": 31.30179607514473, \"bottom\": 30.897554197290944}, \"count_valid\": 8100, \"min\": 2.2848594188690186, \"max\": 383.1265869140625, \"mean\": 38.734603620546835, \"std\": 26.316531811705225, \"expected_mean\": 38.734603620546835, \"aligned_with_inputs\": true, \"correction_applied\": false, \"status\": \"ok\"}\nCOMPLETED pub5.tif\n"
+}

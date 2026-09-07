@@ -12,8 +12,9 @@ GeoSentinel（地缘环境智能计算平台）is a local-first geoenvironmental
 - `app_state.py`: session defaults, model/runtime settings, and UI state.
 - `app_logic.py`: run lifecycle, event streaming, cancellation, stale-run recovery, output collection, and chat history writes.
 - `app_agents.py`: Streamlit-cached graph wrapper. Keep its public signature stable for UI callers.
-- `graph_factory.py`: graph construction, model selection, skill discovery, backend routing, subagent setup, and supervisor prompt assembly.
-- `agents/`: system prompts and subagent definitions.
+- `graph_factory_v2.py`: active Deep Agents 0.7.5 graph construction, role-scoped skills and permissions, typed handoffs, local backend routing, runtime memory, and supervisor prompt assembly. `graph_factory.py` is retained only as a transition reference.
+- `agents/`: role prompts and stable role metadata. The public role names are `地缘分析师`, `数据助手`, `分析助手`, and `事件助手`; internal `NTL_*` identifiers remain for persisted-runtime compatibility.
+- `contracts/`, `orchestration/`: typed TaskPlan, observation/event/analysis/evidence packages, artifact identity, route state, transfer records, and run-evidence infrastructure.
 - `tools/`: domain tools for retrieval, GEE, VIIRS, preprocessing, statistics, rendering, and knowledge-base access.
 - `storage_manager.py`: canonical workspace, input/output, memory, and shared-data path resolution.
 - `history_store.py`: persistent chat, turn summaries, and injected-context records.
@@ -55,7 +56,16 @@ This repository prefers robust, reusable capability upgrades over query-specific
   - `/memories/<file>` maps to thread `memory`
   - `/shared/<file>` maps to `base_data`
 - Preserve long-running Streamlit state contracts in `app_logic.py`; do not casually rename run, heartbeat, cancel, event, or terminal-state keys used across reruns.
-- Keep agent routing changes coherent across `graph_factory.py`, `agents/`, `.ntl-gpt/skills/`, and `tools/__init__.py`.
+- Keep agent routing changes coherent across `graph_factory_v2.py`, `agents/`, `.ntl-gpt/skills/`, and `tools/__init__.py`.
+
+### Four-role Architecture
+- `NTL_Engineer`（地缘分析师）owns task truth, planning, routing, acceptance, and final evidence synthesis.
+- `NTL_Data_Searcher`（数据助手）owns event feeds, boundaries, Earthdata/GEE and other multi-source observation acquisition, QA, coverage, and provenance.
+- `NTL_Analyst`（分析助手）owns spatial/temporal, raster/vector, remote-sensing, event-impact, climate/ecosystem, exposure, socioeconomic, and visualization methods.
+- `NTL_Event_Tracker`（事件助手）owns source-bounded conflict, disaster, outage, accident, policy, logistics, and recovery timelines.
+- Specialists do not delegate to one another. The supervisor routes sequentially and accepts either a typed package or an explicitly bounded summary-only result.
+- Nighttime-light data is an important evidence family, not the platform identity and not a mandatory route.
+- Correction is opt-in: keep standard product values unless the user explicitly requests a correction or explicitly selects a method whose required workflow includes it. Do not infer angle, seasonal, radiometric, cross-sensor, atmospheric, geometric, or other correction from a model-authored plan.
 
 ### Environment and Secrets
 - Never commit `.env`, tokens, API keys, Earthdata credentials, GEE credentials, downloaded private data, or local user workspaces.
@@ -75,7 +85,7 @@ Run the smallest relevant checks before finishing a change.
 - Environment/bootstrap changes:
   - `python check_env.py`
 - Graph or agent-routing changes:
-  - compile `graph_factory.py`, `app_agents.py`, `app_logic.py`, and touched agent/tool modules
+  - compile `graph_factory_v2.py`, `app_agents.py`, `web_runtime.py`, `app_logic.py`, and touched agent/tool modules
   - test the target prompt plus at least one neighboring variation
 - Tool changes:
   - check direct function/tool invocation when possible
@@ -90,7 +100,7 @@ Run the smallest relevant checks before finishing a change.
 Known practical check:
 
 ```bash
-python -m py_compile Streamlit.py app_logic.py app_agents.py graph_factory.py
+python -m py_compile Streamlit.py app_logic.py app_agents.py graph_factory_v2.py web_runtime.py
 ```
 
 ## Documentation Policy

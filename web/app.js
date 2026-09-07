@@ -1,15 +1,54 @@
-const mapStyle = {
-  version: 8,
-  sources: {
-    carto: {
-      type: "raster",
-      tiles: ["https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors © CARTO",
+const LIGHT_MONITOR_MAP_THEMES = new Set(["fiori-shell", "nautical-light", "satellite-gray"]);
+
+function monitorMapTheme(themeId = document.documentElement.dataset.previewTheme || "default") {
+  return LIGHT_MONITOR_MAP_THEMES.has(themeId) ? "light" : "dark";
+}
+
+function createMapStyle(theme = "dark") {
+  // Esri street map carries country boundaries, place labels and terrain
+  // shading natively. The light preview themes show it as-is; the dark
+  // workbench applies a strong luminance/desaturation filter so the SAME
+  // boundary-bearing base reads as a dark theme instead of a separate
+  // "dark gray canvas" (which has almost no boundary rendering at low zoom).
+  const tileUrls = [
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+  ];
+  const rasterPaint = theme === "light"
+    ? {
+        "raster-saturation": -0.08,
+        "raster-contrast": 0.05,
+        "raster-brightness-min": 0.12,
+        "raster-brightness-max": 0.94,
+        "raster-fade-duration": 0,
+      }
+    : {
+        "raster-saturation": -0.75,
+        "raster-contrast": 0.2,
+        "raster-brightness-min": 0.16,
+        "raster-brightness-max": 0.62,
+        "raster-fade-duration": 0,
+      };
+  return {
+    version: 8,
+    sources: {
+      cartoBasemap: {
+        type: "raster",
+        tiles: tileUrls,
+        tileSize: 256,
+        maxzoom: 19,
+        attribution: "Esri, HERE, Garmin, © OpenStreetMap contributors",
+      },
     },
-  },
-  layers: [{ id: "carto", type: "raster", source: "carto" }],
-};
+    layers: [
+      { id: "carto-basemap", type: "raster", source: "cartoBasemap", paint: rasterPaint },
+    ],
+  };
+}
+
+function addStandardMapControls(map) {
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+  map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
+}
 
 let monitorLocations = [];
 
@@ -51,12 +90,47 @@ const logisticsRasterLayers = Object.fromEntries((logisticsRasterManifest.layers
 const logisticsNetworkLayerIds = ["logistics-corridor-lines", "logistics-node-rings", "logistics-node-points"];
 const logisticsAdminLayerIds = ["myanmar-admin-fill", "myanmar-admin-lines"];
 const logisticsRasterLayerOrder = ["accessibility", "food", "settlement"];
+
+// Raster preview assets ship with the frontend package; probe them so a missing
+// asset degrades to an honest "not deployed" state instead of a console 404.
+const logisticsRasterUnavailable = new Set();
+
+function probeLogisticsRasterAssets() {
+  const probes = Object.entries(logisticsRasterLayers).map(async ([key, layer]) => {
+    try {
+      const response = await fetch(layer.url, { method: "HEAD", cache: "no-store" });
+      if (!response.ok) logisticsRasterUnavailable.add(key);
+    } catch (_) {
+      logisticsRasterUnavailable.add(key);
+    }
+  });
+  return Promise.all(probes).then(() => markLogisticsRasterAvailability());
+}
+
+function markLogisticsRasterAvailability() {
+  if (!logisticsRasterUnavailable.size) return;
+  document.querySelectorAll("[data-logistics-raster]").forEach((checkbox) => {
+    if (!logisticsRasterUnavailable.has(checkbox.dataset.logisticsRaster)) return;
+    checkbox.checked = false;
+    checkbox.disabled = true;
+    const choice = checkbox.closest(".layer-choice");
+    if (choice) {
+      choice.classList.add("layer-choice-unavailable");
+      const em = choice.querySelector("em");
+      if (em) em.textContent = "预览资源未随前端部署";
+    }
+  });
+  syncLogisticsLayerState();
+}
 const myanmarBounds = [
   [92.17274709741929, 9.671713679673076],
   [101.16989157300668, 28.545538862132275],
 ];
 
 const maps = {};
+// Programmatic access for UI integration and diagnostics (no side effects).
+window.geointerMaps = maps;
+let activeMonitorMapTheme = "";
 
 function pointFeatures(multiplier = 1) {
   return {
@@ -79,27 +153,11 @@ window.addEventListener("geointer:monitor-events", (event) => {
   updateMonitorMap(event.detail?.items || []);
 });
 
-const GLOBAL_MONITOR_VIEW = { center: [0, 20], zoom: 0.65 };
+const DEFAULT_MONITOR_VIEW = { center: [104.2, 35.9], zoom: 0.65 };
 
-function createMap(holderId, multiplier = 1, center = GLOBAL_MONITOR_VIEW.center, zoom = GLOBAL_MONITOR_VIEW.zoom) {
-  const holder = document.getElementById(holderId);
-  if (!holder || !window.maplibregl) return null;
-
-  const map = new maplibregl.Map({
-    container: holder,
-    style: mapStyle,
-    center,
-    zoom,
-    minZoom: 0.55,
-    maxZoom: 6,
-    attributionControl: false,
-    interactive: true,
-  });
-
-  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
-  map.on("load", () => {
-    holder.querySelector(".map-loading")?.remove();
-    map.addSource("signals", { type: "geojson", data: pointFeatures(multiplier) });
+function registerMonitorSignalLayers(map, multiplier) {
+  if (!map.getSource("signals")) map.addSource("signals", { type: "geojson", data: pointFeatures(multiplier) });
+  if (!map.getLayer("signal-rings")) {
     map.addLayer({
       id: "signal-rings",
       type: "circle",
@@ -112,12 +170,55 @@ function createMap(holderId, multiplier = 1, center = GLOBAL_MONITOR_VIEW.center
         "circle-stroke-color": ["match", ["get", "level"], "high", "#f49898", "medium", "#f1be6e", "#80d8ce"],
       },
     });
+  }
+  if (!map.getLayer("signal-points")) {
     map.addLayer({
       id: "signal-points",
       type: "circle",
       source: "signals",
       paint: { "circle-radius": 5, "circle-color": ["match", ["get", "level"], "high", "#d75b5d", "medium", "#d59737", "#2e9b91"], "circle-stroke-width": 2, "circle-stroke-color": "#eaf2fb" },
     });
+  }
+}
+
+function applyMonitorMapTheme(themeId) {
+  const theme = monitorMapTheme(themeId);
+  const pane = document.getElementById("atlas-map")?.closest(".compact-monitor-pane");
+  if (pane) pane.dataset.mapTheme = theme;
+  if (!maps.atlas || activeMonitorMapTheme === theme) return;
+  activeMonitorMapTheme = theme;
+  maps.atlas.setStyle(createMapStyle(theme));
+}
+
+window.addEventListener("geointer:theme-change", (event) => {
+  applyMonitorMapTheme(event.detail?.themeId || "default");
+});
+
+function createMap(holderId, multiplier = 1, center = DEFAULT_MONITOR_VIEW.center, zoom = DEFAULT_MONITOR_VIEW.zoom) {
+  const holder = document.getElementById(holderId);
+  if (!holder || !window.maplibregl) return null;
+
+  const theme = monitorMapTheme();
+  activeMonitorMapTheme = theme;
+  const pane = holder.closest(".compact-monitor-pane");
+  if (pane) pane.dataset.mapTheme = theme;
+
+  const map = new maplibregl.Map({
+    container: holder,
+    style: createMapStyle(theme),
+    center,
+    zoom,
+    minZoom: 0.55,
+    maxZoom: 6,
+    attributionControl: false,
+    interactive: true,
+  });
+
+  addStandardMapControls(map);
+  map.on("style.load", () => registerMonitorSignalLayers(map, multiplier));
+  map.on("load", () => {
+    holder.querySelector(".map-loading")?.remove();
+    registerMonitorSignalLayers(map, multiplier);
     map.on("mouseenter", "signal-points", () => { map.getCanvas().style.cursor = "pointer"; });
     map.on("mouseleave", "signal-points", () => { map.getCanvas().style.cursor = ""; });
     map.on("click", "signal-points", (event) => {
@@ -144,7 +245,7 @@ function createCountryProfileMap(holderId) {
 
   const map = new maplibregl.Map({
     container: holder,
-    style: mapStyle,
+    style: createMapStyle("dark"),
     center: [96.67, 19.11],
     zoom: 4.4,
     minZoom: 3.2,
@@ -153,7 +254,7 @@ function createCountryProfileMap(holderId) {
     interactive: true,
   });
 
-  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+  addStandardMapControls(map);
   map.on("load", () => {
     holder.querySelector(".map-loading")?.remove();
     map.addSource("myanmar-profile-admin", {
@@ -183,7 +284,7 @@ function createLogisticsMap(holderId) {
 
   const map = new maplibregl.Map({
     container: holder,
-    style: mapStyle,
+    style: createMapStyle("dark"),
     center: [96.67, 19.11],
     zoom: 4.4,
     minZoom: 3.8,
@@ -192,7 +293,7 @@ function createLogisticsMap(holderId) {
     interactive: true,
   });
 
-  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+  addStandardMapControls(map);
   map.on("load", () => {
     holder.querySelector(".map-loading")?.remove();
     registerMyanmarAdministrativeBoundaries(map);
@@ -277,6 +378,7 @@ function registerLogisticsRasterLayers(map) {
     ...Object.values(logisticsRasterLayers).filter((layer) => !logisticsRasterLayerOrder.includes(layer.key)),
   ];
   layers.forEach((layer) => {
+    if (logisticsRasterUnavailable.has(layer.key)) return;
     const sourceId = `logistics-raster-${layer.key}`;
     const layerId = `${sourceId}-layer`;
     map.addSource(sourceId, { type: "image", url: layer.url, coordinates: layer.coordinates });
@@ -336,10 +438,14 @@ function updateLogisticsLayerCopy({ adminEnabled, networkEnabled, rasterEnabled 
   const layerState = document.getElementById("logistics-layer-state");
   const note = document.getElementById("logistics-layer-note");
   const networkLegend = document.getElementById("logistics-network-legend");
-  const visibleRasters = Object.keys(logisticsRasterLayers).filter((key) => rasterEnabled[key]);
+  const availableKeys = Object.keys(logisticsRasterLayers).filter((key) => !logisticsRasterUnavailable.has(key));
+  const visibleRasters = availableKeys.filter((key) => rasterEnabled[key]);
   const rasterLabels = visibleRasters.map((key) => logisticsRasterLayers[key].label);
+  const unavailableLabels = Object.keys(logisticsRasterLayers)
+    .filter((key) => logisticsRasterUnavailable.has(key))
+    .map((key) => logisticsRasterLayers[key].label);
   if (layerState) {
-    if (adminEnabled && networkEnabled && visibleRasters.length === 3) {
+    if (adminEnabled && networkEnabled && availableKeys.length === 3 && visibleRasters.length === 3) {
       layerState.textContent = "行政区划 + 三类空间证据";
     } else {
       const labels = [adminEnabled ? "行政区划" : null, networkEnabled ? "供应网络" : null, ...rasterLabels].filter(Boolean);
@@ -347,9 +453,15 @@ function updateLogisticsLayerCopy({ adminEnabled, networkEnabled, rasterEnabled 
     }
   }
   if (note) {
-    note.textContent = visibleRasters.length
-      ? `当前叠加${rasterLabels.join("、")}。居民点为稀疏真实已占用像元的位置增强展示，不表示聚落面积；原始 GeoTIFF 保留用于分析。`
-      : "当前仅显示基础参照图层。可分别启用粮食生产、居民点与可达性栅格，观察其与节点和走廊的空间关系。";
+    if (unavailableLabels.length && !visibleRasters.length) {
+      note.textContent = `${unavailableLabels.join("、")}栅格预览资源未随当前部署提供，暂不可用；行政区划与供应网络仍可正常查看。`;
+    } else if (unavailableLabels.length) {
+      note.textContent = `当前叠加${rasterLabels.join("、")}。${unavailableLabels.join("、")}预览资源未随当前部署提供；原始 GeoTIFF 保留用于分析。`;
+    } else if (visibleRasters.length) {
+      note.textContent = `当前叠加${rasterLabels.join("、")}。居民点为稀疏真实已占用像元的位置增强展示，不表示聚落面积；原始 GeoTIFF 保留用于分析。`;
+    } else {
+      note.textContent = "当前仅显示基础参照图层。可分别启用粮食生产、居民点与可达性栅格，观察其与节点和走廊的空间关系。";
+    }
   }
   networkLegend?.classList.toggle("is-hidden", !networkEnabled);
 }
@@ -388,7 +500,10 @@ function addMessageToStream(streamId, role, text, tags = [], author = "地缘分
   article.className = `message ${role}`;
   const avatar = document.createElement("span");
   avatar.className = `message-avatar ${role === "user" ? "human" : "ai"}`;
-  avatar.textContent = role === "user" ? "HY" : "AI";
+  const avatarIcon = document.createElement("i");
+  avatarIcon.setAttribute("data-lucide", role === "user" ? "user-round" : "bot");
+  avatarIcon.setAttribute("aria-hidden", "true");
+  avatar.append(avatarIcon);
   const body = document.createElement("div");
   const meta = document.createElement("div");
   meta.className = "message-meta";
@@ -603,7 +718,7 @@ function wireMapControls() {
     button.addEventListener("click", () => {
       const action = button.dataset.mapAction;
       const pane = document.querySelector(".map-pane");
-      if (action === "reset" && maps.atlas) maps.atlas.flyTo({ center: GLOBAL_MONITOR_VIEW.center, zoom: GLOBAL_MONITOR_VIEW.zoom, duration: 500 });
+      if (action === "reset" && maps.atlas) maps.atlas.flyTo({ center: DEFAULT_MONITOR_VIEW.center, zoom: DEFAULT_MONITOR_VIEW.zoom, duration: 500 });
       if (action === "layers") pane?.classList.toggle("layer-muted");
       if (action === "fullscreen") pane?.classList.toggle("is-expanded");
       window.setTimeout(() => maps.atlas?.resize(), 50);
@@ -697,6 +812,7 @@ function wireExport() {
 
 function init() {
   refreshIcons();
+  probeLogisticsRasterAssets();
   maps.atlas = createMap("atlas-map", 1.5);
   wireNavigation();
   wireConsole();

@@ -4,7 +4,7 @@ load_dotenv(override=True)
 
 import streamlit as st
 
-from graph_factory import build_ntl_graph
+from graph_factory_v2 import build_ntl_graph
 
 
 @st.cache_resource(show_spinner=False)

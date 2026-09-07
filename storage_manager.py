@@ -12,6 +12,7 @@ from runtime_governance import thread_workspace_quota_bytes, user_workspace_quot
 # Thread-scoped context used across LangGraph/Deep Agents execution.
 current_thread_id = contextvars.ContextVar("thread_id", default="debug")
 current_gee_project_id = contextvars.ContextVar("gee_project_id", default="")
+current_gee_profile_source = contextvars.ContextVar("gee_profile_source", default="")
 current_gee_encrypted_refresh_token = contextvars.ContextVar("gee_encrypted_refresh_token", default="")
 current_gee_token_scopes = contextvars.ContextVar("gee_token_scopes", default="")
 
@@ -107,7 +108,16 @@ class StorageManager:
     def _is_deepagents_virtual_path(path_value: str) -> bool:
         if not isinstance(path_value, str):
             return False
-        return path_value.startswith(("/data/raw/", "/data/processed/", "/memories/", "/shared/"))
+        return path_value.startswith(
+            (
+                "/data/raw/",
+                "/data/processed/",
+                "/inputs/",
+                "/outputs/",
+                "/memories/",
+                "/shared/",
+            )
+        )
 
     @staticmethod
     def _safe_virtual_tail(full_path: str, prefix: str) -> PurePosixPath:
@@ -152,8 +162,16 @@ class StorageManager:
             rel = self._safe_virtual_tail(deep_path, "/data/raw/")
             allowed_root = (workspace / "inputs").resolve()
             target = allowed_root / Path(*rel.parts)
+        elif deep_path.startswith("/inputs/"):
+            rel = self._safe_virtual_tail(deep_path, "/inputs/")
+            allowed_root = (workspace / "inputs").resolve()
+            target = allowed_root / Path(*rel.parts)
         elif deep_path.startswith("/data/processed/"):
             rel = self._safe_virtual_tail(deep_path, "/data/processed/")
+            allowed_root = (workspace / "outputs").resolve()
+            target = allowed_root / Path(*rel.parts)
+        elif deep_path.startswith("/outputs/"):
+            rel = self._safe_virtual_tail(deep_path, "/outputs/")
             allowed_root = (workspace / "outputs").resolve()
             target = allowed_root / Path(*rel.parts)
         elif deep_path.startswith("/memories/"):
@@ -190,6 +208,8 @@ class StorageManager:
             virtual_roots = {
                 "/data/raw/": "inputs",
                 "/data/processed/": "outputs",
+                "/inputs/": "inputs",
+                "/outputs/": "outputs",
                 "/memories/": "memory",
                 "/shared/": "shared",
             }
@@ -350,7 +370,7 @@ class StorageManager:
                 with tempfile.NamedTemporaryFile(
                     mode="wb",
                     dir=str(target.parent),
-                    prefix=f".{target.name}.",
+                    prefix=".tmp-",
                     suffix=".tmp",
                     delete=False,
                 ) as handle:

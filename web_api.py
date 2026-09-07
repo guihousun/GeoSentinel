@@ -11,6 +11,7 @@ import asyncio
 from contextlib import asynccontextmanager
 import json
 import logging
+import mimetypes
 import os
 import secrets
 import tempfile
@@ -54,6 +55,7 @@ class CreateThreadPayload(BaseModel):
 class RunPayload(BaseModel):
     question: str = Field(max_length=12000)
     model_name: str = Field(default=MODEL_OPTIONS[0], max_length=80)
+    request_key: str = Field(default="", max_length=200)
 
 
 def _truthy(name: str, default: bool = False) -> bool:
@@ -112,11 +114,48 @@ def _safe_filename(filename: str) -> str:
     return value
 
 
+# Uploads may target a free-form subpath below a workspace root (e.g.
+# "inputs/raw/aoi.tif") instead of being flattened into the root.  Traversal
+# and path separators are rejected; the workspace-relative resolver applies
+# the final root containment check.
+_ROOT_ALIASES = {"inputs": "inputs", "outputs": "outputs", "in": "inputs", "out": "outputs"}
+
+
+def _split_upload_target(filename: str) -> tuple[str, str]:
+    raw = str(filename or "").strip().replace("\\", "/")
+    if not raw or ".." in raw.split("/"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="目标路径无效。")
+    parts = [part for part in raw.split("/") if part]
+    if not parts:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="文件名无效。")
+    first = parts[0].lower()
+    if len(parts) > 1 and first in _ROOT_ALIASES:
+        root = _ROOT_ALIASES[first]
+        rel_parts = parts[1:]
+    else:
+        root = "inputs"
+        rel_parts = parts
+    if not rel_parts:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="文件名无效。")
+    if any(len(part) > 160 for part in rel_parts):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="路径过长。")
+    return root, "/".join(rel_parts)
+
+
 def _runtime_error_response(error: WebRuntimeError) -> JSONResponse:
     status_code = status.HTTP_409_CONFLICT
-    if error.code in {"thread_not_found", "run_not_found"}:
+    if error.code in {"thread_not_found", "run_not_found", "output_missing"}:
         status_code = status.HTTP_404_NOT_FOUND
-    elif error.code in {"empty_question", "unsupported_model", "model_configuration_missing"}:
+    elif error.code == "artifact_preview_too_large":
+        status_code = status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+    elif error.code in {
+        "artifact_preview_invalid",
+        "artifact_preview_unavailable",
+        "artifact_preview_unsupported",
+        "empty_question",
+        "unsupported_model",
+        "model_configuration_missing",
+    }:
         status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     return JSONResponse(
         status_code=status_code,
@@ -236,6 +275,25 @@ def create_app() -> FastAPI:
         matching = [row for row in history_store.list_user_threads(user["user_id"], limit=0) if row.get("thread_id") == thread_id]
         return {"thread": matching[0] if matching else {"thread_id": thread_id, "thread_title": title}}
 
+    @app.delete("/api/threads/{thread_id}")
+    async def delete_thread(request: Request, thread_id: str) -> dict[str, Any]:
+        user = _require_thread(request, thread_id)
+        # Only blank conversations are pruned automatically by the UI.  A thread
+        # that already holds user questions or artifacts must never be removed
+        # implicitly; callers get a stable code to surface that warning.
+        messages = history_store.load_chat_records(thread_id, limit=1)
+        artifacts = web_run_manager.list_artifacts(thread_id)
+        if messages or artifacts:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "thread_not_empty",
+                    "message": "该任务已有内容，不能自动清理。如确认删除请手动处理。",
+                },
+            )
+        result = history_store.delete_user_thread(user["user_id"], thread_id, delete_workspace=True)
+        return {"deleted": bool(result.get("deleted") or result.get("index_removed")), "thread_id": thread_id}
+
     @app.get("/api/threads/{thread_id}")
     async def get_thread(request: Request, thread_id: str) -> dict[str, Any]:
         user = _require_thread(request, thread_id)
@@ -245,13 +303,71 @@ def create_app() -> FastAPI:
             "thread": thread,
             "messages": history_store.load_chat_records(thread_id, limit=400),
             "artifacts": web_run_manager.list_artifacts(thread_id),
+            "files": web_run_manager.list_workspace_files(thread_id),
             "active_run": web_run_manager.active_run_for_thread(thread_id, user["user_id"]),
         }
+
+    @app.get("/api/threads/{thread_id}/workspace-files")
+    async def list_workspace_files(request: Request, thread_id: str) -> dict[str, Any]:
+        _require_thread(request, thread_id)
+        return web_run_manager.list_workspace_files(thread_id)
+
+    @app.get("/api/threads/{thread_id}/file-preview/table/{root_name}/{relative_path:path}")
+    async def preview_workspace_table(request: Request, thread_id: str, root_name: str, relative_path: str) -> dict[str, Any]:
+        _require_thread(request, thread_id)
+        try:
+            return web_run_manager.preview_workspace_table(thread_id, root_name, relative_path)
+        except (ValueError, PermissionError) as error:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在。") from error
+
+    @app.get("/api/threads/{thread_id}/file-preview/geo/{root_name}/{relative_path:path}")
+    async def preview_workspace_geo(request: Request, thread_id: str, root_name: str, relative_path: str) -> dict[str, Any]:
+        _require_thread(request, thread_id)
+        try:
+            return web_run_manager.preview_workspace_geo(thread_id, root_name, relative_path)
+        except (ValueError, PermissionError, FileNotFoundError) as error:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error) or "文件不存在。") from error
+        except Exception as error:  # noqa: BLE001 - conversion failures are user-facing preview errors
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"地理空间预览失败：{error}",
+            ) from error
+
+    @app.get("/api/threads/{thread_id}/file-preview/content/{root_name}/{relative_path:path}")
+    async def preview_workspace_file(request: Request, thread_id: str, root_name: str, relative_path: str):
+        _require_thread(request, thread_id)
+        try:
+            target = web_run_manager.resolve_workspace_file(thread_id, root_name, relative_path)
+        except (ValueError, PermissionError) as error:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在。") from error
+        if not target.is_file():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在。")
+        media_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+        headers = {
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "no-referrer",
+            "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+        }
+        if target.suffix.lower() in {".htm", ".html"}:
+            headers["Content-Security-Policy"] = (
+                "sandbox allow-scripts; default-src 'self' data: blob:; "
+                "img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; "
+                "script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self' data:"
+            )
+        return FileResponse(target, media_type=media_type, headers=headers)
 
     @app.get("/api/threads/{thread_id}/artifacts")
     async def list_artifacts(request: Request, thread_id: str) -> dict[str, Any]:
         _require_thread(request, thread_id)
         return {"items": web_run_manager.list_artifacts(thread_id)}
+
+    @app.get("/api/threads/{thread_id}/artifacts/{relative_path:path}/preview")
+    async def preview_artifact(request: Request, thread_id: str, relative_path: str) -> dict[str, Any]:
+        _require_thread(request, thread_id)
+        try:
+            return web_run_manager.preview_table(thread_id, relative_path)
+        except (ValueError, PermissionError) as error:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="输出文件不存在。") from error
 
     @app.get("/api/threads/{thread_id}/outputs/{relative_path:path}")
     async def download_output(request: Request, thread_id: str, relative_path: str):
@@ -267,17 +383,17 @@ def create_app() -> FastAPI:
     @app.put("/api/threads/{thread_id}/uploads/{filename:path}")
     async def upload_input(request: Request, thread_id: str, filename: str) -> dict[str, Any]:
         user = _require_thread(request, thread_id)
-        safe_name = _safe_filename(filename)
+        root_name, rel_path = _split_upload_target(filename)
         max_bytes = max(1, int(os.getenv("NTL_WEB_MAX_UPLOAD_MB", "200") or 200)) * 1024 * 1024
         declared_length = int(request.headers.get("content-length") or 0)
         if declared_length > max_bytes:
             raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="文件超过单文件大小限制。")
         target = storage_manager.resolve_workspace_relative_path(
-            f"inputs/{safe_name}",
+            f"{root_name}/{rel_path}",
             thread_id=thread_id,
-            default_root="inputs",
+            default_root=root_name,
             create_parent=True,
-            allowed_roots=("inputs",),
+            allowed_roots=(root_name,),
             allow_memory=False,
         )
         temporary = target.with_name(f".{target.name}.{uuid.uuid4().hex}.upload")
@@ -302,7 +418,7 @@ def create_app() -> FastAPI:
         finally:
             if temporary.exists():
                 temporary.unlink(missing_ok=True)
-        return {"name": target.name, "size_bytes": written, "path": f"inputs/{target.name}"}
+        return {"name": target.name, "size_bytes": written, "path": f"{root_name}/{rel_path}"}
 
     @app.post("/api/threads/{thread_id}/runs", status_code=status.HTTP_202_ACCEPTED)
     async def start_run(request: Request, thread_id: str, payload: RunPayload) -> dict[str, Any]:
@@ -312,6 +428,7 @@ def create_app() -> FastAPI:
             thread_id=thread_id,
             question=payload.question,
             model_name=payload.model_name,
+            request_key=payload.request_key,
         )
 
     @app.get("/api/runs/{run_id}")
@@ -328,9 +445,13 @@ def create_app() -> FastAPI:
     async def stream_run_events(request: Request, run_id: str, after_seq: int = 0):
         user = _current_user(request)
         web_run_manager.run_summary(run_id, user["user_id"])
+        try:
+            last_event_id = max(0, int(request.headers.get("last-event-id", "0") or 0))
+        except ValueError:
+            last_event_id = 0
 
         async def event_source():
-            seq = max(0, int(after_seq or 0))
+            seq = max(0, int(after_seq or 0), last_event_id)
             while True:
                 if await request.is_disconnected():
                     break
@@ -346,7 +467,11 @@ def create_app() -> FastAPI:
                     break
                 await asyncio.sleep(0.45)
 
-        return EventSourceResponse(event_source(), ping=15, headers={"Cache-Control": "no-cache"})
+        return EventSourceResponse(
+            event_source(),
+            ping=15,
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
     app.mount("/", StaticFiles(directory=WEB_ROOT, html=True), name="web")
     return app

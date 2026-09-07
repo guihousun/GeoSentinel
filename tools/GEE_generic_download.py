@@ -9,9 +9,38 @@ from langchain_core.runnables.config import var_child_runnable_config
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
+import os
 from ntl_toolkit.core.gee_download import GeeDownloadRequest, download_gee_raster
 from ntl_toolkit.core.gee_planning import estimate_bbox_area_sq_km
 from storage_manager import current_thread_id, storage_manager
+
+
+def _resolved_gee_project(explicit: str | None) -> str | None:
+    """Resolve the Earth Engine billing project with canonical precedence.
+
+    ee.Initialize(project=...) must never run project-less: anonymous or
+    ambient identities then hit GEE billing/permission errors on export. The
+    tool accepts an explicit project from the agent; otherwise it falls back to
+    GEE_DEFAULT_PROJECT_ID from the environment or repository .env, mirroring
+    tools.GEE_download._PROJECT_ID.
+    """
+    value = str(explicit or "").strip()
+    if value:
+        return value
+    env_value = str(os.getenv("GEE_DEFAULT_PROJECT_ID", "") or os.getenv("EE_PROJECT_ID", "")).strip()
+    if env_value:
+        return env_value
+    try:
+        from pathlib import Path as _Path
+        from dotenv import dotenv_values
+        dotenv_path = _Path(__file__).resolve().parents[1] / ".env"
+        if dotenv_path.is_file():
+            dotenv_value = str(dotenv_values(dotenv_path).get("GEE_DEFAULT_PROJECT_ID") or "").strip()
+            if dotenv_value:
+                return dotenv_value
+    except Exception:
+        pass
+    return None
 
 
 class GEERasterDownloadInput(BaseModel):
@@ -113,7 +142,7 @@ def gee_raster_download(
             reducer=reducer,
             scale=scale,
             crs=crs,
-            project=project,
+            project=_resolved_gee_project(project),
             processing_preset=processing_preset,
             quality_threshold=quality_threshold,
             index_bands=tuple(index_bands) if index_bands else None,

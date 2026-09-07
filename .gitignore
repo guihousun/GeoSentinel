@@ -97,3 +97,6 @@ RAG/Code_RAG/
 RAG/Literature_RAG/
 RAG/Solution_RAG/
 
+
+# Runtime screenshots and test artifacts
+output/

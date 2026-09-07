@@ -7,20 +7,30 @@ from typing import Any
 
 _EXPORTS: dict[str, tuple[str, str]] = {
     "NTL_composite_local_tool": (".NTL_Composite", "NTL_composite_local_tool"),
-    "SDGSAT1_strip_removal_tool": (".NTL_preprocess", "SDGSAT1_strip_removal_tool"),
-    "SDGSAT1_radiometric_calibration_tool": (".NTL_preprocess", "SDGSAT1_radiometric_calibration_tool"),
-    "VNP46A2_angular_correction_tool": (".NTL_preprocess", "VNP46A2_angular_correction_tool"),
+    "VNP46A2_angular_correction_tool": (".VNP46A2_angular_correction", "VNP46A2_angular_correction_tool"),
+    "VNP46A2_seasonal_adjustment_tool": (
+        ".NTL_seasonal_adjustment",
+        "VNP46A2_seasonal_adjustment_tool",
+    ),
+    "VNP46A2_persistence_classification_tool": (
+        ".VNP46A2_persistence",
+        "VNP46A2_persistence_classification_tool",
+    ),
+    "dmsp_viirs_harmonization_tool": (
+        ".NTL_cross_sensor_harmonization",
+        "dmsp_viirs_harmonization_tool",
+    ),
     "dmsp_evi_preprocess_tool": (".NTL_preprocess", "dmsp_evi_preprocess_tool"),
-    "SDGSAT1_index_tool": (".SDGSAT1_INDEX", "SDGSAT1_index_tool"),
     "vnci_index_tool": (".NPP_viirs_index_tool", "vnci_index_tool"),
     "urban_extraction_by_thresholding_tool": (".NTL_urban_structure_extract", "urban_extraction_by_thresholding_tool"),
     "svm_urban_extraction_tool": (".NTL_urban_structure_extract", "svm_urban_extraction_tool"),
-    "electrified_detection_tool": (".NTL_urban_structure_extract", "electrified_detection_tool"),
+    "electrified_detection_tool": (".electrified_detection", "electrified_detection_tool"),
     "detect_urban_centres_tool": (".NTL_urban_structure_extract", "detect_urban_centres_tool"),
     "NTL_raster_statistics_tool": (".NTL_raster_stats", "NTL_raster_statistics_tool"),
     "NTL_Daily_ANTL_Statistics": (".NTL_raster_stats_GEE", "NTL_Daily_ANTL_Statistics"),
     "NTL_Trend_Analysis": (".NTL_trend_detection_tool", "NTL_Trend_Analysis"),
     "otsu_road_extraction_tool": (".main_road", "otsu_road_extraction_tool"),
+    "road_mask_to_polyline_tool": (".road_vectorization", "road_mask_to_polyline_tool"),
     "detect_ntl_anomaly_tool": (".NTL_anomaly_detection_tool", "detect_ntl_anomaly_tool"),
     "NTL_Knowledge_Base": (".NTL_Knowledge_Base_Searcher", "NTL_Knowledge_Base"),
     "get_administrative_division_tool": (".GaoDe_tool", "get_administrative_division_tool"),
@@ -73,13 +83,32 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         ".vnp46a2_official_h5_country_tool",
         "official_vnp46a2_h5_country_mosaic_tool",
     ),
+    "official_vnp46a1_h5_tool": (
+        ".vnp46a1_official_h5_tool",
+        "official_vnp46a1_h5_tool",
+    ),
     "uploaded_pdf_understanding_tool": (".uploaded_file_understanding_tool", "uploaded_pdf_understanding_tool"),
     "wrap_tool_json_safe": (".tool_json_safety", "wrap_tool_json_safe"),
     "conflict_ntl_agent_system_tool": (".conflict_ntl", "conflict_ntl_agent_system_tool"),
+    "conflict_ntl_screen_events_tool": (".conflict_ntl", "conflict_ntl_screen_events_tool"),
+    "conflict_ntl_generate_analysis_units_tool": (
+        ".conflict_ntl",
+        "conflict_ntl_generate_analysis_units_tool",
+    ),
+    "conflict_ntl_source_freshness_tool": (".conflict_ntl", "conflict_ntl_source_freshness_tool"),
     "conflict_ntl_fetch_isw_events_tool": (".conflict_ntl", "conflict_ntl_fetch_isw_events_tool"),
+    "conflict_ntl_build_case_report_tool": (".conflict_ntl", "conflict_ntl_build_case_report_tool"),
+    "conflict_ntl_compare_case_buffers_tool": (".conflict_ntl", "conflict_ntl_compare_case_buffers_tool"),
+    "conflict_city_event_ranking_tool": (".conflict_city_events", "conflict_city_event_ranking_tool"),
 }
 
-_GROUPS: dict[str, list[str]] = {
+_ROLE_GROUPS: dict[str, list[str]] = {
+    "engineer_tools": [
+        "geodata_inspector_tool",
+        "geodata_quick_check_tool",
+        "execute_geospatial_script_tool",
+        "uploaded_pdf_understanding_tool",
+    ],
     "data_searcher_tools": [
         "reverse_geocode_tool",
         "geocode_tool",
@@ -100,6 +129,7 @@ _GROUPS: dict[str, list[str]] = {
         "official_vj_dnb_gif_tool",
         "official_ntl_ais_fusion_tool",
         "official_vnp46a2_h5_country_mosaic_tool",
+        "official_vnp46a1_h5_tool",
         "China_Official_Stats_tool",
         "China_Official_GDP_tool",
         "Country_GDP_Search_tool",
@@ -110,54 +140,78 @@ _GROUPS: dict[str, list[str]] = {
         "GEE_catalog_discovery_tool",
         "GEE_dataset_metadata_tool",
         "dataset_latest_availability_tool",
-        "conflict_ntl_agent_system_tool",
-        "conflict_ntl_fetch_isw_events_tool",
+        "geodata_inspector_tool",
+        "geodata_quick_check_tool",
+        "VNP46A2_angular_correction_tool",
+        "dmsp_evi_preprocess_tool",
+        "NTL_composite_local_tool",
+        "vnci_index_tool",
     ],
+    "analyst_tools": [
+        "geodata_inspector_tool",
+        "geodata_quick_check_tool",
+        "VNP46A2_seasonal_adjustment_tool",
+        "VNP46A2_persistence_classification_tool",
+        "dmsp_viirs_harmonization_tool",
+        "urban_extraction_by_thresholding_tool",
+        "svm_urban_extraction_tool",
+        "electrified_detection_tool",
+        "otsu_road_extraction_tool",
+        "road_mask_to_polyline_tool",
+        "detect_urban_centres_tool",
+        "NTL_Daily_ANTL_Statistics",
+        "NTL_Trend_Analysis",
+        "detect_ntl_anomaly_tool",
+        "NTL_raster_statistics_tool",
+        "NTL_estimate_indicator_provincial_tool",
+        "DEI_estimate_city_tool",
+        "official_vj_dnb_gif_tool",
+        "official_ntl_ais_fusion_tool",
+        "uploaded_pdf_understanding_tool",
+        "execute_geospatial_script_tool",
+    ],
+    "event_tracker_tools": [
+        "conflict_ntl_fetch_isw_events_tool",
+        "conflict_ntl_source_freshness_tool",
+        "conflict_ntl_screen_events_tool",
+        "conflict_city_event_ranking_tool",
+        "Tavily_search",
+        "google_bigquery_search",
+        "geocode_tool",
+        "reverse_geocode_tool",
+        "get_administrative_division_geoboundaries_tool",
+    ],
+}
+
+
+def _strict_union(*groups: list[str]) -> list[str]:
+    return list(dict.fromkeys(name for group in groups for name in group))
+
+
+_GROUPS: dict[str, list[str]] = {
+    **_ROLE_GROUPS,
     "Code_tools": [
         "GeoCode_Knowledge_Recipes_tool",
         "execute_geospatial_script_tool",
         "GeoCode_COT_Validation_tool",
     ],
-    "Engineer_tools": [
-        "execute_geospatial_script_tool",
-        "GeoCode_COT_Validation_tool",
-        "geodata_inspector_tool",
-        "geodata_quick_check_tool",
-        "SDGSAT1_strip_removal_tool",
-        "SDGSAT1_radiometric_calibration_tool",
-        "VNP46A2_angular_correction_tool",
-        "dmsp_evi_preprocess_tool",
-        "urban_extraction_by_thresholding_tool",
-        "svm_urban_extraction_tool",
-        "electrified_detection_tool",
-        "otsu_road_extraction_tool",
-        "detect_urban_centres_tool",
-        "NTL_Trend_Analysis",
-        "detect_ntl_anomaly_tool",
-        "NTL_composite_local_tool",
-        "NTL_raster_statistics_tool",
-        "NTL_estimate_indicator_provincial_tool",
-        "DEI_estimate_city_tool",
-        "official_vj_dnb_fullchain_tool",
-        "official_vj_dnb_preprocess_tool",
-        "convert_vj102_vj103_precise_to_tif_tool",
-        "NTL_preview_tool",
-        "official_vj_dnb_gif_tool",
-        "official_ntl_ais_fusion_tool",
-        "official_vnp46a2_h5_country_mosaic_tool",
-        "SDGSAT1_index_tool",
-        "vnci_index_tool",
-        "uploaded_pdf_understanding_tool",
-    ],
+    "single_agent_tools": _strict_union(
+        _ROLE_GROUPS["engineer_tools"],
+        _ROLE_GROUPS["data_searcher_tools"],
+        _ROLE_GROUPS["analyst_tools"],
+        _ROLE_GROUPS["event_tracker_tools"],
+    ),
     "specialized_tool_catalog": [
-        "SDGSAT1_strip_removal_tool",
-        "SDGSAT1_radiometric_calibration_tool",
         "VNP46A2_angular_correction_tool",
+        "VNP46A2_seasonal_adjustment_tool",
+        "VNP46A2_persistence_classification_tool",
+        "dmsp_viirs_harmonization_tool",
         "dmsp_evi_preprocess_tool",
         "urban_extraction_by_thresholding_tool",
         "svm_urban_extraction_tool",
         "electrified_detection_tool",
         "otsu_road_extraction_tool",
+        "road_mask_to_polyline_tool",
         "detect_urban_centres_tool",
         "NTL_composite_local_tool",
         "NTL_estimate_indicator_provincial_tool",
@@ -169,10 +223,11 @@ _GROUPS: dict[str, list[str]] = {
         "official_vj_dnb_gif_tool",
         "official_ntl_ais_fusion_tool",
         "official_vnp46a2_h5_country_mosaic_tool",
-        "SDGSAT1_index_tool",
+        "official_vnp46a1_h5_tool",
         "vnci_index_tool",
         "conflict_ntl_agent_system_tool",
         "conflict_ntl_fetch_isw_events_tool",
+        "conflict_city_event_ranking_tool",
     ],
 }
 
@@ -225,10 +280,18 @@ class LazyToolCollection(Sequence[Any]):
         status = "loaded" if self._cache is not None else "lazy"
         return f"LazyToolCollection(status={status}, size={len(self._export_names)})"
 
+    @property
+    def export_names(self) -> tuple[str, ...]:
+        return tuple(self._export_names)
+
 
 data_searcher_tools = LazyToolCollection(_GROUPS["data_searcher_tools"])
+analyst_tools = LazyToolCollection(_GROUPS["analyst_tools"])
+event_tracker_tools = LazyToolCollection(_GROUPS["event_tracker_tools"])
+engineer_tools = LazyToolCollection(_GROUPS["engineer_tools"])
+single_agent_tools = LazyToolCollection(_GROUPS["single_agent_tools"])
 Code_tools = LazyToolCollection(_GROUPS["Code_tools"])
-Engineer_tools = LazyToolCollection(_GROUPS["Engineer_tools"])
+Engineer_tools = engineer_tools
 specialized_tool_catalog = LazyToolCollection(_GROUPS["specialized_tool_catalog"])
 
 

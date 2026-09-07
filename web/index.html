@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-preview-theme="cool-slate">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -10,21 +10,47 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet" />
   <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=research-views-20260823c" />
-  <link rel="stylesheet" href="web-runtime.css?v=20260824k" />
-  <link rel="stylesheet" href="theme-preview.css?v=20260824a" />
+  <link rel="stylesheet" href="styles.css?v=readability2-20260903a" />
+  <link rel="stylesheet" href="web-runtime.css?v=bubble-clean-20260905a" />
+  <link rel="stylesheet" href="theme-preview.css?v=readability2-20260903a" />
 </head>
 <body>
   <div class="app-shell">
     <aside class="rail" aria-label="平台控制台">
       <div class="brand-lockup brand-compact">
+        <h2 id="workspace-title" class="rail-brand-title">地缘环境智能计算平台</h2>
         <button class="rail-toggle rail-toggle-left" id="left-rail-toggle" type="button" aria-label="收起左侧导航栏" aria-expanded="true" title="收起左侧导航栏"><i data-lucide="panel-left-close"></i></button>
+      </div>
+
+      <div class="rail-scroll">
+        <section class="thread-panel" aria-label="研究任务">
+          <p class="section-label">研究任务</p>
+          <div class="thread-list" id="thread-list" role="listbox" aria-label="选择研究任务">
+            <p class="thread-list-empty">登录后加载任务</p>
+          </div>
+          <button class="rail-command" id="new-task" type="button" disabled><i data-lucide="plus"></i><span>新建研究任务</span></button>
+        </section>
+
+        <nav class="primary-nav" aria-label="研究模块">
+          <p class="section-label">研究空间</p>
+          <button class="nav-item active" type="button" data-nav="situation" aria-current="page"><i data-lucide="scan-search"></i><span>全球态势</span></button>
+          <div class="country-nav-group">
+            <button class="nav-item" type="button" data-nav="profiles"><i data-lucide="contact-round"></i><span>国家专题</span></button>
+            <a class="nav-item specialty-nav nav-subitem" href="#logistics" data-nav="logistics" aria-label="打开国家专题下的粮食物流与可达性专题">
+              <i data-lucide="route"></i>
+              <span class="nav-label"><strong>粮食物流与可达性</strong><small>缅甸专题 / FOOD LOGISTICS</small></span>
+            </a>
+          </div>
+        </nav>
       </div>
 
       <details class="account-panel" id="account-panel" aria-label="当前账号">
         <summary>
-          <span class="account-summary-label">当前账号</span>
-          <strong id="account-summary-name">未登录</strong>
+          <span class="account-avatar" aria-hidden="true"><i data-lucide="user-round"></i></span>
+          <span class="account-copy">
+            <span class="account-summary-label">当前账号</span>
+            <strong id="account-summary-name">未登录</strong>
+          </span>
           <i class="account-summary-chevron" data-lucide="chevron-down" aria-hidden="true"></i>
         </summary>
         <div class="account-panel-body">
@@ -33,105 +59,29 @@
           <button class="account-logout" id="logout-button" type="button" hidden>退出登录</button>
         </div>
       </details>
-
-      <section class="thread-panel" aria-label="研究任务">
-        <p class="section-label">研究任务</p>
-        <select id="thread-selector" aria-label="选择研究任务" disabled><option>登录后加载任务</option></select>
-        <button class="rail-command" id="new-task" type="button" disabled><i data-lucide="plus"></i><span>新建研究任务</span></button>
-      </section>
-
-      <details class="rail-evidence" id="rail-evidence">
-        <summary><span><i data-lucide="folder-open"></i>资料与产出</span><span class="artifact-summary-count" id="artifact-summary-count" hidden>0</span><i class="rail-evidence-chevron" data-lucide="chevron-down"></i></summary>
-        <div class="rail-evidence-body">
-          <p>当前任务的上传资料和分析文件会保存在这里。</p>
-          <section class="artifact-panel" id="artifact-panel" aria-label="任务产出" hidden>
-            <div class="run-activity-head"><span>任务产出</span><span id="artifact-count">0</span></div>
-            <ul id="artifact-list"></ul>
-          </section>
-        </div>
-      </details>
-
-      <nav class="primary-nav" aria-label="研究模块">
-        <p class="section-label">研究空间</p>
-        <button class="nav-item active" type="button" data-nav="situation" aria-current="page"><i data-lucide="scan-search"></i><span>全球态势</span></button>
-        <div class="country-nav-group">
-          <button class="nav-item" type="button" data-nav="profiles"><i data-lucide="contact-round"></i><span>国家专题</span></button>
-          <a class="nav-item specialty-nav nav-subitem" href="#logistics" data-nav="logistics" aria-label="打开国家专题下的粮食物流与可达性专题">
-            <i data-lucide="route"></i>
-            <span class="nav-label"><strong>粮食物流与可达性</strong><small>缅甸专题 / FOOD LOGISTICS</small></span>
-          </a>
-        </div>
-      </nav>
-
     </aside>
 
-    <main class="workspace">
-      <header class="topbar">
-        <div>
-          <h2 id="workspace-title">地缘环境智能计算平台</h2>
-        </div>
-        <div class="topbar-actions">
-          <div class="theme-preview-control">
-            <button class="theme-preview-toggle" id="theme-preview-toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="theme-preview-menu">
-              <i data-lucide="palette"></i>
-              <span>主题预览</span>
-              <small id="theme-preview-current">当前样式</small>
-              <i class="theme-preview-chevron" data-lucide="chevron-down"></i>
-            </button>
-            <div class="theme-preview-menu" id="theme-preview-menu" role="menu" aria-label="临时主题预览" hidden>
-              <div class="theme-preview-menu-head">
-                <div><strong>界面主题预览</strong><small>仅保存在当前浏览器</small></div>
-                <span>临时</span>
-              </div>
-              <button type="button" role="menuitemradio" aria-checked="true" data-preview-theme="default">
-                <span class="theme-swatch theme-swatch-default" aria-hidden="true"><i></i><i></i><i></i></span>
-                <span><strong>当前样式</strong><small>恢复工作台现有配色</small></span>
-                <i class="theme-check" data-lucide="check"></i>
-              </button>
-              <button type="button" role="menuitemradio" aria-checked="false" data-preview-theme="fiori-shell">
-                <span class="theme-swatch theme-swatch-fiori" aria-hidden="true"><i></i><i></i><i></i></span>
-                <span><strong>Fiori 双层外壳</strong><small>深蓝导航 · 明亮内容区</small></span>
-                <i class="theme-check" data-lucide="check"></i>
-              </button>
-              <button type="button" role="menuitemradio" aria-checked="false" data-preview-theme="nautical-light">
-                <span class="theme-swatch theme-swatch-nautical" aria-hidden="true"><i></i><i></i><i></i></span>
-                <span><strong>海图蓝白</strong><small>海图蓝 · 冰白数据面板</small></span>
-                <i class="theme-check" data-lucide="check"></i>
-              </button>
-              <button type="button" role="menuitemradio" aria-checked="false" data-preview-theme="satellite-gray">
-                <span class="theme-swatch theme-swatch-satellite" aria-hidden="true"><i></i><i></i><i></i></span>
-                <span><strong>卫星灰</strong><small>遥感中灰 · 低饱和青</small></span>
-                <i class="theme-check" data-lucide="check"></i>
-              </button>
-              <button type="button" role="menuitemradio" aria-checked="false" data-preview-theme="cool-slate">
-                <span class="theme-swatch theme-swatch-cool" aria-hidden="true"><i></i><i></i><i></i></span>
-                <span><strong>冷灰蓝</strong><small>清透深色 · 冷青高亮</small></span>
-                <i class="theme-check" data-lucide="check"></i>
-              </button>
-              <button type="button" role="menuitemradio" aria-checked="false" data-preview-theme="split-workbench">
-                <span class="theme-swatch theme-swatch-split" aria-hidden="true"><i></i><i></i><i></i></span>
-                <span><strong>双层工作台</strong><small>深色控制层 · 浅色研究层</small></span>
-                <i class="theme-check" data-lucide="check"></i>
-              </button>
-            </div>
-          </div>
-          <button class="primary-action" id="export-brief" type="button" disabled><i data-lucide="download"></i><span>导出简报</span></button>
-        </div>
-      </header>
 
       <div class="workspace-view workspace-view-primary desk-grid" id="primary-workspace" data-view="situation">
         <section class="chat-pane surface main-chat-pane" aria-label="智能体对话">
           <div class="chat-head"><div><h4>任务对话</h4></div><div class="task-runtime-actions"><span class="thread-status" id="thread-status"><span class="status-dot"></span><span>登录后开始</span></span><button class="stop-run" id="stop-run" type="button" hidden>停止任务</button></div></div>
           <p class="runtime-notice" id="runtime-notice" role="status" aria-live="polite" hidden></p>
+          <span id="task-stream-home" hidden aria-hidden="true"></span>
           <section class="task-stream" id="task-stream" data-state="idle" aria-label="智能体协作进程" hidden>
-            <div class="task-stream-head"><strong>任务进程</strong><span id="run-activity-state">等待任务</span></div>
-            <div class="run-agent-strip" aria-label="参与本次任务的智能体">
-              <span class="run-agent-chip" data-agent="地缘分析师"><i data-lucide="route"></i><b>地缘分析师</b><em class="run-agent-state">待命</em></span>
-              <span class="run-agent-chip" data-agent="数据检索助手"><i data-lucide="search-check"></i><b>数据检索助手</b><em class="run-agent-state">待命</em></span>
-              <span class="run-agent-chip" data-agent="知识库助手"><i data-lucide="book-open-check"></i><b>知识库助手</b><em class="run-agent-state">按需</em></span>
-              <span class="run-agent-chip" data-agent="代码助手"><i data-lucide="braces"></i><b>代码助手</b><em class="run-agent-state">按需</em></span>
+            <button class="task-stream-toggle" id="task-stream-toggle" type="button" aria-expanded="false" aria-controls="task-stream-content">
+              <span class="task-stream-head"><strong>任务进程</strong><span id="run-activity-state" role="status" aria-live="polite" aria-atomic="true">等待任务</span></span>
+              <span class="task-stream-toggle-label">查看详情</span><i data-lucide="chevron-down" aria-hidden="true"></i>
+            </button>
+            <div class="task-stream-content" id="task-stream-content" hidden>
+              <div class="run-agent-strip" aria-label="参与本次任务的智能体">
+                <span class="run-agent-chip" data-agent="地缘分析师"><i data-lucide="route"></i><b>地缘分析师</b><em class="run-agent-state">待命</em></span>
+                <span class="run-agent-chip" data-agent="数据助手"><i data-lucide="search-check"></i><b>数据助手</b><em class="run-agent-state">待命</em></span>
+                <span class="run-agent-chip" data-agent="分析助手"><i data-lucide="chart-no-axes-combined"></i><b>分析助手</b><em class="run-agent-state">按需</em></span>
+                <span class="run-agent-chip" data-agent="事件助手"><i data-lucide="radar"></i><b>事件助手</b><em class="run-agent-state">按需</em></span>
+              </div>
+              <div class="agent-stream-list" id="agent-stream-list" aria-label="智能体实时输出"></div>
+              <ol id="run-activity-list"><li class="run-activity-empty">开始任务后，将在此显示实际的智能体和工具进度。</li></ol>
             </div>
-            <ol id="run-activity-list"><li class="run-activity-empty">开始任务后，将在此显示实际的智能体和工具进度。</li></ol>
           </section>
           <div class="chat-messages" id="chat-messages" aria-live="polite">
             <div class="chat-empty-state"><i data-lucide="message-square-text"></i><strong>开始一项研究</strong><p>输入研究问题，地缘分析师将根据任务需要调度事件、数据和证据工具。</p></div>
@@ -145,27 +95,103 @@
 
         </section>
 
-        <aside class="right-rail" aria-label="全球监测与事件队列">
-          <button class="rail-toggle rail-toggle-right" id="right-rail-toggle" type="button" aria-label="收起右侧监测栏" aria-expanded="true" title="收起右侧监测栏"><i data-lucide="panel-right-close"></i></button>
-          <section class="map-pane surface compact-monitor-pane" aria-label="全球事件态势地图">
-            <div class="map-toolbar">
-              <div class="map-title"><span class="live-dot"></span><strong>全球监测</strong><small>事件 · 通道 · 空间风险</small></div>
-              <div class="map-actions"><button class="map-tool" type="button" data-map-action="reset" title="重置视图" aria-label="重置视图"><i data-lucide="locate-fixed"></i></button><button class="map-tool" type="button" data-map-action="layers" title="切换空间图层" aria-label="切换空间图层"><i data-lucide="layers-3"></i></button></div>
+        <aside class="right-rail" id="right-rail" aria-label="研究辅助工作区">
+          <div class="right-rail-resizer" id="right-rail-resizer" role="separator" aria-label="调整右侧工作区宽度" aria-orientation="vertical" aria-valuemin="300" aria-valuemax="720" aria-valuenow="356" tabindex="0"></div>
+          <button class="rail-toggle rail-toggle-right" id="right-rail-toggle" type="button" aria-label="收起右侧工作区" aria-expanded="true" title="收起右侧工作区"><i data-lucide="panel-right-close"></i></button>
+          <div class="right-rail-shell surface">
+            <div class="right-rail-tabs" role="tablist" aria-label="右侧工作区视图">
+              <button id="right-tab-monitor" type="button" role="tab" aria-selected="true" aria-controls="right-panel-monitor" tabindex="0" data-right-tab="monitor"><i data-lucide="radar" aria-hidden="true"></i><span>监测</span></button>
+              <button id="right-tab-files" type="button" role="tab" aria-selected="false" aria-controls="right-panel-files" tabindex="-1" data-right-tab="files"><i data-lucide="folder-open" aria-hidden="true"></i><span>项目文件</span><em class="right-tab-count" id="artifact-summary-count" hidden>0</em></button>
+              <button id="right-tab-preview" type="button" role="tab" aria-selected="false" aria-controls="right-panel-preview" tabindex="-1" data-right-tab="preview"><i data-lucide="panel-right" aria-hidden="true"></i><span>预览</span></button>
+              <button id="right-tab-map" type="button" role="tab" aria-selected="false" aria-controls="right-panel-map" tabindex="-1" data-right-tab="map"><i data-lucide="map" aria-hidden="true"></i><span>地图</span><em class="right-tab-count" id="map-layer-count" hidden>0</em></button>
             </div>
-            <div id="atlas-map" class="map-canvas"><div class="map-loading">正在载入空间底图</div></div>
-            <div class="map-legend"><span><i class="legend-dot high"></i>高关注</span><span><i class="legend-dot medium"></i>持续跟踪</span><span><i class="legend-dot low"></i>观察</span></div>
-          </section>
 
-          <section class="monitor-queue-pane surface" aria-label="事件监测队列">
-            <div class="panel-head"><h4>监测队列</h4><span class="panel-kicker" id="monitor-source-state">等待首次同步</span></div>
-            <div class="monitor-ticker" aria-label="待研判线索滚动提示">
-              <span class="monitor-ticker-label"><i data-lucide="radar"></i>待研判</span>
-              <div class="monitor-ticker-viewport"><div class="monitor-ticker-track" id="monitor-ticker-track"><span>等待事件监测服务完成首轮同步</span></div></div>
+            <div class="right-rail-panels">
+              <section class="right-rail-panel right-rail-monitor" id="right-panel-monitor" role="tabpanel" aria-labelledby="right-tab-monitor" data-right-panel="monitor">
+                <section class="map-pane compact-monitor-pane" aria-label="全球事件态势地图">
+                  <div class="map-toolbar">
+                    <div class="map-title"><span class="live-dot"></span><strong>全球监测</strong><small>事件 · 通道 · 空间风险</small></div>
+                    <div class="map-actions"><button class="map-tool" type="button" data-map-action="reset" title="重置视图" aria-label="重置视图"><i data-lucide="locate-fixed"></i></button><button class="map-tool" type="button" data-map-action="layers" title="切换空间图层" aria-label="切换空间图层"><i data-lucide="layers-3"></i></button></div>
+                  </div>
+                  <div id="atlas-map" class="map-canvas"><div class="map-loading">正在载入空间底图</div></div>
+                  <div class="map-legend"><span><i class="legend-dot high"></i>高关注</span><span><i class="legend-dot medium"></i>持续跟踪</span><span><i class="legend-dot low"></i>观察</span></div>
+                </section>
+
+                <section class="monitor-queue-pane" aria-label="事件监测队列">
+                  <div class="panel-head"><h4>监测队列</h4><span class="panel-kicker" id="monitor-source-state">等待首次同步</span></div>
+                  <div class="monitor-ticker" aria-label="待研判线索滚动提示">
+                    <span class="monitor-ticker-label"><i data-lucide="radar"></i>待研判</span>
+                    <div class="monitor-ticker-viewport"><div class="monitor-ticker-track" id="monitor-ticker-track"><span>等待事件监测服务完成首轮同步</span></div></div>
+                  </div>
+                  <div class="monitor-list" id="monitor-event-list" aria-label="待研判事件">
+                    <p class="monitor-empty">尚无已通过来源校验的监测事件。</p>
+                  </div>
+                </section>
+              </section>
+
+              <section class="right-rail-panel workspace-files-panel" id="right-panel-files" role="tabpanel" aria-labelledby="right-tab-files" data-right-panel="files" hidden>
+                <div class="right-panel-head">
+                  <div><p class="panel-kicker">CURRENT TASK</p><h4>项目文件</h4></div>
+                  <button class="right-panel-action" id="right-rail-upload" type="button"><i data-lucide="upload" aria-hidden="true"></i><span>上传</span></button>
+                </div>
+                <label class="workspace-file-search"><i data-lucide="search" aria-hidden="true"></i><input id="workspace-file-search" type="search" placeholder="搜索当前任务文件" aria-label="搜索当前任务文件"></label>
+                <div class="workspace-file-groups workspace-file-groups-unified">
+                  <section class="workspace-file-group workspace-file-group-unified" aria-labelledby="all-files-title">
+                    <header>
+                      <h5 id="all-files-title">任务文件</h5>
+                      <span class="workspace-file-head-meta">
+                        <span class="workspace-file-root-filter" role="group" aria-label="文件根目录筛选">
+                          <button type="button" data-file-root-filter="all" class="active">全部</button>
+                          <button type="button" data-file-root-filter="inputs">研究资料</button>
+                          <button type="button" data-file-root-filter="outputs">分析产出</button>
+                        </span>
+                        <span id="input-file-count">0</span>
+                      </span>
+                    </header>
+                    <ul id="input-file-list"><li class="workspace-file-empty">尚未上传文件</li></ul>
+                  </section>
+                  <section class="workspace-file-group workspace-process-group" id="workspace-process-group" aria-labelledby="process-files-title" hidden>
+                    <header>
+                      <h5 id="process-files-title">过程文件</h5>
+                      <span id="workspace-process-count">0</span>
+                    </header>
+                    <ul id="workspace-process-list"><li class="workspace-file-empty">无过程文件</li></ul>
+                  </section>
+                  <section class="workspace-file-group artifact-panel" id="artifact-panel" aria-labelledby="output-files-title" hidden>
+                    <header><h5 id="output-files-title">分析产出</h5><span id="artifact-count">0</span></header>
+                    <ul id="artifact-list"><li class="workspace-file-empty">尚无分析产出</li></ul>
+                  </section>
+                </div>
+              </section>
+
+              <section class="right-rail-panel workspace-preview-panel" id="right-panel-preview" role="tabpanel" aria-labelledby="right-tab-preview" data-right-panel="preview" hidden>
+                <div class="right-panel-head workspace-preview-head">
+                  <div><p class="panel-kicker" id="workspace-preview-kind">FILE PREVIEW</p><h4 id="workspace-preview-title">文件预览</h4></div>
+                  <a class="right-panel-action" id="workspace-preview-download" href="#" download hidden><i data-lucide="download" aria-hidden="true"></i><span>下载</span></a>
+                </div>
+                <div class="workspace-preview-body" id="workspace-preview-body">
+                  <div class="workspace-preview-empty"><i data-lucide="file-search" aria-hidden="true"></i><strong>选择一个文件</strong><p>从“项目文件”中打开研究资料或分析产出。</p></div>
+                </div>
+              </section>
+
+              <section class="right-rail-panel workspace-map-panel" id="right-panel-map" role="tabpanel" aria-labelledby="right-tab-map" data-right-panel="map" hidden>
+                <div class="right-panel-head">
+                  <div><p class="panel-kicker">GEO DATA LAYERS</p><h4>空间数据地图</h4></div>
+                  <span class="right-panel-action right-panel-action-static" id="map-layer-autoload" hidden><i data-lucide="sparkles" aria-hidden="true"></i><span>自动加载</span></span>
+                </div>
+                <div class="workspace-map-body">
+                  <div id="workspace-map" class="map-canvas"><div class="map-loading">等待地理空间数据</div></div>
+                  <div class="workspace-map-layers" id="workspace-map-layers" aria-label="空间数据图层">
+                    <div class="workspace-map-layers-head">
+                      <span>当前加载图层</span>
+                      <span id="workspace-map-layer-total">0</span>
+                    </div>
+                    <ul id="workspace-map-layer-list"><li class="workspace-map-empty">尚无地理空间数据。任务生成 tif / shp / geojson 等文件后将自动出现。</li></ul>
+                  </div>
+                </div>
+              </section>
             </div>
-            <div class="monitor-list" id="monitor-event-list" aria-label="待研判事件">
-              <p class="monitor-empty">尚无已通过来源校验的监测事件。</p>
-            </div>
-          </section>
+          </div>
         </aside>
       </div>
 
@@ -260,7 +286,7 @@
 
             <div class="chat-messages topic-chat-messages" id="logistics-chat-messages" aria-live="polite">
               <article class="message assistant">
-                <span class="message-avatar ai">AI</span>
+                <span class="message-avatar ai"><i data-lucide="bot" aria-hidden="true"></i></span>
                 <div>
                   <div class="message-meta"><strong>地缘分析师</strong><time>已就绪</time></div>
                   <p>专题资料已载入。可以围绕节点失效、走廊替代、粮食生产、居民点暴露或可达性成本直接提问；地图图层和已选节点会进入同一研究线程。</p>
@@ -295,15 +321,17 @@
   <section class="auth-gate" id="auth-gate" aria-label="登录或注册">
     <div class="auth-shell">
       <section class="auth-intro" aria-labelledby="auth-title">
-        <p class="eyebrow">GEOENVIRONMENTAL INTELLIGENCE / RESEARCH WORKSPACE</p>
-        <h2 id="auth-title">地缘环境智能计算平台</h2>
-        <p>将研究问题、空间证据、数据工具和多智能体调度放在同一条可追溯的任务链中。</p>
-        <dl class="auth-capabilities">
-          <div><dt>任务研究</dt><dd>围绕问题建立独立线程与证据记录</dd></div>
-          <div><dt>空间分析</dt><dd>调用地图、边界、遥感与社会经济数据工具</dd></div>
-          <div><dt>结果沉淀</dt><dd>保留对话、产出文件和后续复核线索</dd></div>
-        </dl>
-        <small>研究结果需结合来源、时间范围与方法条件进行核验。</small>
+        <div class="auth-brand-lockup">
+          <div class="auth-brand-copy">
+            <p class="eyebrow">GEOENVIRONMENTAL INTELLIGENCE / RESEARCH WORKSPACE</p>
+            <h2 id="auth-title">地缘环境智能计算平台</h2>
+          </div>
+          <ul class="auth-capabilities" aria-label="平台能力">
+            <li><i data-lucide="radar" aria-hidden="true"></i><div><strong>冲突事件监测</strong><small>全球事件筛查 · 研判队列 · 持续跟踪</small></div></li>
+            <li><i data-lucide="layers-3" aria-hidden="true"></i><div><strong>空间证据分析</strong><small>夜光遥感 · 行政区划 · 灾害与可达性图层</small></div></li>
+            <li><i data-lucide="workflow" aria-hidden="true"></i><div><strong>多智能体研判</strong><small>地缘分析师调度数据、空间与证据工具</small></div></li>
+          </ul>
+        </div>
       </section>
       <section class="auth-card" aria-labelledby="auth-card-title">
         <p class="eyebrow">研究工作台</p>
@@ -331,7 +359,7 @@
   <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script src="assets/data-layers/layer-manifest.js"></script>
-<script src="app.js?v=monitor-global-20260824a"></script>
-<script src="web-runtime.js?v=theme-preview-20260824a"></script>
+<script src="app.js?v=esri-street-dark-20260903a"></script>
+<script src="web-runtime.js?v=avatar-icons-20260905a"></script>
 </body>
 </html>

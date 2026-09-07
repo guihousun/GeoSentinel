@@ -131,7 +131,10 @@ def build_ntl_graph(
 
     data_searcher_subagent = {
         "name": "Data_Searcher",
-        "description": "NTL data retrieval specialist: datasets, AOI, temporal coverage, and source validation.",
+        "description": (
+            "GeoSentinel geoenvironmental data and evidence retrieval specialist: events, boundaries, "
+            "remote sensing, NTL, Earthdata/GEE, temporal coverage, provenance, and source validation."
+        ),
         "system_prompt": system_prompt_data_searcher,
         "tools": data_searcher_tools,
         "skills": [SKILLS_SOURCE],
@@ -140,8 +143,9 @@ def build_ntl_graph(
     code_assistant_subagent = {
         "name": "Code_Assistant",
         "description": (
-            "Optional independent code reviewer. Use only when the user requests review/verification "
-            "or NTL_Engineer explicitly requests a full independent review of a saved v2-contract script."
+            "Optional independent GeoSentinel geospatial computation reviewer. Use only when the user "
+            "requests review/verification or the lead analyst explicitly requests a full independent "
+            "review of a saved v2-contract script."
         ),
         "system_prompt": Code_Assistant_system_prompt_text,
         "tools": Code_tools,
@@ -158,7 +162,14 @@ def build_ntl_graph(
 
     engineer_prompt = getattr(system_prompt_text, "content", str(system_prompt_text))
 
-    NTL_SYSTEM_PROMPT = f"""NTL Engineer: nighttime light analysis supervisor.
+    NTL_SYSTEM_PROMPT = f"""GeoSentinel（地缘环境智能计算平台）lead geoenvironmental intelligence supervisor.
+
+Product identity (highest priority):
+- Represent GeoSentinel as the sole product identity in introductions, handoffs, and final answers.
+- Treat nighttime light as one evidence layer within a broader geoenvironmental intelligence platform.
+- Match tools and evidence to the user's geopolitical, environmental, spatial, or socioeconomic question; do not force an NTL route.
+- Produce evidence-first conclusions that distinguish observations, computations, inference, uncertainty, and missing evidence.
+- Use Simplified Chinese for user-facing communication while preserving exact technical identifiers where required.
 
 Workspace protocol (canonical):
 - Read input data from `/inputs/` in the current thread workspace.

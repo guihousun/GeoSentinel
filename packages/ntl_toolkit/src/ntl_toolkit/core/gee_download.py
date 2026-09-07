@@ -178,6 +178,44 @@ def _resolve_asset_type(ee, request: GeeDownloadRequest) -> Literal["Image", "Im
     return "ImageCollection" if request.start_date or request.end_date else "Image"
 
 
+def _resolve_band_names(ee, image, requested: list[str]) -> list[str]:
+    """Resolve requested band names against the asset's real band names.
+
+    GEE catalog documentation and agent tools occasionally render the same
+    product band with hyphens (e.g. DNB_BRDF-Corrected_NTL) while the asset
+    names it with underscores (DNB_BRDF_Corrected_NTL).  Unmatched names fail
+    hard in Image.select; normalize the safe -/_ variants and keep the correct
+    casing from the asset itself.
+    """
+    names = [str(name).strip() for name in requested if name and str(name).strip()]
+    if not names:
+        return names
+    try:
+        actual = list(image.bandNames().getInfo() or [])
+    except Exception:
+        return names
+    actual_set = set(actual)
+    resolved: list[str] = []
+    for name in names:
+        if name in actual_set:
+            resolved.append(name)
+            continue
+        variants = []
+        if "-" in name:
+            variants.append(name.replace("-", "_"))
+        if "_" in name:
+            variants.append(name.replace("_", "-"))
+        matched = False
+        for variant in variants:
+            if variant in actual_set:
+                resolved.append(variant)
+                matched = True
+                break
+        if not matched:
+            resolved.append(name)
+    return resolved
+
+
 def _apply_collection_processing(ee, collection, request: GeeDownloadRequest):
     bands = list(request.bands)
     preset = _base_processing_preset(request.processing_preset)
@@ -228,11 +266,11 @@ def _apply_collection_processing(ee, collection, request: GeeDownloadRequest):
             return image.select(bands).multiply(0.0001).updateMask(good)
 
         return collection.map(prepare_modis)
-    return collection.select(bands)
+    return collection.select(_resolve_band_names(ee, collection.first(), bands))
 
 
 def _apply_image_processing(ee, image, request: GeeDownloadRequest):
-    selected = image.select(list(request.bands))
+    selected = image.select(list(_resolve_band_names(ee, image, request.bands)))
     if _uses_normalized_difference(request.processing_preset):
         return image.normalizedDifference(list(request.index_bands or ())).rename(request.output_band_name)
     return selected
