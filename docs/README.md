@@ -4,6 +4,12 @@ This directory contains public operator and integration documentation. Start wit
 
 ## Current Platform
 
+- [DSH installation and operation](../dsh/README.md): current recommended product entry, native UI, managed plugins, Docker and account setup.
+- [Migration to DSH](migration-to-dsh.md): old Python to DSH, existing DSH upgrades, backups, path constraints, public rollout and rollback.
+- [DSH implementation and acceptance](../dsh/IMPLEMENTATION.md): verified capabilities and explicit limitations.
+
+The following Python platform documents describe the legacy runtime and remain useful for capability migration:
+
 - [Geoenvironmental intelligence platform overview](geoenvironmental-platform.md): current frontend/backend ownership, runtime boundaries, monitor behavior, startup and verification commands.
 - [Geoenvironmental platform UI standards](geoenvironmental-ui-standards.md): task-workbench structure, evidence-first information hierarchy, visual constraints and acceptance checklist.
 

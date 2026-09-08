@@ -1,6 +1,6 @@
-# Contributing to NTL-GPT
+# Contributing to GeoSentinel
 
-Thank you for improving NTL-GPT. Focused issues and pull requests are easier to review and safer to integrate.
+For the current DSH product, start with [dsh/AGENTS.md](dsh/AGENTS.md) and [dsh/README.md](dsh/README.md). Run `pnpm test` and `node scripts/verify.mjs` from `dsh/`. Keep native UI reuse, account/project isolation, revision-bound approval and Docker boundaries intact. Migration changes must update [the migration guide](docs/migration-to-dsh.md). The Python instructions below apply to the retained legacy capability base.
 
 ## Before You Start
 

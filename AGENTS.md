@@ -2,9 +2,12 @@
 
 ## Project Snapshot
 
+The current release surface is the DSH product under `dsh/`. Start with `dsh/AGENTS.md`, `dsh/README.md` and `docs/migration-to-dsh.md`. The Python/FastAPI/Streamlit map below is retained as the legacy capability base, not the current recommended deployment. Do not conflate its PostgreSQL history and subprocess execution with DSH's SQLite/session storage and Docker workers.
+
 GeoSentinel（地缘环境智能计算平台）is a local-first geoenvironmental intelligence platform built on the NTL-GPT research runtime. Its formal product surface is the FastAPI-served `web/` workbench; it combines task-based agent orchestration, spatial evidence, geopolitical event monitoring, Google Earth Engine and VIIRS workflows, local geospatial processing tools, and local RAG assets. Streamlit remains an internal diagnostic and transition entrypoint.
 
 ### Repository Map
+- `dsh/`: opt-in DSH product runtime, isolated from the legacy entrypoints. Read [`dsh/AGENTS.md`](dsh/AGENTS.md) and [`dsh/README.md`](dsh/README.md) before changing its managed plugins or Docker boundary.
 - `Streamlit.py`: application entrypoint.
 - `web_api.py`, `web_runtime.py`, `run_web.py`, `web/`: formal same-origin public web service; it reuses the existing database, graph and isolated thread workspaces. Streamlit remains the internal transition/debug entrypoint.
 - `monitoring/`: global event-monitoring service and local shared monitor store. It is independent of user threads and PostgreSQL chat history; it feeds the public map and monitoring queue through `/api/monitor/*`.

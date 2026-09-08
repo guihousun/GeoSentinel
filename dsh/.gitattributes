@@ -1,0 +1,2 @@
+# Unified-diff context markers intentionally contain a leading space on blank lines.
+vendor/*.patch -whitespace

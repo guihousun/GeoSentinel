@@ -1,5 +1,5 @@
 name: Bug report
-description: Report reproducible incorrect behavior in NTL-GPT
+description: Report reproducible incorrect behavior in GeoSentinel
 title: "[Bug]: "
 labels: ["bug"]
 body:
@@ -18,8 +18,12 @@ body:
     attributes:
       label: Area
       options:
-        - Streamlit UI
-        - Agent routing
+        - Native DSH UI or Better Sidebar
+        - AgentTeams routing or plan approval
+        - User questions or Todo status
+        - Public monitoring
+        - Docker execution
+        - Legacy Python or Streamlit
         - GEE or Earthdata download
         - Local GIS or NTL processing
         - MCP service

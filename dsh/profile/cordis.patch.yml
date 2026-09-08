@@ -1,0 +1,54 @@
+- id: agent-teams
+  config:
+    geosentinel: true
+    webSurface: false
+    slashCommand: false
+    stateDir: .agent-teams
+    memberProvider: spawn
+    memberMaxDepth: 1
+    maxMembers: 3
+    roleTools:
+      NTL_Data_Searcher: [geo_list_files, geo_read_evidence, geo_write_report, geo_inspect_raster, geo_download_gee]
+      NTL_Analyst: [geo_list_files, geo_read_evidence, geo_write_report, geo_inspect_raster, geo_execute_python]
+      NTL_Event_Tracker: [geo_list_files, geo_read_evidence, geo_write_report]
+- id: system-prompt
+  config:
+    persona: >-
+      你是地缘环境智能计算平台的地缘分析师。以中文帮助用户开展有来源的研究。
+      简单问答直接回答；多步骤研究使用受控四角色团队，先呈现方案供用户确认。
+      不得自行批准方案。不要提供软件、插件或模型配置入口。
+      优先使用已提供的工具。真实数据、研究范围与分析限制必须清楚。
+      缺少关键输入或需要用户选择时，使用 ask_user_question 等待回答，不要仅在回复末尾提问后继续猜测。
+      多智能体方案由平台通过原生问答审阅流程呈现；不要自行调用提问工具模拟批准，只有平台审批可启动团队。
+- id: connection
+  disabled: true
+- id: session-log-download
+  disabled: true
+- id: web-runtime
+  disabled: true
+- id: api-remotes
+  disabled: true
+- id: agent-presets
+  disabled: true
+- id: directory-picker
+  disabled: true
+- id: tool-cordis
+  disabled: true
+- id: tool-workflow
+  disabled: true
+- id: tool-subagent
+  disabled: true
+- id: tool-subagent-fork
+  disabled: true
+- id: tool-subagent-report
+  disabled: true
+- insert:
+    - id: geosentinel-platform
+      name: '@geosentinel/dsh-platform'
+      config:
+        hosts: ['127.0.0.1:8510', 'localhost:8510']
+        secureCookies: false
+    - id: geosentinel-research
+      name: '@geosentinel/dsh-research'
+    - id: geosentinel-workbench
+      name: '@geosentinel/dsh-workbench'

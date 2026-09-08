@@ -1,0 +1,126 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createServer } from "node:http";
+import { mkdtempSync, rmSync } from "node:fs";
+import path from "node:path";
+import { tmpdir } from "node:os";
+import { PlatformStore } from "../plugins/platform/store.mjs";
+import { createPlatformHandler } from "../plugins/platform/http.mjs";
+
+test("HTTP boundary rejects unowned resources, privileged parameters and forged origins", async (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), "geosentinel-http-")),
+    store = new PlatformStore(dir);
+  const admin = store.bootstrapAdmin("admin", "valid-admin-password");
+  const users = ["alice", "bob"].map((name) =>
+    store.acceptInvite(store.invite(admin), name, `${name}-valid-password`),
+  );
+  const cookies = users.map(
+    (u) =>
+      "geosentinel_session=" +
+      store.login(u.username, `${u.username}-valid-password`).token,
+  );
+  const projects = users.map((u) => store.createProject(u, "Private"));
+  const chat = store.createChat(users[0], projects[0].id);
+  const calls = [];
+  const handler = createPlatformHandler({
+    store,
+    hosts: ["127.0.0.1:0"],
+    secureCookies: false,
+    bridge: {
+      create: async () => {},
+      prompt: async (...args) => calls.push(args),
+      history: async () => ({ messages: [] }),
+    },
+  });
+  const server = createServer((req, res) => {
+    req.headers.host = "127.0.0.1:0";
+    return handler(req, res);
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(async () => {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    store.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+  const base = `http://127.0.0.1:${server.address().port}/geo/api`;
+  const call = (route, index = 0, method = "GET", data, extra = {}) =>
+    fetch(base + route, {
+      method,
+      headers: {
+        cookie: cookies[index],
+        "content-type": "application/json",
+        ...extra,
+      },
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  assert.equal((await fetch(base + "/projects")).status, 401);
+  assert.equal((await call("/admin/users")).status, 403);
+  assert.equal((await call(`/chats/${chat.id}/history`, 1)).status, 404);
+  assert.equal(
+    (await call(`/projects/${projects[0].id}/files`, 1)).status,
+    404,
+  );
+  assert.equal(
+    (
+      await call(`/projects/${projects[0].id}/chats`, 0, "POST", {
+        title: "Test",
+        cwd: "C:/",
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await call(`/chats/${chat.id}/prompt`, 0, "POST", {
+        text: "Hello",
+        agentPreset: "cordis",
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await call(
+        `/chats/${chat.id}/prompt`,
+        0,
+        "POST",
+        { text: "Hello" },
+        { origin: "http://evil.example" },
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (await call(`/chats/${chat.id}/prompt`, 0, "POST", { text: "Hello" }))
+      .status,
+    202,
+  );
+  assert.equal(calls.length, 1);
+  assert.equal(
+    (
+      await call(`/projects/${projects[0].id}/files`, 0, "POST", {
+        name: "../outside",
+        base64: "aGk=",
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await call(`/projects/${projects[0].id}/files`, 0, "POST", {
+        name: "notes.txt",
+        base64: "aGk=",
+      })
+    ).status,
+    201,
+  );
+  assert.equal(
+    (await call(`/projects/${projects[1].id}/files`, 1)).status,
+    200,
+  );
+  assert.deepEqual(
+    (await (await call(`/projects/${projects[1].id}/files`, 1)).json()).files,
+    [],
+  );
+});

@@ -1,6 +1,6 @@
 # Security Policy
 
-NTL-GPT is a research-preview application that executes local geospatial tools and may run generated Python scripts. Deploy it only in an environment whose users, credentials, files, and network access you control.
+GeoSentinel is a controlled research pilot. The current DSH product runs bounded jobs in Docker and keeps multiuser ownership in its platform plugin. The legacy Python runtime has different isolation guarantees. Deploy only where you control users, credentials, files and network access; Docker is not an absolute guarantee against hostile code.
 
 ## Reporting a Vulnerability
 
@@ -17,8 +17,10 @@ Do not include active API keys, tokens, database passwords, or private datasets 
 ## Deployment Baseline
 
 - Keep `.env` outside version control.
-- Bind Streamlit to `127.0.0.1` and expose it through a maintained HTTPS reverse proxy.
-- Use PostgreSQL credentials with least privilege.
+- Bind the product to `127.0.0.1` behind a maintained HTTPS reverse proxy; configure exact allowed hosts and secure cookies.
+- Do not expose personal DSH control APIs, host terminals, Docker sockets or database ports.
+- Use strong administrator passwords and revoke leaked invitations. No deployment credentials are distributed in this repository.
+- Protect the complete DSH home, SQLite database, sessions and project artifacts. Legacy PostgreSQL deployments require their own backup and least-privilege policy.
 - Restrict access to the server, `user_data`, Earth Engine credentials, and Earthdata tokens.
 - Keep concurrency, subprocess timeout, and workspace quota limits enabled.
 - Back up the database and user workspace separately.
