@@ -1,5 +1,14 @@
 # GeoSentinel DSH implementation
 
+## Resource hardening (2026-09-08)
+
+- Persisted research admission with eligible FIFO dispatch: two active chats per user, ten globally by default. Docker uses a separate two/ten queue. Operator configuration can reduce limits without exposing runtime controls to ordinary users.
+- SQLite-backed waiting requests, prompt-rate windows, job states and usage counters; single-host process ownership prevents competing dispatchers. Undispatched research survives restart; interrupted execution is not replayed. Approval revision and ownership are rechecked on dispatch.
+- Project uploads and monitor imports share serialized quota checks. Low-disk guards protect uploads, reports and Docker work; offline cleanup previews retained soft-deleted workspaces and requires explicit `--apply`.
+- 46 regression tests passed, including the 30-minute Docker execution limit and configurable 3 GiB default / 4 GiB memory override. Real Docker isolation verified two same-user jobs plus a waiting third, cgroup memory enforcement, cancellation and output limits. Recovery smoke verified scope-filtered orphan cleanup without deleting another platform's container.
+- Isolated native-web acceptance verified two active question flows and a queued third; stopping one admitted the waiting request. A forced service restart interrupted two active flows and completed the previously undispatched question. Desktop queue and usage panels checked at 1366x768 / 1440x900; no post-reload console errors. This is not a ten-container load test.
+- Operational details and limitations: [Resource management](RESOURCE-MANAGEMENT.md).
+
 ## Agreed scope
 
 - One managed product with workbench, platform-management and research plugins.

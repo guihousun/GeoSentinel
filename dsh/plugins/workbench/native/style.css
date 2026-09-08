@@ -81,3 +81,9 @@ div:has(> [data-slot="details"]) {container-type:inline-size;}
 @container (max-width:2px) { [data-slot="details"] {display:none !important;} }
 .geo-native-monitor [role="alert"],.geo-native-files [role="alert"] {color:#ffaaa8;}
 .geo-native-action:disabled {opacity:.5;cursor:not-allowed;}
+.geo-native-queue {width:calc(100% - 2 * var(--dsh-composer-side-clearance,16px));max-width:var(--dsh-composer-card-max-width,760px);margin:0 auto;box-sizing:border-box;padding:8px 0;color:var(--geo-text);font-size:14px;line-height:1.6;}
+.geo-native-queue .geo-native-toolbar {display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.geo-native-queue details {margin-top:4px;max-height:160px;overflow:auto;}
+.geo-native-queue li {overflow-wrap:anywhere;}
+.geo-native-usage {padding:12px 0;border-bottom:1px solid var(--geo-border);font-size:14px;line-height:1.6;}
+.geo-native-usage p {margin:8px 0;}

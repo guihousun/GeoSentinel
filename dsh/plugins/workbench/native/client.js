@@ -49,7 +49,7 @@ window.__ModuleLoader__.load({
         list.set({ ...list.getSnapshot(), ids: [], byId: {}, current: undefined });
         for (const record of records.values()) { record.question?.controller.abort(); record.fiber.dispose(); }
         records.clear(); workspaces.set({ phase: "ready", items: [], archivedSessionIds: [] });
-        set({ projects: [], activeProject: null, team: null, pendingQuestion: null, files: [], users: [], invite: null, panel: null });
+        set({ projects: [], activeProject: null, team: null, scheduling: null, queueError: null, pendingQuestion: null, files: [], users: [], invite: null, panel: null });
       }
       async function refresh() {
         if (!state.getSnapshot().user) return;
@@ -99,7 +99,7 @@ window.__ModuleLoader__.load({
               return ok({ accepted: true });
             } catch (error) { update({ pendingSubmissions: [], promptError: { op: "send", error: { code: "geosentinel/send", message: error.message } } }); return fail(error.message); }
           },
-          async cancel() { try { await api(`/chats/${id}/cancel`, "POST"); await load(id); return ok({ accepted: true }); } catch (e) { return fail(e.message); } },
+          async cancel() { try { await api(`/chats/${id}/cancel`, "POST"); update({ pendingSubmissions: [] }); await load(id); return ok({ accepted: true }); } catch (e) { return fail(e.message); } },
           async rename(title) { await api(`/chats/${id}`, "PATCH", { title }); await refresh(); return ok({ title, seq: 0 }); },
           loadOlder: async () => {}, command: async () => fail("此产品不开放终端命令。"),
           updateQueue: async () => fail("请停止任务后重新提交。"), readAttachment: async () => fail("请在资料与产出查看文件。"),
@@ -123,6 +123,7 @@ window.__ModuleLoader__.load({
             record.update({ pendingSubmissions: [] }); record.session.retire?.({ reason: "observed", attachments: [] });
           }
           if (list.getSnapshot().current === id) {
+            set({ scheduling: data.scheduling, queueError: data.queueError });
             const { team } = await api(`/chats/${id}/plan`);
             if (records.get(id) === record) record.session.projections.faceOf("todos").set(teamTodos(team));
             if (list.getSnapshot().current === id) { set({ team }); if (!data.running) await files(); }
@@ -155,7 +156,7 @@ window.__ModuleLoader__.load({
       function open(id) {
         if (!list.getSnapshot().byId[id]) throw new Error("对话不存在。");
         binding(id); list.set({ ...list.getSnapshot(), current: id });
-        set({ activeProject: list.getSnapshot().byId[id].projectId, team: null, pendingQuestion: null, files: [] });
+        set({ activeProject: list.getSnapshot().byId[id].projectId, team: null, scheduling: null, queueError: null, pendingQuestion: null, files: [] });
         remember(id); ctx.get("layout")?.closeDetails();
         stream?.close(); clearInterval(poll); clearTimeout(refreshTimer);
         stream = new EventSource(`/geo/api/chats/${id}/events`);
@@ -170,7 +171,7 @@ window.__ModuleLoader__.load({
       }
       function clearSelection() {
         stream?.close(); clearInterval(poll); clearTimeout(refreshTimer); remember(null);
-        list.set({ ...list.getSnapshot(), current: undefined }); set({ team: null, files: [] });
+        list.set({ ...list.getSnapshot(), current: undefined }); set({ team: null, scheduling: null, queueError: null, files: [] });
       }
       async function create({ workspaceId } = {}) {
         const projectId = workspaceId ?? state.getSnapshot().activeProject;
@@ -255,12 +256,31 @@ window.__ModuleLoader__.load({
         set({ files: [...inputs.map((f) => ({ ...f, path: f.name, input: true })), ...outputs.map((f) => ({ ...f, path: f.name }))] });
       }
       function Plan() {
-        const { team, pendingQuestion } = useState(); const { current } = useList();
+        const { team, pendingQuestion, scheduling, queueError } = useState(); const { current } = useList();
+        if (current && (scheduling?.waiting.length || queueError)) return h("div", { className: "geo-native-queue" },
+          h("div", { className: "geo-native-toolbar" }, h("span", { role: "status", "aria-live": "polite" }, queueError ?? `等待调度 · ${scheduling.waiting.length} 项`),
+            button(scheduling?.running.length ? "停止并取消等待" : "取消等待", icons.IconCloseOutline16, async () => { await binding(current).session.cancel(); })),
+          scheduling?.waiting.length > 0 && h("details", null, h("summary", null, "等待任务"), h("ol", null, ...scheduling.waiting.slice().reverse().map((job) => h("li", { key: job.id }, job.label)))));
+        if (current && !scheduling?.running.length && ["failed", "interrupted"].includes(scheduling?.latest?.status)) return h("div", { className: "geo-native-queue", role: "status" }, scheduling.latest.error);
         if (!team || pendingQuestion || team.phase !== "staged" || team.halted) return null;
         return h("div", { className: "geo-native-plan-actions geo-native-review-reopen" },
             h(icons.Button, { variant: "primary", icon: h(icons.IconPlayOutline16), onClick: run(async () => {
               const { pending } = await api(`/chats/${current}/review`, "POST"); syncQuestion(binding(current), pending);
             }) }, "审阅方案"));
+      }
+      function Usage({ admin = false }) {
+        const [data, change] = React.useState(null), [error, problem] = React.useState("");
+        const refreshUsage = () => api(admin ? "/admin/usage" : "/account/usage").then(change).catch((e) => problem(e.message));
+        React.useEffect(() => { let live = true; api(admin ? "/admin/usage" : "/account/usage").then((value) => live && change(value)).catch((e) => live && problem(e.message)); return () => { live = false; }; }, [admin]);
+        const sum = (rows, field) => (rows ?? []).reduce((total, row) => total + Number(row[field] ?? 0), 0);
+        const jobs = data?.jobs ?? [], docker = jobs.filter((job) => job.kind === "docker");
+        return h("details", { className: "geo-native-usage" }, h("summary", null, admin ? "平台资源用量" : "我的资源用量"),
+          error ? h("p", { role: "alert" }, error) : !data ? h("p", null, "正在加载…") : h(React.Fragment, null,
+            h("p", null, `已接收问题 ${sum(data.usage, "prompts")} 次 · 等待 ${sum(jobs.filter((j) => j.status === "queued"), "count")} 项`),
+            h("p", null, `累计上传 ${(sum(data.usage, "upload_bytes") / 1048576).toFixed(1)} MiB`),
+            h("p", null, `计算作业 ${sum(docker, "count")} 次 · 累计运行 ${(sum(docker, "elapsed_ms") / 60000).toFixed(1)} 分钟`),
+            data.storage && h("p", null, `当前工作区 ${(data.storage.bytes / 1048576).toFixed(1)} MiB`)),
+          button("刷新用量", icons.IconRefreshOutline16, refreshUsage));
       }
       function Overlay() {
         const s = useState(), [joining, join] = React.useState(false), [busy, setBusy] = React.useState(false);
@@ -292,9 +312,9 @@ window.__ModuleLoader__.load({
               button("删除", icons.IconTrashOutline16, () => set({ panel: "delete" }))),
             s.panel === "delete" && h(React.Fragment, null, h("h2", null, "确认删除"), h("p", null, `删除“${s.editing.title}”后，该入口将不再显示。`),
               button("取消", null, () => set({ panel: "edit" })), button("确认删除", icons.IconTrashOutline16, async () => { await api(`/${s.editing.kind}/${s.editing.id}`, "DELETE"); clearSelection(); await refresh(); set({ panel: null }); })),
-            s.panel === "account" && h(React.Fragment, null, h("h2", null, s.user.username), h("form", { onSubmit: submit(async (data) => { await api("/auth/password", "POST", { currentPassword: data.get("current"), newPassword: data.get("next") }); clear(); location.reload(); }) },
+            s.panel === "account" && h(React.Fragment, null, h("h2", null, s.user.username), h(Usage), h("form", { onSubmit: submit(async (data) => { await api("/auth/password", "POST", { currentPassword: data.get("current"), newPassword: data.get("next") }); clear(); location.reload(); }) },
               h("label", null, "当前密码", h("input", { name: "current", type: "password", autoComplete: "current-password", required: true })), h("label", null, "新密码", h("input", { name: "next", type: "password", autoComplete: "new-password", minLength: 8, required: true })), h("button", { type: "submit", disabled: busy }, "修改密码")), button("退出登录", icons.IconUserOutline16, async () => { await api("/auth/logout", "POST"); clear(); location.reload(); })),
-            s.panel === "admin" && s.user.admin && h(React.Fragment, null, h("h2", null, "管理中心"), button("生成邀请码", icons.IconPlusOutline16, async () => { const data = await api("/admin/invites", "POST"); set({ invite: data.invite }); }), s.invite && h("input", { value: s.invite, readOnly: true, "aria-label": "邀请码" }),
+            s.panel === "admin" && s.user.admin && h(React.Fragment, null, h("h2", null, "管理中心"), h(Usage, { admin: true }), button("生成邀请码", icons.IconPlusOutline16, async () => { const data = await api("/admin/invites", "POST"); set({ invite: data.invite }); }), s.invite && h("input", { value: s.invite, readOnly: true, "aria-label": "邀请码" }),
               ...(s.users ?? []).map((user) => h("div", { key: user.id, className: "geo-native-user" }, h("span", null, user.username), button(user.disabled ? "启用" : "停用", null, async () => { await api(`/admin/users/${user.id}`, "PATCH", { disabled: !user.disabled }); set({ users: (await api("/admin/users")).users }); }, { disabled: user.id === s.user.id })))),
             s.panel === "files" && h(React.Fragment, null, h("h2", null, "资料与产出"), h("input", { type: "file", "aria-label": "上传资料", disabled: !s.activeProject, onChange: run(async (event) => { const file = event.target.files[0]; if (!file) return; if (file.size > 16 * 1024 * 1024) throw new Error("文件不能超过 16 MiB"); const base64 = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(",")[1]); reader.onerror = reject; reader.readAsDataURL(file); }); await api(`/projects/${s.activeProject}/files`, "POST", { name: file.name, base64 }); await files(); }) }),
               s.files.length === 0 ? h("p", null, "暂无资料与产出") : s.files.map((file) => h("div", { key: (file.input ? "in" : "out") + file.path }, file.input ? h("span", null, file.path) : h("a", { href: `/geo/api/chats/${list.getSnapshot().current}/files?path=${encodeURIComponent(file.path)}`, download: true }, file.path)))),

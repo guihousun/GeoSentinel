@@ -62,6 +62,12 @@ export class PlatformStore {
     this.transaction(() => {
       if (!this.db.prepare("PRAGMA table_info(invitations)").all().some((column) => column.name === "reusable"))
         this.db.exec("ALTER TABLE invitations ADD COLUMN reusable INTEGER NOT NULL DEFAULT 0");
+      for (const table of ["projects", "chats"]) {
+        const columns = this.db.prepare(`PRAGMA table_info(${table})`).all();
+        for (const name of ["deleted_at", "purged_at"])
+          if (!columns.some((c) => c.name === name)) this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} INTEGER`);
+        this.db.prepare(`UPDATE ${table} SET deleted_at=? WHERE deleted=1 AND deleted_at IS NULL`).run(Date.now());
+      }
     });
     this.dummyPassword = passwordHash(randomBytes(24).toString("hex"));
   }
@@ -278,6 +284,7 @@ export class PlatformStore {
         this.db
           .prepare(`UPDATE projects SET ${key}=? WHERE id=?`)
           .run(Number(value), id);
+        if (key === "deleted") this.db.prepare("UPDATE projects SET deleted_at=? WHERE id=?").run(value ? Date.now() : null, id);
       }
     this.audit(user.id, "project.update", id);
   }
@@ -333,7 +340,7 @@ export class PlatformStore {
         .prepare("UPDATE chats SET title=? WHERE id=?")
         .run(cleanTitle(title), id);
     if (deleted === true)
-      this.db.prepare("UPDATE chats SET deleted=1 WHERE id=?").run(id);
+      this.db.prepare("UPDATE chats SET deleted=1,deleted_at=? WHERE id=?").run(Date.now(), id);
   }
   recordChild(chatId, childId, role) {
     if (

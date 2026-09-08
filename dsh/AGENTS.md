@@ -9,6 +9,7 @@ This directory is the opt-in DSH product implementation. Its entrypoint is
 - Fixed supervisor and three specialists; no peer delegation, arbitrary model selection or user-controlled host tools.
 - Authenticated user approval, not model text, starts a staged plan. Revised scope needs renewed approval.
 - Accounts own projects; projects own chats and inputs. Every HTTP, stream and artifact lookup rechecks ownership.
+- Admission is a persistent automatic queue (two active research chats and two Docker jobs per user, ten globally for each by default). Read `RESOURCE-MANAGEMENT.md` before changing limits, recovery, accounting or cleanup. Never replay interrupted execution automatically or silently purge live data.
 - Model-authored Python runs only in the bounded, network-disabled Docker worker. Networked GEE uses a fixed entrypoint and separate credential mount.
 - Credentials, local databases, jobs, browser state and QA accounts stay under ignored configuration/runtime paths.
 - Do not describe Docker resource limits as proof against all hostile code. Do not claim legacy NTL capability parity without separate acceptance.

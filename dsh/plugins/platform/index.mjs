@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import { PlatformStore, PlatformError } from "./store.mjs";
 import { createPlatformHandler } from "./http.mjs";
 import { publicEvent } from "./public-events.mjs";
-import { ResearchAdmission } from "./admission.mjs";
+import { ResearchQueue } from "./admission.mjs";
+import { RuntimeLedger } from "./runtime.mjs";
 import { monitorService } from "../../monitoring/host.mjs";
 import { nativeEvent } from "./native-events.mjs";
 import { registerSidebarAdapter } from "./sidebar-adapter.mjs";
@@ -47,8 +48,9 @@ export function apply(ctx, config = {}) {
   const store = new PlatformStore(
     process.env.GEO_DATA_DIR ?? path.join(process.env.DSH_HOME, "geosentinel"),
   );
+  const runtime = new RuntimeLedger(store);
   const prepared = new WeakSet();
-  const admission = new ResearchAdmission(async (chatId) => {
+  const isActive = async (chatId) => {
     const agent = ctx.agents.get(chatId);
     if (!agent) return false;
     if (agent.status === "running") return true;
@@ -62,7 +64,7 @@ export function apply(ctx, config = {}) {
         ) ||
           team.members.some((m) => m.status === "working")),
     );
-  });
+  };
   ctx.on("geosentinel/member-created", (record) =>
     store.recordChild(record.captainId, record.memberId, record.role),
   );
@@ -92,7 +94,9 @@ export function apply(ctx, config = {}) {
       if (!allowed.has(exec.name))
         return "This tool is not available in the managed GeoSentinel product";
       try {
-        identityForAgent(exec.agent);
+        const identity = identityForAgent(exec.agent);
+        if (runtime.needsRecovery("research").some((job) => job.chat_id === identity.chatId)) return "Research was interrupted; recovery is pending";
+        if (runtime.running("research").some((job) => job.chat_id === identity.chatId && job.status === "cancelling")) return "Research is stopping; no new tool execution is allowed";
         if (exec.name === "ask_user_question" && !ctx.agents.roots().includes(exec.agent)) return "Only the research supervisor may ask the user";
       } catch {
         return "GeoSentinel task ownership is unavailable";
@@ -116,6 +120,36 @@ export function apply(ctx, config = {}) {
     }
     return agent;
   }
+  const queue = new ResearchQueue(runtime, {
+    isActive,
+    async recover(job) {
+      const row = store.db.prepare("SELECT id,username,admin FROM users WHERE id=?").get(job.user_id);
+      if (!row) return;
+      let agent;
+      try { agent = await agentFor(row, job.chat_id); } catch (error) {
+        if ([403, 404].includes(error.status)) return;
+        throw error;
+      }
+      await ctx.geosentinelTeams.cancelTeam(agent);
+      await ctx.sessionController.cancel({ sessionId: job.chat_id });
+    },
+    async dispatch(job) {
+      const row = store.db.prepare("SELECT id,username,admin,disabled FROM users WHERE id=?").get(job.user_id);
+      if (!row || row.disabled) throw new PlatformError(403, "账号已停用");
+      const agent = await agentFor(row, job.chat_id);
+      if (runtime.get(job.id)?.status !== "running") return;
+      const data = JSON.parse(job.payload);
+      if (job.operation === "prompt") {
+        await ctx.sessionController.prompt({ sessionId: job.chat_id, requestId: job.id, mode: "queue", content: [{ type: "text", text: data.text }], clientTimeZone: "Asia/Shanghai" }, new AbortController().signal);
+      } else if (job.operation === "approve") {
+        const team = await ctx.geosentinelTeams.inspectTeam(agent);
+        if (!team || team.id !== data.teamId || team.phase !== "staged" || team.approvalRevision !== data.revision) throw new PlatformError(409, "排队期间方案已变化，请重新确认");
+        if (runtime.get(job.id)?.status !== "running") return;
+        await ctx.geosentinelTeams.approveStagedTeam(agent, data.teamId, undefined, data.revision);
+        store.audit(row.id, "plan.approve", `${job.chat_id}:${data.teamId}`);
+      } else throw new Error("Unsupported research request");
+    },
+  });
   const bridge = {
     async questions(user, chatId, reopen = false) {
       const agent = await agentFor(user, chatId);
@@ -127,7 +161,8 @@ export function apply(ctx, config = {}) {
         else questions.reviews.delete(chatId);
       }
       if (reopen && agent.status === "running") throw new PlatformError(409, "方案正在整理，请等待当前回复完成");
-      if (key && agent.status !== "running" && (previous !== key || reopen) && !questions.pending.has(chatId)) {
+      const approvalQueued = runtime.queued("research").some((job) => job.chat_id === chatId && job.operation === "approve");
+      if (key && !approvalQueued && agent.status !== "running" && (previous !== key || reopen) && !questions.pending.has(chatId)) {
         questions.reviews.set(chatId, key);
         const approve = "确认方案并开始";
         const items = [{ id: randomReviewId(), question: "请审阅研究方案", header: "研究方案", detail: [team.description, ...team.tasks.map((t, i) => `${i + 1}. ${t.subject}`)].filter(Boolean).join("\n\n"),
@@ -147,7 +182,8 @@ export function apply(ctx, config = {}) {
     async nativeHistory(user, chatId) {
       const agent = await agentFor(user, chatId);
       const snapshot = await ctx.sessionController.inspect(chatId);
-      return { events: snapshot.events.map(nativeEvent).filter(Boolean), running: agent.status === "running" };
+      const scheduling = runtime.snapshot(user, chatId);
+      return { events: snapshot.events.map(nativeEvent).filter(Boolean), running: agent.status === "running" || scheduling.running.length > 0, scheduling, queueError: queue.error };
     },
     async create(user, chat) {
       await ctx.sessionController.create({
@@ -157,23 +193,10 @@ export function apply(ctx, config = {}) {
       await agentFor(user, chat.id);
     },
     async prompt(user, chatId, text, requestId) {
-      await agentFor(user, chatId);
-      await admission.claim(user.id, chatId);
-      try {
-        return await ctx.sessionController.prompt(
-          {
-            sessionId: chatId,
-            requestId,
-            mode: "queue",
-            content: [{ type: "text", text }],
-            clientTimeZone: "Asia/Shanghai",
-          },
-          new AbortController().signal,
-        );
-      } catch (error) {
-        admission.release(chatId);
-        throw error;
-      }
+      const job = runtime.enqueue({ id: requestId, kind: "research", operation: "prompt", user, chatId, payload: { text } });
+      runtime.usage(user.id, "prompts");
+      void queue.tick();
+      return { accepted: true, queued: true, requestId: job.id };
     },
     async history(user, chatId) {
       store.chat(user, chatId);
@@ -317,24 +340,24 @@ export function apply(ctx, config = {}) {
         throw new PlatformError(409, "方案已变化，请刷新后确认");
       if (current.approvalRevision !== revision)
         throw new PlatformError(409, "方案已变化，请刷新后确认");
-      await admission.claim(user.id, chatId);
-      const result = await ctx.geosentinelTeams.approveStagedTeam(
-        agent,
-        teamId,
-        undefined,
-        revision,
-      );
-      store.audit(user.id, "plan.approve", `${chatId}:${teamId}`);
-      return result;
+      const existing = runtime.queued("research").find((job) => job.chat_id === chatId && job.operation === "approve" && job.payload === JSON.stringify({ teamId, revision }));
+      const job = existing ?? runtime.enqueue({ kind: "research", operation: "approve", user, chatId, payload: { teamId, revision } });
+      store.audit(user.id, "plan.approval.queued", job.id);
+      void queue.tick();
+      return { accepted: true, queued: true, requestId: job.id };
     },
     async cancel(user, chatId) {
+      store.chat(user, chatId);
+      runtime.cancelQueued(chatId);
+      runtime.cancelling("research", chatId);
       questions.cancel(chatId);
       const agent = await agentFor(user, chatId);
       await ctx.geosentinelTeams.cancelTeam(agent);
-      ctx.sessionController.cancel({ sessionId: chatId });
+      await ctx.sessionController.cancel({ sessionId: chatId });
       await ctx.get("geosentinelResearch")?.cancelChat(chatId);
-      admission.release(chatId);
+      if (!(await isActive(chatId))) for (const job of runtime.running("research").filter((job) => job.chat_id === chatId)) runtime.finish(job.id, "cancelled", "用户停止研究");
       store.audit(user.id, "task.cancel", chatId);
+      void queue.tick();
     },
     async cancelProject(user, projectId) {
       for (const chat of store.listChats(user, projectId))
@@ -360,6 +383,7 @@ export function apply(ctx, config = {}) {
     return questions.wait(identity.user, identity.chatId, request.questions, request.signal, reviewMetadata.get(request.questions));
   });
   async function ensureResearchExecution(identity) {
+    if (!runtime.running("research").some((job) => job.chat_id === identity.chatId && job.status === "running")) throw new PlatformError(409, "研究未获运行名额或已中断，请重新提交");
     const agent = await agentFor(identity.user, identity.chatId);
     const team = await ctx.geosentinelTeams.inspectTeam(agent);
     if (team?.phase === "staged")
@@ -368,6 +392,7 @@ export function apply(ctx, config = {}) {
   }
   ctx.provide("geosentinelPlatform", {
     store,
+    runtime,
     bridge,
     identityForAgent,
     ensureResearchExecution,
@@ -382,6 +407,7 @@ export function apply(ctx, config = {}) {
       handler: createPlatformHandler({
         monitor,
         store,
+        runtime,
         bridge,
         hosts: process.env.GEO_ALLOWED_HOSTS?.split(",")
           .map((x) => x.trim())
@@ -396,5 +422,11 @@ export function apply(ctx, config = {}) {
       }),
     }),
   );
-  ctx.on("dispose", () => { questions.close(); store.close(); });
+  ctx.inject(["geosentinelResearch"], () => { queue.start(); });
+  ctx.on("dispose", async () => {
+    await queue.close(); questions.close();
+    const runner = ctx.get("geosentinelResearch");
+    for (const chatId of new Set([...(runner?.running.values() ?? [])].map((job) => job.chatId))) await runner.cancelChat(chatId);
+    runtime.close(); store.close();
+  });
 }

@@ -3,7 +3,14 @@ import { mkdir, writeFile, readdir, readFile, lstat } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { PlatformError } from "../platform/store.mjs";
+import { RuntimeLedger } from "../platform/runtime.mjs";
+import { WorkspaceFiles } from "../platform/files.mjs";
+
+export function dockerMemoryMiB(value = process.env.GEO_DOCKER_MEMORY_MIB ?? 3072) {
+  const memory = Number(value);
+  if (!Number.isSafeInteger(memory) || memory < 256 || memory > 65536) throw new Error("GEO_DOCKER_MEMORY_MIB must be an integer between 256 and 65536");
+  return memory;
+}
 
 function invoke(args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -11,18 +18,21 @@ function invoke(args, options = {}) {
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
+    const timeout = setTimeout(() => child.kill(), options.timeoutMs ?? 30000);
+    if (options.attach) clearTimeout(timeout);
     let output = "";
     for (const stream of [child.stdout, child.stderr])
       stream.on("data", (chunk) => {
         output = (output + chunk.toString()).slice(-32000);
         options.onOutput?.(chunk.toString());
       });
-    child.on("error", reject);
-    child.on("close", (code) =>
+    child.on("error", (error) => { clearTimeout(timeout); reject(error); });
+    child.on("close", (code) => {
+      clearTimeout(timeout);
       code === 0
         ? resolve(output)
-        : reject(new Error(`Docker exited ${code}: ${output.slice(-3000)}`)),
-    );
+        : reject(new Error(`Docker exited ${code}: ${output.slice(-3000)}`));
+    });
   });
 }
 const mount = (source, target, readonly = true) => {
@@ -33,6 +43,13 @@ const mount = (source, target, readonly = true) => {
     `type=bind,source=${source},target=${target}${readonly ? ",readonly" : ""}`,
   ];
 };
+async function removeContainer(name) {
+  try { await invoke(["rm", "-f", name]); }
+  catch (error) {
+    const names = await invoke(["ps", "-a", "--filter", `name=${name}`, "--format", "{{.Names}}"]);
+    if (names.trim().split(/\r?\n/).includes(name)) throw error;
+  }
+}
 
 async function outputFiles(
   root,
@@ -70,13 +87,14 @@ async function outputFiles(
 export class DockerRunner {
   constructor({
     store,
+    runtime,
     image = "geosentinel-gis:0.1",
     toolkitRoot,
     geeCredentials,
     geeProject,
     geeProxy = process.env.GEO_GEE_PROXY,
-    maxConcurrent = 2,
-    timeoutMs = 600000,
+    timeoutMs = 30 * 60 * 1000,
+    memoryMiB = dockerMemoryMiB(),
     maxOutputBytes = 256 * 1024 * 1024,
   }) {
     Object.assign(this, {
@@ -86,11 +104,44 @@ export class DockerRunner {
       geeCredentials,
       geeProject,
       geeProxy,
-      maxConcurrent,
       timeoutMs,
       maxOutputBytes,
     });
+    this.memoryMiB = dockerMemoryMiB(memoryMiB);
+    this.runtime = runtime ?? new RuntimeLedger(store);
+    this.storage = new WorkspaceFiles(store, this.runtime);
     this.running = new Map();
+  }
+  async recover() {
+    const pending = this.runtime.needsRecovery("docker");
+    if (!pending.length) return;
+    const interruptedNames = new Set(pending.map((job) => `geosentinel-${job.id}`));
+    const names = await invoke(["ps", "-a", "--filter", `label=geosentinel.scope=${this.runtime.scope}`, "--format", "{{.Names}}"]);
+    for (const name of names.trim().split(/\r?\n/).filter(Boolean)) {
+      if (!/^geosentinel-[0-9a-f-]{36}$/.test(name)) throw new Error("Unexpected managed container name");
+      if (interruptedNames.has(name)) await removeContainer(name);
+    }
+    for (const job of pending) {
+      await writeFile(path.join(this.store.root, "jobs", job.id, "manifest.json"), JSON.stringify({ ...job, status: "interrupted" })).catch((e) => { if (e.code !== "ENOENT") throw e; });
+      this.runtime.recovered(job.id);
+      this.runtime.finish(job.id, "interrupted", "遗留容器已清理，请检查已有产物后重新提交");
+    }
+  }
+  async ensureRecovered() {
+    if (!this.recovery) this.recovery = this.recover().catch((e) => { this.recovery = null; throw e; });
+    await this.recovery;
+  }
+  async waitForSlot(id, signal) {
+    while (true) {
+      if (signal?.aborted || this.running.get(id)?.cancelled) this.runtime.finish(id, "cancelled", "计算等待已取消");
+      const current = this.runtime.get(id);
+      if (current.status === "running") return;
+      if (current.status !== "queued") throw new Error("Task cancelled or interrupted");
+      // Eligible FIFO: a saturated account never blocks another account.
+      for (const candidate of this.runtime.queued("docker"))
+        if (this.running.has(candidate.id)) this.runtime.start(candidate.id);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
   }
   async cancelChat(chatId) {
     const jobs = [...this.running.values()].filter(
@@ -99,19 +150,16 @@ export class DockerRunner {
     await Promise.all(
       jobs.map(async (job) => {
         job.cancelled = true;
-        await invoke(["rm", "-f", job.container]).catch(() => {});
+        if (job.status === "queued") this.runtime.finish(job.id, "cancelled", "用户取消计算");
+        if (job.status !== "queued") await removeContainer(job.container);
         await job.done;
       }),
     );
   }
   async run(identity, request, { signal, script } = {}) {
     if (signal?.aborted) throw new Error("Task cancelled");
-    if (this.running.size >= this.maxConcurrent)
-      throw new PlatformError(429, "计算资源忙，请稍后重试");
-    if (
-      [...this.running.values()].some((job) => job.userId === identity.user.id)
-    )
-      throw new PlatformError(429, "当前账号已有计算任务");
+    await this.ensureRecovered();
+    await this.storage.checkSpace();
     if (!["inspect", "execute", "gee-download"].includes(request.kind))
       throw new Error("Unsupported operation");
     const id = randomUUID(),
@@ -121,7 +169,7 @@ export class DockerRunner {
       container,
       chatId: identity.chatId,
       userId: identity.user.id,
-      status: "starting",
+      status: "queued",
       startedAt: Date.now(),
       cancelled: false,
     };
@@ -131,10 +179,11 @@ export class DockerRunner {
         settle = resolve;
       }),
     });
+    this.runtime.enqueue({ id, kind: "docker", operation: request.kind, user: identity.user, chatId: identity.chatId, payload: { kind: request.kind } });
     this.running.set(id, job);
     const jobRoot = path.join(this.store.root, "jobs", id),
       output = path.join(identity.root, "outputs", id);
-    let timer, outputTimer, abortListener, outputError;
+    let timer, outputTimer, abortListener, outputError, outputBytes = 0, created = false;
     try {
       await mkdir(jobRoot, { recursive: true });
       await mkdir(output, { recursive: true });
@@ -147,12 +196,19 @@ export class DockerRunner {
           throw new Error("Invalid analysis script");
         await writeFile(path.join(jobRoot, "script.py"), script);
       }
+      await writeFile(path.join(jobRoot, "manifest.json"), JSON.stringify(job));
+      await this.waitForSlot(id, signal);
+      await this.storage.checkSpace(this.maxOutputBytes);
+      if (job.cancelled || signal?.aborted || this.runtime.get(id)?.status !== "running") throw new Error("Task cancelled");
+      job.status = "starting";
       const args = [
         "create",
         "--name",
         container,
         "--label",
         "app=geosentinel",
+        "--label",
+        `geosentinel.scope=${this.runtime.scope}`,
         "--user",
         "10001:10001",
         "--read-only",
@@ -162,7 +218,7 @@ export class DockerRunner {
         "--pids-limit",
         "128",
         "--memory",
-        "2g",
+        `${this.memoryMiB}m`,
         "--cpus",
         "1",
         "--tmpfs",
@@ -205,6 +261,7 @@ export class DockerRunner {
         }
       } else args.push("--network", "none");
       args.push(this.image);
+      created = true;
       await invoke(args);
       if (job.cancelled || signal?.aborted) throw new Error("Task cancelled");
       const cancel = () => {
@@ -219,6 +276,7 @@ export class DockerRunner {
         if (checking) return;
         checking = true;
         try {
+          await this.storage.checkSpace();
           await outputFiles(
             output,
             "",
@@ -237,6 +295,7 @@ export class DockerRunner {
       await writeFile(path.join(jobRoot, "manifest.json"), JSON.stringify(job));
       let log = "";
       await invoke(["start", "--attach", container], {
+        attach: true,
         onOutput: (chunk) => {
           log = (log + chunk).slice(-64000);
         },
@@ -267,6 +326,7 @@ export class DockerRunner {
           }
         }
       job.status = "completed";
+      outputBytes = files.reduce((sum, file) => sum + file.size, 0);
       return {
         jobId: id,
         files,
@@ -281,7 +341,13 @@ export class DockerRunner {
       clearTimeout(timer);
       clearInterval(outputTimer);
       if (abortListener) signal?.removeEventListener("abort", abortListener);
-      await invoke(["rm", "-f", container]).catch(() => {});
+      let cleanupError;
+      try { if (created) await removeContainer(container); }
+      catch (error) { cleanupError = error; }
+      if (cleanupError) {
+        this.runtime.db.prepare("UPDATE runtime_jobs SET status='cancelling',recovery=1,error='容器清理失败，暂不释放计算名额' WHERE id=?").run(id);
+        this.recovery = null;
+      } else this.runtime.finish(id, job.status, job.status === "completed" ? null : job.cancelled ? "用户取消或计算超时" : "计算失败，请检查任务日志", outputBytes);
       job.finishedAt = Date.now();
       await writeFile(
         path.join(jobRoot, "manifest.json"),
@@ -289,6 +355,7 @@ export class DockerRunner {
       ).catch(() => {});
       this.running.delete(id);
       settle();
+      if (cleanupError) throw cleanupError;
     }
   }
 }

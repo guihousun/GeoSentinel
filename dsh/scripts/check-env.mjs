@@ -2,6 +2,8 @@ import { readFile, access } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { runtimeLimits } from "../plugins/platform/runtime.mjs";
+import { dockerMemoryMiB } from "../plugins/research/docker.mjs";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const envFile = process.env.GEO_ENV_FILE ?? path.join(root, ".env");
@@ -13,6 +15,10 @@ try {
 const report = [];
 const check = (name, ok, detail) =>
   report.push({ name, ok: Boolean(ok), detail });
+try {
+  const limits = runtimeLimits(), reserve = Number(process.env.GEO_MIN_FREE_DISK_MIB ?? 1024);
+  check("Resource admission limits", Number.isSafeInteger(reserve) && reserve >= 0, { ...limits, dockerMemoryMiB: dockerMemoryMiB(), minFreeDiskMiB: reserve });
+} catch (error) { check("Resource admission limits", false, error.message); }
 check(
   "Node.js",
   Number(process.versions.node.split(".")[0]) >= 24,

@@ -1,8 +1,9 @@
 import { PlatformError, workspacePath } from "./store.mjs";
 import { createReadStream } from "node:fs";
-import { readdir, stat, writeFile, mkdir } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID, createHash } from "node:crypto";
+import { WorkspaceFiles } from "./files.mjs";
 
 const cookieName = "geosentinel_session";
 const cookieToken = (req) =>
@@ -47,6 +48,7 @@ function only(data, fields) {
 export function createPlatformHandler({
   store,
   bridge,
+  runtime,
   monitor,
   hosts = ["127.0.0.1:8510", "localhost:8510"],
   secureCookies = true,
@@ -54,6 +56,7 @@ export function createPlatformHandler({
 }) {
   const attempts = new Map(),
     promptAttempts = new Map();
+  const storage = new WorkspaceFiles(store, runtime);
   const cookie = (value) =>
     `${cookieName}=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${value ? 604800 : 0}${secureCookies ? "; Secure" : ""}`;
   function throttle(req) {
@@ -136,6 +139,8 @@ export function createPlatformHandler({
       const user = store.authenticate(secret);
       if (parts.join("/") === "auth/me" && method === "GET")
         return json(res, 200, { user });
+      if (parts.join("/") === "account/usage" && method === "GET")
+        return json(res, 200, { ...runtime?.summary(user.id), storage: await storage.userUsage(user) });
       if (parts.join("/") === "auth/logout" && method === "POST") {
         store.logout(secret);
         return json(res, 200, { ok: true }, { "set-cookie": cookie("") });
@@ -147,6 +152,7 @@ export function createPlatformHandler({
       }
       if (parts[0] === "admin") {
         store.requireAdmin(user);
+        if (parts[1] === "usage" && method === "GET") return json(res, 200, runtime?.summary() ?? {});
         if (parts[1] === "invites" && method === "POST")
           return json(res, 201, { invite: store.invite(user) });
         if (parts[1] === "users" && method === "GET")
@@ -218,27 +224,14 @@ export function createPlatformHandler({
             const bytes = Buffer.from(data.base64, "base64");
             if (bytes.length > 16 * 1024 * 1024)
               throw new PlatformError(413, "单个上传文件上限为 16 MiB");
-            const files = await listFiles(root);
-            if (
-              files.reduce((sum, f) => sum + f.size, 0) + bytes.length >
-              512 * 1024 * 1024
-            )
-              throw new PlatformError(413, "项目资料超出配额");
-            try {
-              await writeFile(workspacePath(root, data.name), bytes, {
-                flag: "wx",
-              });
-            } catch (error) {
-              if (error.code === "EEXIST")
-                throw new PlatformError(409, "同名文件已存在");
-              throw error;
-            }
+            await storage.writeInput(user, project.id, data.name, bytes);
             return json(res, 201, { name: data.name, size: bytes.length });
           }
         }
       }
       if (parts[0] === "chats") {
         const chat = store.chat(user, parts[1]);
+        if (parts.length === 3 && parts[2] === "queue" && method === "GET") return json(res, 200, runtime?.snapshot(user, chat.id) ?? {});
         if (parts.length === 3 && parts[2] === "questions") {
           if (store.project(user, chat.project_id).archived) throw new PlatformError(409, "项目已归档");
           if (method === "GET") return json(res, 200, await bridge.questions(user, chat.id));
@@ -269,15 +262,7 @@ export function createPlatformHandler({
             "monitor-" +
             createHash("sha256").update(content).digest("hex").slice(0, 20) +
             ".json";
-          const root = path.join(
-            store.projectRoot(user, chat.project_id),
-            "inputs",
-          );
-          try {
-            await writeFile(workspacePath(root, name), content, { flag: "wx" });
-          } catch (error) {
-            if (error.code !== "EEXIST") throw error;
-          }
+          await storage.writeInput(user, chat.project_id, name, Buffer.from(content), { reuse: true });
           store.audit(user.id, "monitor.import", event.id);
           return json(res, 201, { path: "inputs/" + name });
         }
@@ -305,18 +290,17 @@ export function createPlatformHandler({
             throw new PlatformError(400, "问题内容无效");
           if (store.project(user, chat.project_id).archived)
             throw new PlatformError(409, "项目已归档");
-          const now = Date.now();
-          for (const [key, value] of promptAttempts)
-            if (value.until < now) promptAttempts.delete(key);
-          const recent = promptAttempts.get(user.id) ?? {
-            until: now + 60000,
-            count: 0,
-          };
-          if (++recent.count > 20)
-            throw new PlatformError(429, "提交过于频繁，请稍后再试");
-          promptAttempts.set(user.id, recent);
-          await bridge.prompt(user, chat.id, data.text, randomUUID());
-          return json(res, 202, { accepted: true });
+          if (runtime) runtime.throttle(user.id);
+          else {
+            const now = Date.now();
+            for (const [key, value] of promptAttempts)
+              if (value.until < now) promptAttempts.delete(key);
+            const recent = promptAttempts.get(user.id) ?? { until: now + 60000, count: 0 };
+            if (++recent.count > 20) throw new PlatformError(429, "提交过于频繁，请稍后再试");
+            promptAttempts.set(user.id, recent);
+          }
+          const result = await bridge.prompt(user, chat.id, data.text, randomUUID());
+          return json(res, 202, { accepted: true, ...result });
         }
         if (parts[2] === "cancel" && method === "POST") {
           await bridge.cancel(user, chat.id);

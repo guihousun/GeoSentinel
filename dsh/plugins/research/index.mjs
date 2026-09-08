@@ -10,6 +10,7 @@ export function apply(ctx) {
   const platform = ctx.geosentinelPlatform;
   const runner = new DockerRunner({
     store: platform.store,
+    runtime: platform.runtime,
     toolkitRoot: path.resolve(
       path.dirname(fileURLToPath(import.meta.url)),
       "../../..",
@@ -19,6 +20,7 @@ export function apply(ctx) {
     geeProject: process.env.GEE_DEFAULT_PROJECT_ID,
   });
   ctx.provide("geosentinelResearch", runner);
+  void runner.ensureRecovered().catch((error) => console.error("Docker recovery pending:", error.message));
   const add = (name, description, parameters, execute) =>
     ctx.tools.register(
       defineTool({
@@ -35,6 +37,7 @@ export function apply(ctx) {
           const identity = platform.identityForAgent(exec.agent);
           if (["geo_execute_python", "geo_download_gee"].includes(name))
             await platform.ensureResearchExecution(identity);
+          if (name === "geo_write_report") await runner.storage.checkSpace(256 * 1024);
           return execute(args, exec, identity);
         },
       }),

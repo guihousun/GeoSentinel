@@ -39,6 +39,9 @@ try {
           script: `from pathlib import Path
 import socket, os, json
 assert os.getuid() == 10001
+limits = [Path('/sys/fs/cgroup/memory.max'), Path('/sys/fs/cgroup/memory/memory.limit_in_bytes')]
+limit = next(p for p in limits if p.exists())
+assert int(limit.read_text().strip()) == ${runner.memoryMiB * 1024 * 1024}
 assert not Path('/var/run/docker.sock').exists()
 assert not Path('/home/worker/.config/earthengine/credentials').exists()
 assert sorted(p.name for p in Path('inputs').iterdir()) == ['${id.user.username}.txt']
@@ -57,20 +60,16 @@ print('ISOLATED_${id.user.username}')
   assert.match(results[0].stdout, /ISOLATED_alice/);
   assert.match(results[1].stdout, /ISOLATED_bob/);
   assert.notEqual(results[0].jobId, results[1].jobId);
-  const running = runner.run(
-    identities[0],
-    { kind: "execute" },
-    { script: "import time\ntime.sleep(60)" },
-  );
-  const rejected = assert.rejects(running, /cancel|Docker exited/i);
-  await assert.rejects(
-    () => runner.run(identities[0], { kind: "execute" }, { script: "pass" }),
-    /已有计算任务/,
-  );
+  const pending = Array.from({ length: 3 }, () => runner.run(identities[0], { kind: "execute" }, { script: "import time\ntime.sleep(60)" }));
+  const rejected = pending.map((task) => assert.rejects(task, /cancel|Docker exited/i));
+  const deadline = Date.now() + 10000;
+  while (runner.runtime.running("docker").length < 2 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
+  assert.equal(runner.runtime.running("docker").length, 2);
+  assert.equal(runner.runtime.queued("docker").length, 1);
   await runner.cancelChat(identities[0].chatId);
-  await rejected;
+  await Promise.all(rejected);
   assert.equal(runner.running.size, 0);
-  const limited = new DockerRunner({ store, maxOutputBytes: 128 });
+  const limited = new DockerRunner({ store, runtime: runner.runtime, maxOutputBytes: 128 });
   await assert.rejects(
     () =>
       limited.run(
@@ -89,10 +88,11 @@ print('ISOLATED_${id.user.username}')
     checks: [
       "concurrent-private-inputs",
       "nonroot-readonly-worker",
+      "configured-memory-limit-enforced",
       "no-analysis-network",
       "no-credentials-or-docker-socket",
       "stdout-return",
-      "one-job-per-user",
+      "two-jobs-per-user-and-third-queued",
       "cancel-during-startup",
       "output-limit",
     ],
@@ -104,5 +104,6 @@ print('ISOLATED_${id.user.username}')
   );
   console.log(JSON.stringify(report));
 } finally {
+  runner.runtime.close();
   store.close();
 }
