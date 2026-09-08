@@ -14,6 +14,8 @@
 
 独立 AgentTeams fork 负责唯一的多智能体调度。保留地缘分析师、数据助手、分析助手、事件助手四个固定角色，按需启用成员；没有把旧 Python 多智能体图套在新调度器下面。
 
+已有团队的主对话顶部提供原生“子智能体”目录，可查看各成员的持久化历史、当前运行活动与经过安全过滤的工具状态。子会话只读，指挥、停止和批准均回到主对话操作；不启用上游个人主机接口。实现与使用说明见 [子智能体架构](SUBAGENT-ARCHITECTURE.md)。
+
 ## 环境
 
 - Node.js 24；pnpm 10.33.0。
@@ -51,6 +53,12 @@ docker build --provenance=false -t geosentinel-gis:0.1 docker
 在 `.env` 填写 `DEEPSEEK_API_KEY`、`GEE_DEFAULT_PROJECT_ID` 和 `GEO_GEE_CREDENTIALS`。凭据路径指向管理员已有的 Earth Engine 认证文件，不要把凭据复制进 Git 或项目上传区。兼容旧配置中的 `DeepSeek_API_KEY`、`DeepSeek_Coding_URL`，但新部署建议使用示例文件的名称。
 
 `GEO_GEE_PROXY` 只传给固定 GEE 获取容器，不给模型生成的 Python。Docker 中的 `127.0.0.1` 是容器本身；Docker Desktop 访问主机代理时使用 `host.docker.internal`。代理与 Google 服务可达性应按部署机器实际验证。
+
+如果此前用旧项目 `.env` 启动而缺少新版 GEE 参数，可运行 `node scripts/import-env.mjs --source <旧.env路径> --home <已有DSH-home路径> --credentials <Earth-Engine凭据路径> --port 8511` 生成独立 `dsh/.env`；需要主机代理时添加 `--proxy http://host.docker.internal:7897`，公共监测目录外置时添加 `--monitor-dir <目录>`。该命令拒绝覆盖已有 `.env`，只导入产品使用的配置，不修改源文件，也不会重新初始化账号。Windows 常见凭据位置为 `%USERPROFILE%\.config\earthengine\credentials`，以本机实际认证文件为准。
+
+使用 `GEO_ENV_FILE` 时确认它指向新文件。启动器会先读取管理员配置，再从受控 profile 目录运行 DSH，让启动变量通过进程环境继承，避免 DSH 将 `DEEPSEEK_BASE_URL` 当作普通研究项目 `.env` 的禁止变量。不要绕过 `scripts/start.mjs` 直接在含该产品配置的目录运行裸 `dsh web`。
+
+2026-09-08 修复了镜像 worker 仍残留 10 分钟闹钟的问题。此次更新需执行 `docker build -t geosentinel-gis:0.1 docker` 重建镜像；worker 默认 1800 秒，并接收宿主端传入的 `GEO_JOB_TIMEOUT_SECONDS`。验证命令：`node scripts/smoke-worker-timeout.mjs`。真实小范围 GEE 验证：`node scripts/smoke-gee.mjs`，在独立临时工作区执行，不修改已有研究。
 
 ```powershell
 node scripts/check-env.mjs
@@ -100,6 +108,8 @@ pnpm start --port 8510 --no-open
 原生入口已接入 DSH 的 `ask_user_question`、`UserQuestionService` 和原生问题/方案审阅组件。主智能体可暂停等待用户选择、自由回答或取消；子智能体不能直接向用户提问。方案整理完成后显示原生审阅卡，确认前仍不可执行；“去聊天里说”恢复输入框，修改后需要重新审阅。平台通过带登录校验的 `/geo/api/chats/:id/questions` 传输请求与答案，不启用原版个人主机 Remote API。回答绑定用户、对话、唯一请求 ID；方案确认额外绑定团队与版本。普通问题的回答不能绕过方案审批。刷新可恢复当前进程中的待答问题；服务重启后旧请求 ID 失效，待确认方案可重新生成审阅请求，执行中普通提问不跨进程恢复。
 
 ## 存储与运行边界
+
+子智能体原生持久化、进程展示与 AgentTeams 的职责对比见 [架构调研](SUBAGENT-ARCHITECTURE.md)。当前未替换调度器；原生子会话只读查看仍需后续适配。
 
 ```text
 .runtime/home/

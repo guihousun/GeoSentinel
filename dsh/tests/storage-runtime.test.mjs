@@ -27,6 +27,15 @@ test("Docker memory defaults to three GiB and supports a bounded four-GiB overri
   assert.equal(new DockerRunner({ store: f.store, runtime: f.runtime, memoryMiB: 4096 }).memoryMiB, 4096);
   for (const value of [0, -1, 1.5, "4g", 100000, NaN]) assert.throws(() => dockerMemoryMiB(value));
 });
+test("GEE readiness fails before allocating jobs and names the administrator configuration", async (t) => {
+  const f = fixture(t), identity = { user: f.user, chatId: f.chat.id, projectId: f.project.id, root: f.store.chatRoot(f.user, f.chat.id) };
+  const missing = new DockerRunner({ store: f.store, runtime: f.runtime, geeProject: "test-project" });
+  await assert.rejects(() => missing.run(identity, { kind: "gee-download" }), (e) => e.status === 503 && /GEO_GEE_CREDENTIALS/.test(e.message));
+  const invalid = new DockerRunner({ store: f.store, runtime: f.runtime, geeProject: "test-project", geeCredentials: f.root });
+  await assert.rejects(() => invalid.run(identity, { kind: "gee-download" }), (e) => e.status === 503 && /凭据文件/.test(e.message));
+  assert.equal(f.runtime.queued("docker").length, 0);
+  assert.equal(f.runtime.running("docker").length, 0);
+});
 test("concurrent uploads serialize quota checks and imported evidence uses the same quota", async (t) => {
   const f = fixture(t);
   const results = await Promise.allSettled(["a.txt", "b.txt"].map((name) => f.storage.writeInput(f.user, f.project.id, name, Buffer.alloc(6))));

@@ -32,6 +32,7 @@ test("HTTP boundary rejects unowned resources, privileged parameters and forged 
       create: async () => {},
       prompt: async (...args) => { calls.push(args); const [user, chatId, text, id] = args; runtime.enqueue({ id, kind: "research", operation: "prompt", user, chatId, payload: { text } }); runtime.usage(user.id, "prompts"); return { queued: true }; },
       history: async () => ({ messages: [] }),
+      subagentCatalog: async () => ({ entries: [] }),
     },
   });
   const server = createServer((req, res) => {
@@ -59,6 +60,10 @@ test("HTTP boundary rejects unowned resources, privileged parameters and forged 
   assert.equal((await fetch(base + "/projects")).status, 401);
   assert.equal((await call("/admin/users")).status, 403);
   assert.equal((await call(`/chats/${chat.id}/history`, 1)).status, 404);
+  assert.equal((await call(`/chats/${chat.id}/subagents`, 1)).status, 404);
+  assert.equal((await call(`/chats/${chat.id}/subagents`)).status, 200);
+  for (const method of ["POST", "PATCH", "DELETE"]) assert.equal((await call(`/chats/${chat.id}/subagents/child/prompt`, 0, method)).status, 405);
+  assert.equal((await call(`/chats/${chat.id}/subagents/child/unknown`)).status, 404);
   assert.equal(
     (await call(`/projects/${projects[0].id}/files`, 1)).status,
     404,

@@ -22,6 +22,11 @@ export function sidebarIdentity(req, store, hosts) {
   return store.authenticate(token);
 }
 
+export function sidebarChat(user, id, store) {
+  const member = store.db.prepare("SELECT chat_id FROM agent_sessions WHERE id=?").get(id);
+  return store.chat(user, member?.chat_id ?? id);
+}
+
 export function createSidebarHandler({ store, hosts }) {
   return async (req, res) => {
     let status = 200, result;
@@ -37,9 +42,9 @@ export function createSidebarHandler({ store, hosts }) {
       if (method === "settings.get") result = { value: sidebarPolicy, revision: 1, externalDisable: false };
       else if (method === "shell.get") result = { shell: "", name: "未开放终端" };
       else if (method === "session.cwd") {
-        const chat = store.chat(user, body.sessionId);
+        const chat = sidebarChat(user, body.sessionId, store);
         // UI-only virtual path. Never accept client cwd as a filesystem authority.
-        result = { sessionId: chat.id, cwd: `/projects/${chat.project_id}`, root: `/projects/${chat.project_id}`, parent: null };
+        result = { sessionId: body.sessionId, cwd: `/projects/${chat.project_id}`, root: `/projects/${chat.project_id}`, parent: null };
       } else throw new PlatformError(403, "此操作未在 GeoSentinel 开放");
       result = { ok: true, value: result };
     } catch (error) { status = error.status ?? 500; result = { ok: false, error: { code: "geosentinel/forbidden", message: status === 500 ? "服务暂不可用" : error.message } }; }
@@ -53,7 +58,7 @@ export function registerSidebarAdapter(ctx, { store, hosts }) {
   for (const endpoint of ["agent-terminals", "agent-opens"]) ctx.effect(() => ctx.webServer.registerUpgrade({
     path: `/sidebar/ws/${endpoint}`,
     handler(req, socket, head) {
-      const check = () => { const user = sidebarIdentity(req, store, hosts); const id = new URL(req.url, "http://localhost").searchParams.get("sessionId"); store.chat(user, id); };
+      const check = () => { const user = sidebarIdentity(req, store, hosts); const id = new URL(req.url, "http://localhost").searchParams.get("sessionId"); sidebarChat(user, id, store); };
       try { check(); } catch { socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n"); socket.destroy(); return; }
       sockets.handleUpgrade(req, socket, head, (ws) => {
         if (endpoint === "agent-terminals") ws.send("[]");

@@ -5,7 +5,7 @@ import vm from "node:vm";
 
 test("native client restores remembered history and keeps project/file ownership aligned", async () => {
   const source = await readFile(new URL("../plugins/workbench/native/client.js", import.meta.url), "utf8");
-  const stores = [], requests = [], services = {};
+  const stores = [], requests = [], services = {}, slots = new Map();
   const snapshot = (initial) => {
     let state = initial;
     const result = { getSnapshot: () => state, subscribe: () => () => {}, set: (next) => { state = next; } };
@@ -14,7 +14,7 @@ test("native client restores remembered history and keeps project/file ownership
   const projects = [{ id: "p1", title: "First" }, { id: "p2", title: "Second" }];
   const ctx = { provide: (key, value) => { services[key] = value; ctx[key] = value; },
     get: (key) => key === "layout" ? { closeDetails() {} } : services[key],
-    plugin: () => ({ dispose() {} }), inject() {}, on() {}, slots: { provideRoot() {}, inject() {} } };
+    plugin: () => ({ dispose() {} }), inject() {}, on() {}, slots: { provideRoot() {}, inject(name, register) { register(); }, register(config, component) { slots.set(config.id ?? config.name, { config, component }); } } };
   const responses = {
     "/auth/status": { user: { id: "u1", username: "alice" } },
     "/projects": { projects },
@@ -24,6 +24,9 @@ test("native client restores remembered history and keeps project/file ownership
     "/projects/p2/files": { files: [{ name: "second.txt" }] },
     "/chats/c1/native-history": { events: [], running: false },
     "/chats/c2/native-history": { events: [], running: false },
+    "/chats/c1/subagents": { parentAvailable: true, entries: [{ kind: "child", id: "child1", mode: "continuable", activity: "inactive", label: "数据助手", hasChildren: false }] },
+    "/chats/c2/subagents": { parentAvailable: true, entries: [] },
+    "/chats/c1/subagents/child1/history": { events: [], running: false, parentAvailable: true, readOnly: true },
     "/chats/c1/plan": { team: { phase: "running", tasks: [
       { id: "t1", subject: "读取资料", status: "completed" },
       { id: "t2", subject: "分析", status: "in_progress" },
@@ -38,7 +41,7 @@ test("native client restores remembered history and keeps project/file ownership
   const context = vm.createContext({
     window: { __ModuleLoader__: { load({ factory }) {
       const plugin = factory((id) => {
-        if (id === "react") return { createElement() {} };
+        if (id === "react") return { createElement: (type, props, ...children) => ({ type, props, children }) };
         if (id.includes("client-store")) return { createSnapshotStore: snapshot };
         if (id.includes("api-session-controller")) return { createScope: () => ({ ctx: {}, fiber: { dispose() {} } }), scopeOf() {}, MutableSessionEventSource: class { replace() {} } };
         return {};
@@ -60,6 +63,30 @@ test("native client restores remembered history and keeps project/file ownership
   assert.equal(todos[2].status, "pending");
   assert.match(todos[2].content, /\[失败\]/);
   assert.match(todos[3].content, /\[已取消\]/);
+  const address = { parentSessionId: "c1", childSessionId: "child1", mode: "continuable" };
+  await services.sessions.openSubagent(address);
+  for (let i = 0; i < 8; i++) await new Promise(setImmediate);
+  assert.equal(services.sessions.list.getSnapshot().current, "child1");
+  assert.equal(services.sessions.list.getSnapshot().ids.includes("child1"), false);
+  assert.equal(services.sessions.binding("child1").session.getSnapshot().subagent.address.parentSessionId, "c1");
+  assert.equal(stores[0].getSnapshot().team, null);
+  const child = services.sessions.binding("child1").session;
+  assert.equal((await child.prompt([{ type: "text", text: "run" }])).ok, false);
+  assert.equal((await child.cancel()).ok, false);
+  assert.equal((await child.rename("changed")).ok, false);
+  assert.throws(() => child.beginSubmission({ text: "run" }), /只读/);
+  assert.equal(requests.some((route) => route.startsWith("/chats/child1")), false);
+  assert.equal(stores[0].getSnapshot().files[1].path, "job/result.md");
+  await services.sessions.refresh();
+  assert.equal(services.sessions.list.getSnapshot().current, "child1");
+  await assert.rejects(services.sessions.openSubagent({ ...address, parentSessionId: "c2" }), /不可访问/);
+  const readonly = slots.get("geo-child-readonly");
+  assert.equal(readonly.config.select({ session: { subagent: null } }), null);
+  const matched = readonly.config.select({ session: child.getSnapshot() });
+  const composer = readonly.component({ matched });
+  await composer.children[1].props.onClick();
+  assert.equal(services.sessions.list.getSnapshot().current, "c1");
+  assert.equal(services.sessions.list.getSnapshot().currentAddress, undefined);
   await services.uiWorkspace.connectWorkspace("p2");
   for (let i = 0; i < 8; i++) await new Promise(setImmediate);
   assert.equal(services.sessions.list.getSnapshot().current, "c2");

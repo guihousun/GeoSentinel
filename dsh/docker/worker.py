@@ -53,7 +53,10 @@ def download(request):
 
 def main():
     # The worker also expires when the host service is interrupted or crashes.
-    signal.alarm(600)
+    seconds = int(os.environ.get("GEO_JOB_TIMEOUT_SECONDS", "1800"))
+    if not 1 <= seconds <= 86400:
+        raise ValueError("Invalid worker timeout")
+    signal.alarm(seconds)
     request = json.loads(Path("/request/request.json").read_text())
     kind = request["kind"]
     if kind == "inspect":

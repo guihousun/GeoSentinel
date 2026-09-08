@@ -27,6 +27,9 @@ window.__ModuleLoader__.load({
       const list = createSnapshotStore({ ids: [], byId: {}, current: undefined, phase: "ready", subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined });
       const workspaces = createSnapshotStore({ phase: "ready", items: [], archivedSessionIds: [] });
       const records = new Map();
+      const addresses = new Map(), catalogRequests = new Map();
+      const rootFor = (id) => addresses.get(id)?.parentSessionId ?? id;
+      const readOnlyMessage = "子智能体运行记录只读，请回到主对话指挥或批准。";
       const remoteListeners = new Map();
       let stream, poll, refreshTimer, sidebarFiber, generation = 0;
       const selectionKey = () => `geosentinel:selection:${state.getSnapshot().user?.id}`;
@@ -46,9 +49,9 @@ window.__ModuleLoader__.load({
       function clear() {
         generation++; stream?.close(); clearInterval(poll); clearTimeout(refreshTimer);
         sidebarFiber?.dispose(); sidebarFiber = undefined;
-        list.set({ ...list.getSnapshot(), ids: [], byId: {}, current: undefined });
+        list.set({ ...list.getSnapshot(), ids: [], byId: {}, current: undefined, currentAddress: undefined, subagentsByParent: {} });
         for (const record of records.values()) { record.question?.controller.abort(); record.fiber.dispose(); }
-        records.clear(); workspaces.set({ phase: "ready", items: [], archivedSessionIds: [] });
+        records.clear(); addresses.clear(); catalogRequests.clear(); workspaces.set({ phase: "ready", items: [], archivedSessionIds: [] });
         set({ projects: [], activeProject: null, team: null, scheduling: null, queueError: null, pendingQuestion: null, files: [], users: [], invite: null, panel: null });
       }
       async function refresh() {
@@ -67,7 +70,13 @@ window.__ModuleLoader__.load({
         let current = previousCurrent;
         if (!current) { try { current = localStorage.getItem(selectionKey()); } catch {} }
         workspaces.set({ phase: "ready", items, archivedSessionIds: [] });
-        list.set({ ...list.getSnapshot(), ids: Object.keys(byId), byId, current: byId[current] ? current : undefined });
+        const ids = Object.keys(byId);
+        for (const [id, address] of addresses) {
+          if (byId[address.parentSessionId]) byId[id] = { ...list.getSnapshot().byId[id], projectId: byId[address.parentSessionId].projectId };
+          else { addresses.delete(id); records.get(id)?.fiber.dispose(); records.delete(id); }
+        }
+        list.set({ ...list.getSnapshot(), ids, byId, current: byId[current] ? current : undefined, currentAddress: byId[current] ? addresses.get(current) : undefined,
+          subagentsByParent: Object.fromEntries(Object.entries(list.getSnapshot().subagentsByParent).filter(([id]) => ids.includes(id))) });
         set({ projects, activeProject: projects.some((p) => p.id === state.getSnapshot().activeProject) ? state.getSnapshot().activeProject : projects[0]?.id });
         if (!sidebarFiber) sidebarFiber = ctx.plugin(betterSidebarPlugin);
         if (byId[current] && (current !== previousCurrent || !records.has(current))) open(current);
@@ -76,7 +85,7 @@ window.__ModuleLoader__.load({
         if (!list.getSnapshot().byId[id]) return undefined;
         if (records.has(id)) return records.get(id);
         const scope = createScope(ctx, id);
-        const lifecycle = createSnapshotStore({ sessionId: id, queue: [], pendingSubmissions: [], running: false, subagent: null,
+        const lifecycle = createSnapshotStore({ sessionId: id, queue: [], pendingSubmissions: [], running: false, subagent: addresses.has(id) ? { address: addresses.get(id) } : null,
           removed: false, openState: "loading", openError: null, hasMore: false, loadingOlder: false, promptError: null,
           blank: true, lastAgentError: null, promptAttempted: false, awaitingFirstTurn: false });
         const update = (patch) => lifecycle.set({ ...lifecycle.getSnapshot(), ...patch });
@@ -85,6 +94,7 @@ window.__ModuleLoader__.load({
         const session = { sessionId: id, getSnapshot: lifecycle.getSnapshot, subscribe: lifecycle.subscribe,
           projections: { faceOf(key) { if (!projections.has(key)) projections.set(key, createSnapshotStore(undefined)); return projections.get(key); } },
           beginSubmission({ text, images, onRetire }) {
+            if (addresses.has(id)) throw new Error(readOnlyMessage);
             const requestId = crypto.randomUUID();
             update({ pendingSubmissions: [{ requestId, text, images, time: Date.now() }], promptAttempted: true });
             session.retire = onRetire;
@@ -92,6 +102,7 @@ window.__ModuleLoader__.load({
           },
           async prompt(content, mode) {
             try {
+              if (addresses.has(id)) throw new Error(readOnlyMessage);
               if (content.some((part) => part.type !== "text")) throw new Error("请通过资料与产出上传文件。");
               if (mode === "steer") throw new Error("请先停止当前任务，再发送新问题。");
               await api(`/chats/${id}/prompt`, "POST", { text: content.map((p) => p.text).join("\n") });
@@ -99,8 +110,8 @@ window.__ModuleLoader__.load({
               return ok({ accepted: true });
             } catch (error) { update({ pendingSubmissions: [], promptError: { op: "send", error: { code: "geosentinel/send", message: error.message } } }); return fail(error.message); }
           },
-          async cancel() { try { await api(`/chats/${id}/cancel`, "POST"); update({ pendingSubmissions: [] }); await load(id); return ok({ accepted: true }); } catch (e) { return fail(e.message); } },
-          async rename(title) { await api(`/chats/${id}`, "PATCH", { title }); await refresh(); return ok({ title, seq: 0 }); },
+          async cancel() { try { if (addresses.has(id)) throw new Error(readOnlyMessage); await api(`/chats/${id}/cancel`, "POST"); update({ pendingSubmissions: [] }); await load(id); return ok({ accepted: true }); } catch (e) { return fail(e.message); } },
+          async rename(title) { if (addresses.has(id)) return fail(readOnlyMessage); await api(`/chats/${id}`, "PATCH", { title }); await refresh(); return ok({ title, seq: 0 }); },
           loadOlder: async () => {}, command: async () => fail("此产品不开放终端命令。"),
           updateQueue: async () => fail("请停止任务后重新提交。"), readAttachment: async () => fail("请在资料与产出查看文件。"),
         };
@@ -111,18 +122,22 @@ window.__ModuleLoader__.load({
         const record = binding(id); if (!record || record.loading) return;
         record.loading = true;
         try {
-          const data = await api(`/chats/${id}/native-history`);
+          const address = addresses.get(id);
+          const data = await api(address ? `/chats/${address.parentSessionId}/subagents/${id}/history` : `/chats/${id}/native-history`);
           if (records.get(id) !== record) return;
           const signature = JSON.stringify(data.events);
           if (record.lastEvents !== signature) {
             record.eventSource.replace(data.events.map((event) => ({ type: "event", event })), false);
             record.lastEvents = signature;
           }
-          record.update({ openState: "open", openError: null, blank: data.events.length === 0, running: data.running });
+          record.update({ openState: "open", openError: null, blank: data.events.length === 0, running: data.running,
+            subagent: address ? { address, parentAvailable: data.parentAvailable } : null });
           if (record.session.getSnapshot().pendingSubmissions.length && data.events.some((e) => e.type === "user/message" && e.time >= record.session.getSnapshot().pendingSubmissions[0].time - 1000)) {
             record.update({ pendingSubmissions: [] }); record.session.retire?.({ reason: "observed", attachments: [] });
           }
           if (list.getSnapshot().current === id) {
+            void refreshSubagents(rootFor(id));
+            if (address) { await files(); return; }
             set({ scheduling: data.scheduling, queueError: data.queueError });
             const { team } = await api(`/chats/${id}/plan`);
             if (records.get(id) === record) record.session.projections.faceOf("todos").set(teamTodos(team));
@@ -155,14 +170,51 @@ window.__ModuleLoader__.load({
       }
       function open(id) {
         if (!list.getSnapshot().byId[id]) throw new Error("对话不存在。");
-        binding(id); list.set({ ...list.getSnapshot(), current: id });
+        binding(id); list.set({ ...list.getSnapshot(), current: id, currentAddress: addresses.get(id) });
         set({ activeProject: list.getSnapshot().byId[id].projectId, team: null, scheduling: null, queueError: null, pendingQuestion: null, files: [] });
-        remember(id); ctx.get("layout")?.closeDetails();
+        remember(rootFor(id)); ctx.get("layout")?.closeDetails();
         stream?.close(); clearInterval(poll); clearTimeout(refreshTimer);
-        stream = new EventSource(`/geo/api/chats/${id}/events`);
+        stream = new EventSource(`/geo/api/chats/${rootFor(id)}/events`);
         stream.onmessage = () => { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => load(id), 120); };
         stream.onerror = () => load(id);
         poll = setInterval(() => load(id), 4000); void load(id);
+      }
+      async function refreshSubagents(parent) {
+        if (!list.getSnapshot().ids.includes(parent)) return;
+        if (catalogRequests.has(parent)) return catalogRequests.get(parent);
+        const epoch = generation;
+        const updateCatalog = (value) => list.set({ ...list.getSnapshot(), subagentsByParent: { ...list.getSnapshot().subagentsByParent, [parent]: value } });
+        if (!list.getSnapshot().subagentsByParent[parent]) updateCatalog({ state: "loading", entries: [], error: null });
+        const request = (async () => {
+          try {
+            const catalog = await api(`/chats/${parent}/subagents`);
+            if (epoch !== generation || !list.getSnapshot().ids.includes(parent)) return;
+            const byId = { ...list.getSnapshot().byId }, valid = new Set();
+            for (const entry of catalog.entries) if (entry.kind === "child") {
+              valid.add(entry.id);
+              addresses.set(entry.id, { parentSessionId: parent, childSessionId: entry.id, mode: entry.mode });
+              byId[entry.id] = { id: entry.id, displayTitle: entry.label, origin: "subagent", parentId: parent,
+                projectId: byId[parent].projectId, running: entry.activity === "running", blank: false };
+            }
+            for (const [id, address] of addresses) if (address.parentSessionId === parent && !valid.has(id)) {
+              if (list.getSnapshot().current === id) open(parent);
+              addresses.delete(id); delete byId[id]; records.get(id)?.fiber.dispose(); records.delete(id);
+            }
+            list.set({ ...list.getSnapshot(), byId });
+            updateCatalog({ ...catalog, state: "ready", error: null });
+          } catch (error) {
+            if (epoch === generation) updateCatalog({ state: "error", entries: [], error: { code: "geosentinel/subagents", message: error.message } });
+          }
+        })();
+        catalogRequests.set(parent, request);
+        try { await request; } finally { if (catalogRequests.get(parent) === request) catalogRequests.delete(parent); }
+      }
+      async function openSubagent(address) {
+        await refreshSubagents(address.parentSessionId);
+        const verified = addresses.get(address.childSessionId);
+        if (!verified || verified.parentSessionId !== address.parentSessionId || verified.mode !== address.mode ||
+          list.getSnapshot().subagentsByParent[address.parentSessionId]?.state !== "ready") throw new Error("子智能体记录不可访问。");
+        open(address.childSessionId);
       }
       async function selectProject(id) {
         const chat = list.getSnapshot().ids.find((key) => list.getSnapshot().byId[key].projectId === id);
@@ -171,7 +223,7 @@ window.__ModuleLoader__.load({
       }
       function clearSelection() {
         stream?.close(); clearInterval(poll); clearTimeout(refreshTimer); remember(null);
-        list.set({ ...list.getSnapshot(), current: undefined }); set({ team: null, scheduling: null, queueError: null, files: [] });
+        list.set({ ...list.getSnapshot(), current: undefined, currentAddress: undefined }); set({ team: null, scheduling: null, queueError: null, files: [] });
       }
       async function create({ workspaceId } = {}) {
         const projectId = workspaceId ?? state.getSnapshot().activeProject;
@@ -181,7 +233,8 @@ window.__ModuleLoader__.load({
       }
       const sessions = { list, binding, open, create, refresh, clear: clearSelection,
         scope: (id) => binding(id)?.ctx, scopeOf, sessionOf: (context) => binding(scopeOf(context))?.session,
-        searchResultLimit: 20, subagentAddress: () => undefined, setSubagentCatalogOpen() {}, refreshSubagents: async () => {},
+        searchResultLimit: 20, subagentAddress: (id) => addresses.get(id), openSubagent, refreshSubagents,
+        setSubagentCatalogOpen(parent, visible) { if (visible) void refreshSubagents(parent); },
         fork: async () => { const message = "当前入口暂不支持复制历史分支。请在左栏新建对话。"; set({ error: message }); throw new Error(message); }, search: async () => ok({ items: [], hasMore: false }) };
       ctx.provide("sessions", sessions);
       ctx.provide("connection", { state: createSnapshotStore({ state: "connected" }), generation: createSnapshotStore({ phase: "ready", revision: 1 }) });
@@ -217,6 +270,12 @@ window.__ModuleLoader__.load({
           "todo.title": "研究任务",
           "todo.progress.pending": "未完成 {pending}",
         }));
+        inner.effect(() => inner.locale.register("subagent", "zh-Hans", {
+          "mode.continuable": "持久会话", "mode.oneShot": "单次会话",
+          "count.total.one": "{count} 个子智能体", "count.total.other": "{count} 个子智能体",
+          "count.running.one": "{count} 个子智能体，正在运行", "count.running.other": "{count} 个子智能体，正在运行",
+          "switcher.aria": "切换子智能体：{title}", "tree.aria": "子智能体运行记录",
+        }));
         inner.locale.setLocale("zh-Hans");
       });
       ctx.slots.provideRoot({ hooks: { workspaces } });
@@ -249,10 +308,10 @@ window.__ModuleLoader__.load({
         service.openTab({ type: `geosentinel:${kind}`, url: location.origin + (kind === "monitor" ? "/geo/api/monitor/events" : "/geo/api/projects") });
       }
       async function files() {
-        const projectId = state.getSnapshot().activeProject, id = list.getSnapshot().current;
+        const projectId = state.getSnapshot().activeProject, current = list.getSnapshot().current, id = rootFor(current);
         const inputs = projectId ? (await api(`/projects/${projectId}/files`)).files : [];
         const outputs = id ? (await api(`/chats/${id}/files`)).files : [];
-        if (state.getSnapshot().activeProject !== projectId || list.getSnapshot().current !== id) return;
+        if (state.getSnapshot().activeProject !== projectId || list.getSnapshot().current !== current) return;
         set({ files: [...inputs.map((f) => ({ ...f, path: f.name, input: true })), ...outputs.map((f) => ({ ...f, path: f.name }))] });
       }
       function Plan() {
@@ -317,7 +376,7 @@ window.__ModuleLoader__.load({
             s.panel === "admin" && s.user.admin && h(React.Fragment, null, h("h2", null, "管理中心"), h(Usage, { admin: true }), button("生成邀请码", icons.IconPlusOutline16, async () => { const data = await api("/admin/invites", "POST"); set({ invite: data.invite }); }), s.invite && h("input", { value: s.invite, readOnly: true, "aria-label": "邀请码" }),
               ...(s.users ?? []).map((user) => h("div", { key: user.id, className: "geo-native-user" }, h("span", null, user.username), button(user.disabled ? "启用" : "停用", null, async () => { await api(`/admin/users/${user.id}`, "PATCH", { disabled: !user.disabled }); set({ users: (await api("/admin/users")).users }); }, { disabled: user.id === s.user.id })))),
             s.panel === "files" && h(React.Fragment, null, h("h2", null, "资料与产出"), h("input", { type: "file", "aria-label": "上传资料", disabled: !s.activeProject, onChange: run(async (event) => { const file = event.target.files[0]; if (!file) return; if (file.size > 16 * 1024 * 1024) throw new Error("文件不能超过 16 MiB"); const base64 = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(",")[1]); reader.onerror = reject; reader.readAsDataURL(file); }); await api(`/projects/${s.activeProject}/files`, "POST", { name: file.name, base64 }); await files(); }) }),
-              s.files.length === 0 ? h("p", null, "暂无资料与产出") : s.files.map((file) => h("div", { key: (file.input ? "in" : "out") + file.path }, file.input ? h("span", null, file.path) : h("a", { href: `/geo/api/chats/${list.getSnapshot().current}/files?path=${encodeURIComponent(file.path)}`, download: true }, file.path)))),
+              s.files.length === 0 ? h("p", null, "暂无资料与产出") : s.files.map((file) => h("div", { key: (file.input ? "in" : "out") + file.path }, file.input ? h("span", null, file.path) : h("a", { href: `/geo/api/chats/${rootFor(list.getSnapshot().current)}/files?path=${encodeURIComponent(file.path)}`, download: true }, file.path)))),
             s.panel === "monitor" && h(Monitor));
       }
       function Monitor() {
@@ -351,13 +410,13 @@ window.__ModuleLoader__.load({
           data && h("p", null, `${data.items.length} 条来源记录${data.stale ? " · 数据待更新" : ""}`),
           ...(data?.items ?? []).map((item) => h("article", { key: item.id, className: "geo-native-event" }, h("strong", null, item.displayTitle ?? item.title), h("small", null, item.source),
             h("a", { href: item.url, target: "_blank", rel: "noopener noreferrer" }, "查看来源"),
-            button("带入研究对话", icons.IconNewChatOutline16, async () => { const id = list.getSnapshot().current; if (!id) throw new Error("请先选择研究对话。"); const result = await api(`/chats/${id}/monitor-context`, "POST", { eventId: item.id }); const input = ctx.get("conversation").input; const shell = input.for(binding(id).ctx); shell.setDraft(`请核验这条公共监测线索：${item.displayTitle ?? item.title}\n来源文件：${result.path}\n先区分已确认事实和待核验信息。`); set({ panel: null }); }))));
+            button("带入研究对话", icons.IconNewChatOutline16, async () => { const current = list.getSnapshot().current, id = rootFor(current); if (!id) throw new Error("请先选择研究对话。"); if (current !== id) open(id); const result = await api(`/chats/${id}/monitor-context`, "POST", { eventId: item.id }); const input = ctx.get("conversation").input; const shell = input.for(binding(id).ctx); shell.setDraft(`请核验这条公共监测线索：${item.displayTitle ?? item.title}\n来源文件：${result.path}\n先区分已确认事实和待核验信息。`); set({ panel: null }); }))));
       }
       function FilesPanel() {
         const s = useState(), l = useList();
         React.useEffect(() => { void files().catch((error) => set({ error: error.message })); }, [l.current, s.activeProject]);
         return h("div", { className: "geo-native-files" }, h("h2", null, "资料与产出"), button("上传资料", icons.IconPaperclipOutline16, () => set({ panel: "files" })),
-          s.files.length ? s.files.map((file) => h("div", { key: (file.input ? "in" : "out") + file.path }, file.input ? h("span", null, file.path) : h("a", { href: `/geo/api/chats/${l.current}/files?path=${encodeURIComponent(file.path)}`, download: true }, file.path))) : h("p", null, "暂无资料与产出"));
+          s.files.length ? s.files.map((file) => h("div", { key: (file.input ? "in" : "out") + file.path }, file.input ? h("span", null, file.path) : h("a", { href: `/geo/api/chats/${rootFor(l.current)}/files?path=${encodeURIComponent(file.path)}`, download: true }, file.path))) : h("p", null, "暂无资料与产出"));
       }
       ctx.inject(["betterSidebar"], (inner) => {
         inner.effect(() => inner.betterSidebar.registerTab({ id: "geosentinel:monitor", title: "公共监测", single: true, order: 0, icon: h(icons.IconGlobeOutline14), component: () => h(Monitor) }));
@@ -376,6 +435,11 @@ window.__ModuleLoader__.load({
       ctx.slots.inject("conversation.hero.workspace", () => ctx.slots.register({ name: "conversation.hero.workspace" }, ProjectPicker));
       ctx.slots.inject("shell.overlay", () => ctx.slots.register({ name: "shell.overlay", id: "geo-account" }, Overlay));
       ctx.slots.inject("conversation.input.dock", () => ctx.slots.register({ name: "conversation.input.dock", id: "geo-plan", order: -10 }, Plan));
+      // Replace only the child composer seat; history, catalog and lineage stay native.
+      ctx.slots.inject("conversation.composer", () => ctx.slots.register({ name: "conversation.composer", id: "geo-child-readonly", priority: 100,
+        select: (owner) => owner.session?.subagent ? { address: owner.session.subagent.address } : null },
+      ({ matched }) => h("div", { className: "geo-native-child-readonly" }, h("span", { role: "status" }, "子智能体运行记录 · 只读"),
+        button("返回主对话", icons.IconNewChatOutline16, () => open(matched.address.parentSessionId)))));
       ctx.slots.inject("conversation.hero.brand.mark", () => ctx.slots.register({ name: "conversation.hero.brand.mark" }, () => h("h1", { className: "geo-native-hero" }, h("span", null, "地缘环境"), h("span", null, "智能计算平台"))));
       ctx.slots.inject("conversation.session.header.utilities", () => ctx.slots.register({ name: "conversation.session.header.utilities", id: "geo-monitor" }, () => button("公共监测", icons.IconGlobeOutline14, () => openResearchTab("monitor"))));
       api("/auth/status").then(async ({ user }) => { set({ user, checking: false }); if (user) await refresh(); }).catch((error) => set({ checking: false, error: error.message }));

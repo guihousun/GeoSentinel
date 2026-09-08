@@ -104,7 +104,9 @@ const child = spawn(
   process.execPath,
   [command, "--profile", "geosentinel", ...startup.args],
   {
-    cwd: root,
+    // The managed launcher supplies trusted bootstrap variables via inheritance.
+    // DSH must not re-read the product .env as an ordinary research-project layer.
+    cwd: profile,
     stdio: "inherit",
     env: {
       ...process.env,

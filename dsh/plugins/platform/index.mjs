@@ -9,6 +9,7 @@ import { monitorService } from "../../monitoring/host.mjs";
 import { nativeEvent } from "./native-events.mjs";
 import { registerSidebarAdapter } from "./sidebar-adapter.mjs";
 import { QuestionTransport } from "./questions.mjs";
+import { readonlySubagents } from "./subagents.mjs";
 import * as askUserTool from "@deepseek-ai/dsh-tool-ask-user";
 
 export const name = "geosentinel-platform";
@@ -19,6 +20,7 @@ export const inject = [
   "tools",
   "geosentinelTeams",
   "userQuestions",
+  "subagents",
 ];
 const TEAM_TOOLS = [
   "agent_teams_create",
@@ -151,6 +153,7 @@ export function apply(ctx, config = {}) {
     },
   });
   const bridge = {
+    ...readonlySubagents({ store, subagents: ctx.subagents, sessionController: ctx.sessionController }),
     async questions(user, chatId, reopen = false) {
       const agent = await agentFor(user, chatId);
       const team = await ctx.geosentinelTeams.inspectTeam(agent);

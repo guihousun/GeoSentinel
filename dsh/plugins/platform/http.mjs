@@ -231,6 +231,12 @@ export function createPlatformHandler({
       }
       if (parts[0] === "chats") {
         const chat = store.chat(user, parts[1]);
+        if (parts[2] === "subagents") {
+          if (method !== "GET") throw new PlatformError(405, "子智能体记录只读，请通过主智能体操作");
+          if (parts.length === 3) return json(res, 200, await bridge.subagentCatalog(user, chat.id));
+          if (parts.length === 5 && parts[4] === "history") return json(res, 200, await bridge.subagentHistory(user, chat.id, parts[3]));
+          throw new PlatformError(404, "子智能体接口不存在");
+        }
         if (parts.length === 3 && parts[2] === "queue" && method === "GET") return json(res, 200, runtime?.snapshot(user, chat.id) ?? {});
         if (parts.length === 3 && parts[2] === "questions") {
           if (store.project(user, chat.project_id).archived) throw new PlatformError(409, "项目已归档");

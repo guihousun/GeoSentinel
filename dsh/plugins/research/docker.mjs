@@ -1,10 +1,11 @@
 import { spawn } from "node:child_process";
 import { mkdir, writeFile, readdir, readFile, lstat } from "node:fs/promises";
-import { realpathSync } from "node:fs";
+import { realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { RuntimeLedger } from "../platform/runtime.mjs";
 import { WorkspaceFiles } from "../platform/files.mjs";
+import { PlatformError } from "../platform/store.mjs";
 
 export function dockerMemoryMiB(value = process.env.GEO_DOCKER_MEMORY_MIB ?? 3072) {
   const memory = Number(value);
@@ -158,6 +159,11 @@ export class DockerRunner {
   }
   async run(identity, request, { signal, script } = {}) {
     if (signal?.aborted) throw new Error("Task cancelled");
+    if (request.kind === "gee-download") {
+      if (!this.geeCredentials || !this.geeProject) throw new PlatformError(503, "平台 GEE 授权未配置：请管理员检查实际 GEO_ENV_FILE 中的 GEO_GEE_CREDENTIALS 和 GEE_DEFAULT_PROJECT_ID；这不是数据集不存在，也不需要用户上传替代影像");
+      try { if (!statSync(this.geeCredentials).isFile()) throw new Error("not a file"); }
+      catch { throw new PlatformError(503, "平台 GEE 凭据文件不可读取，请管理员检查凭据路径和权限"); }
+    }
     await this.ensureRecovered();
     await this.storage.checkSpace();
     if (!["inspect", "execute", "gee-download"].includes(request.kind))
@@ -207,6 +213,8 @@ export class DockerRunner {
         container,
         "--label",
         "app=geosentinel",
+        "-e",
+        `GEO_JOB_TIMEOUT_SECONDS=${Math.ceil(this.timeoutMs / 1000)}`,
         "--label",
         `geosentinel.scope=${this.runtime.scope}`,
         "--user",

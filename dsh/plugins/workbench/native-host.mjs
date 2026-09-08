@@ -11,7 +11,7 @@ export const nativePlugins = [
   "dsh-client-modules", "dsh-client-locale", "dsh-client-ui-theme",
   "dsh-client-ui-layout", "dsh-client-ui-renderer", "dsh-client-ui-session",
   "dsh-client-ui-conversation", "dsh-client-ui-chat", "dsh-client-ui-tool",
-  "dsh-client-ui-user-questions",
+  "dsh-client-ui-user-questions", "dsh-client-ui-subagent",
 ].map((name) => "@deepseek-ai/" + name);
 const baseline = new Set(["react", "react/jsx-runtime", "react-dom", "react-dom/client",
   "@deepseek-ai/cordis", "@deepseek-ai/dsh-client-store",

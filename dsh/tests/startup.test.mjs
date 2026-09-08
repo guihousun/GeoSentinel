@@ -2,6 +2,26 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { startupOptions, inspectEndpoint } from "../scripts/startup-check.mjs";
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+
+test("trusted product bootstrap is inherited without re-reading product .env as a DSH project", (t) => {
+  const root = mkdtempSync(path.join(tmpdir(), "geo-bootstrap-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const home = path.join(root, "home"), profile = path.join(home, "profiles", "geosentinel");
+  mkdirSync(profile, { recursive: true });
+  writeFileSync(path.join(root, ".env"), "DEEPSEEK_BASE_URL=https://example.invalid\n");
+  const require = createRequire(new URL("../node_modules/@deepseek-ai/dsh/lib/bin.js", import.meta.url));
+  const module = pathToFileURL(require.resolve("@deepseek-ai/dsh-app-boot")).href;
+  const code = `import {loadLayeredEnv} from ${JSON.stringify(module)};loadLayeredEnv('dsh');`;
+  const options = { encoding: "utf8", windowsHide: true, env: { ...process.env, DSH_HOME: home, DEEPSEEK_BASE_URL: "https://example.invalid" } };
+  assert.notEqual(spawnSync(process.execPath, ["--input-type=module", "-e", code], { ...options, cwd: root }).status, 0);
+  assert.equal(spawnSync(process.execPath, ["--input-type=module", "-e", code], { ...options, cwd: profile }).status, 0);
+});
 
 test("startup defaults and validates fixed port arguments", () => {
   assert.deepEqual(startupOptions(["--no-open"]), {

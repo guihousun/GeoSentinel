@@ -1,5 +1,21 @@
 # GeoSentinel DSH implementation
 
+## Native read-only child sessions (2026-09-08)
+
+- Activated the pinned native subagent catalog and conversation renderer. The managed session adapter supplies authenticated catalogs, addresses, read-only event snapshots and root-linked refresh signals.
+- Both platform membership and durable native parentage are checked. Child endpoints are GET-only; account access is checked again after asynchronous reads. Native composer slot replacement and client action guards prevent direct child prompting, cancellation, renaming and approval.
+- Better Sidebar receives only owned virtual workspace metadata and capability-empty channels for child views. Its general subagent, sidechat and host terminal features remain disabled.
+- Existing stopped research histories were inspected without replay. Desktop checks cover 1366x768 and 1440x900, native catalog switching and return-to-parent navigation. See [scope and usage](SUBAGENT-ARCHITECTURE.md).
+
+## GEE readiness and native-subagent study (2026-09-08)
+
+- Diagnosed a live launch using the legacy environment without `GEO_GEE_CREDENTIALS`. Generated a separate ignored product configuration from allowed keys, retained the existing DSH home and monitor directory, and pointed the fixed acquisition worker at the administrator's existing Earth Engine credential file. No credentials were copied to user inputs or Git.
+- Corrected managed CLI bootstrap: launch DSH from its trusted profile directory, with administrator bootstrap variables inherited from the wrapper, instead of having DSH re-read them as an untrusted project `.env` layer.
+- Corrected the image-side 600-second alarm left behind by the previous host-side 30-minute change. Rebuilt the image and verified its default 1800-second alarm, explicit host override and invalid-value rejection.
+- Real acquisition test: Shanghai small AOI `[121.45,31.15,121.5,31.2]`, 500 m, SRTM and VIIRS ANNUAL_V21 `average_masked` for 2020; both yielded readable 12x12 rasters with 144 valid pixels, and the next isolated container inspected the outputs. This is not acceptance of the full 16-district workflow.
+- After explicit user approval, stopped the old research, backed up the DSH home, restarted port 8511 and verified login, retained history and stopped state. No automatic research replay. Environment checks and 48 regression tests passed.
+- Native child-agent study is documented in [SUBAGENT-ARCHITECTURE.md](SUBAGENT-ARCHITECTURE.md). AgentTeams remains installed; the subsequent read-only integration is described above.
+
 ## Resource hardening (2026-09-08)
 
 - Persisted research admission with eligible FIFO dispatch: two active chats per user, ten globally by default. Docker uses a separate two/ten queue. Operator configuration can reduce limits without exposing runtime controls to ordinary users.

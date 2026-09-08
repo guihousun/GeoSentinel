@@ -87,3 +87,4 @@ div:has(> [data-slot="details"]) {container-type:inline-size;}
 .geo-native-queue li {overflow-wrap:anywhere;}
 .geo-native-usage {padding:12px 0;border-bottom:1px solid var(--geo-border);font-size:14px;line-height:1.6;}
 .geo-native-usage p {margin:8px 0;}
+.geo-native-child-readonly {display:flex;align-items:center;justify-content:space-between;gap:16px;width:calc(100% - 32px);max-width:760px;margin:0 auto;padding:12px 0;box-sizing:border-box;color:var(--geo-text);font-size:14px;line-height:1.5;}
