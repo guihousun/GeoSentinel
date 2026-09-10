@@ -14,6 +14,15 @@ const requireProduct = createRequire(new URL("../../package.json", import.meta.u
 const baseline = new Set(["react", "react/jsx-runtime", "react-dom", "react-dom/client",
   "@deepseek-ai/cordis", "@deepseek-ai/dsh-client-store",
   "@deepseek-ai/dsh-client-ui-slots", "@deepseek-ai/dsh-client-ui-primitives"]);
+// The client packages the product shell boots. This is the SAME core set the pre-0.1.5
+// shell bundled (checked against the 0.1.2-era module: modules, locale, theme, layout,
+// renderer, session, conversation, chat, tool, user-questions, subagent, input-trigger),
+// followed by the surfaces that only exist from 0.1.5 on. Anything else — trajectory,
+// jobs, goal, skill, settings, model selection, permission presets, reference,
+// message-feedback, workflow-run, directory pickers, api-* — stays out until a product
+// need justifies it AND the closed-plane check below passes; that is not a migration
+// regression, it is the product's long-standing narrow surface. `tests/native-ui.test.mjs`
+// pins this list against the served bundle and boot payload, so a silent drop fails.
 export const nativePlugins = [
   "dsh-client-modules", "dsh-client-locale", "dsh-client-ui-theme",
   "dsh-client-ui-layout", "dsh-client-ui-renderer", "dsh-client-ui-session",
@@ -122,12 +131,17 @@ export async function nativeAssets() {
     try { manifestPath = resolver.resolve(name + "/package.json"); }
     catch (error) {
       if (!missingModule(error)) throw error;
+      // A transitive dependency that is simply absent from its parent's own scope must
+      // be skipped quietly: throwing here aborted the REST of that package's collection
+      // and the caller then reported the parent as "not installed", which is exactly the
+      // misleading line the 0.1.5 sidebar family produced.
+      if (resolver !== requireWeb) { if (required) throw error; return; }
       // A client package the product declares as its OWN dependency is linked at the
       // product root, which the web-app's dependency closure cannot see — the 0.1.5
       // sidebar-right family is exactly that case. Fall back to the product's own root
       // once, so declaring the dependency is enough to make it resolvable.
-      if (resolver !== requireWeb) throw error;
-      manifestPath = requireProduct.resolve(name + "/package.json");
+      try { manifestPath = requireProduct.resolve(name + "/package.json"); }
+      catch (fallback) { if (!required && missingModule(fallback)) return; throw error; }
     }
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
     if (name.startsWith("@deepseek-ai/dsh-") && manifest.version !== version)

@@ -107,7 +107,12 @@ test("the product shell bundles the 0.1.5 surfaces it reuses", async () => {
   const { createRequire } = await import("node:module");
   const { nativeAssets } = await import("../plugins/workbench/native-host.mjs");
   const requireWeb = createRequire(import.meta.resolve("@deepseek-ai/dsh-web-app"));
-  const installed = (name) => { try { requireWeb.resolve(name + "/package.json"); return true; } catch { return false; } };
+  const installed = (name) => {
+    try { requireWeb.resolve(name + "/package.json"); return true; } catch { }
+    // The product declares some client packages as its OWN direct dependencies; those
+    // are linked beside dsh/package.json and invisible to the web-app's closure.
+    try { createRequire(new URL("../package.json", import.meta.url)).resolve(name + "/package.json"); return true; } catch { return false; }
+  };
   const assets = await nativeAssets();
   // Core surfaces must always be in the bundle; the 0.1.5-only ones are asserted
   // only when the installed client actually ships them (the product's pins are
@@ -149,6 +154,16 @@ test("the product shell bundles the 0.1.5 surfaces it reuses", async () => {
   // Only the 0.1.5 line ships the tab pair this provider belongs to.
   if (installed("@deepseek-ai/dsh-client-ui-sidebar-documentpreview"))
     assert.ok(assets.entries.includes("@deepseek-ai/dsh-api-workspace-files"), "资源提供者未引导：文档预览会报「文件资源服务不可用」");
+  // The declared list is the contract: every bundled native surface must be in the
+  // served bundle, and its boot state must match `noBoot` exactly. This is what catches
+  // a silent drop (a package vanishing from the shell) or a silent boot (an entry that
+  // waits for a closed service and blanks the whole client).
+  const { nativePlugins, noBoot } = await import("../plugins/workbench/native-host.mjs");
+  for (const name of nativePlugins) {
+    if (!installed(name)) continue;
+    assert.ok(assets.bundle.includes(name), `未打包声明的界面包 ${name}`);
+    assert.equal(assets.entries.includes(name), !noBoot.has(name), `${name} 的引导状态与 noBoot 不一致`);
+  }
   assert.match(assets.html, /地缘环境智能计算平台/);
   assert.match(assets.html, /MutationObserver/, "产品标题需要在原生客户端改写后恢复");
 });
