@@ -15,11 +15,14 @@ const singles = ["dsh/package.json", "dsh/pnpm-lock.yaml", "monitoring/sources.p
 const requiredFrozen = ["monitoring/sources.py"];
 const sha = (data) => createHash("sha256").update(data).digest("hex");
 // Ordinary-user boundaries the product keeps closed in the shipped profile.
-// `agent-presets` is deliberately NOT here any more: on the 0.1.5 line a session
-// receives its delegation tools from a preset, and the ordinary-user ceiling is
-// enforced by the platform allowlist plus its guard (a preset tool outside that
-// list is refused). The client-side preset picker stays disabled instead.
-const requiredDisabled = ["connection", "api-remotes", "directory-picker", "tool-cordis", "tool-workflow", "web-runtime"];
+// `connection` and `web-runtime` are deliberately NOT here on the 0.1.5 line: the
+// native stack depends on the `connection`/`fileUploads` services they publish
+// (open-in-app, the upload dock, the deliverables panel and the session
+// controller all wait for them), and disabling either aborts the plugin tree.
+// Ordinary users still never reach the native shell — `/` is behind DSH's own
+// single-user token auth — while `agent-presets` provides the delegation tools
+// under the platform allowlist and guard.
+const requiredDisabled = ["api-remotes", "directory-picker", "tool-cordis", "tool-workflow"];
 // The non-domain tools a research role may hold: loading a skill, reading its
 // references/ inside the fenced workspace + skill roots, writing only inside the
 // chat's own outputs/ (write/edit), verifying sources on the web (event tracker

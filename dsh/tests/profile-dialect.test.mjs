@@ -39,8 +39,12 @@ test("a re-serialized profile keeps !!js readable and evaluable by the DSH loade
     // A plain parse must NOT be mistaken for a working row: the literal string
     // is exactly the failure this dialect prevents.
     assert.notEqual(typeof amap.config.url, "string");
-    for (const id of ["connection", "api-remotes", "directory-picker", "tool-cordis", "tool-workflow", "web-runtime"])
+    for (const id of ["api-remotes", "directory-picker", "tool-cordis", "tool-workflow"])
       assert.equal(back.find((row) => row.id === id)?.disabled, true, `权限边界行 ${id} 丢失`);
+    // 0.1.5's native stack needs these two rows enabled (see the profile comment):
+    // their services are what the session controller and the client surfaces wait for.
+    for (const id of ["connection", "web-runtime"])
+      assert.equal(back.find((row) => row.id === id)?.disabled, false, `${id} 在 0.1.5 必须启用`);
     // Native delegation comes from the session preset, not from a host row, so the
     // preset mechanism is enabled while the picker UI stays hidden.
     assert.equal(back.find((row) => row.id === "agent-presets")?.disabled, false, "agent-presets 必须启用（原生委派依赖它）");

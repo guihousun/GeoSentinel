@@ -37,7 +37,18 @@ test("product publication refuses personal authority, credentials and unsafe pro
   const profile = await readFile(new URL("../profile/cordis.patch.yml", import.meta.url), "utf8");
   const rows = validateProfile(profile);
   assert.ok(rows.length);
-  assert.throws(() => validateProfile(profile.replace("- id: connection\n  disabled: true", "- id: connection\n  disabled: false").replace("- id: connection\r\n  disabled: true", "- id: connection\r\n  disabled: false")));
+  // Every row the release still requires disabled must be refused when a profile
+  // tries to re-enable it — checked against the shipped file, so the list cannot
+  // drift away from the guard.
+  for (const id of ["api-remotes", "directory-picker", "tool-cordis", "tool-workflow"]) {
+    const target = `- id: ${id}\n  disabled: true`;
+    assert.ok(profile.includes(target), `profile 缺少必需关闭的行 ${id}`);
+    assert.throws(
+      () => validateProfile(profile.replace(target, `- id: ${id}\n  disabled: false`)),
+      undefined,
+      `${id} 被重新启用时应当拒绝发布`,
+    );
+  }
   // The shipped product.json is the published role table: it must stay valid and
   // stay inside the platform's published allowlist, so a role cannot be granted a
   // tool the release never exposes (the agent-teams row is gone in the 0.1.5 line).
