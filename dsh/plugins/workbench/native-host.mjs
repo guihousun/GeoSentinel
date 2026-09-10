@@ -15,15 +15,14 @@ export const nativePlugins = [
   "dsh-client-ui-layout", "dsh-client-ui-renderer", "dsh-client-ui-session",
   "dsh-client-ui-conversation", "dsh-client-ui-chat", "dsh-client-ui-tool",
   "dsh-client-ui-user-questions", "dsh-client-ui-subagent", "dsh-client-ui-input-trigger",
-  // 0.1.5 surfaces the product reuses instead of re-implementing: the deliverables
-  // panel, the resources/files surface and "open in app".
-  //
-  // NOT included yet: `dsh-client-ui-plan` (and `ui-commands`, which exists only to
-  // satisfy it). Both wait for the client-side `remote.commands` service, which the
-  // host does not expose in this composition, so adding them makes the whole client
-  // bundle fail to activate ("web boot: 2 entries did not activate") and the product
-  // shell renders nothing. Prerequisite: expose the host `commands` service to the
-  // client, then the native plan panel can replace our own plan surface.
+  // NOT included on purpose: `dsh-client-ui-plan` (and `ui-commands`, which exists
+  // only to satisfy it). Both wait for the client-side `remote.commands` service,
+  // i.e. the Host Remote channel published by `@deepseek-ai/dsh-typert-protocol`,
+  // which `api-remotes` exposes to the browser. The product keeps `api-remotes`
+  // closed so an ordinary user's browser never gets a direct host-service channel,
+  // so the plan UI stays OURS (the ask_user_question review flow) and bundling the
+  // native panel is not just unnecessary but breaks the whole client bundle
+  // ("web boot: 2 entries did not activate", nothing renders).
   "dsh-client-ui-deliverables", "dsh-client-resources",
   "dsh-client-ui-open-in-app",
 ].map((name) => "@deepseek-ai/" + name);

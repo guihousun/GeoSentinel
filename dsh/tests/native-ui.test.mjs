@@ -102,10 +102,10 @@ test("the product shell bundles the 0.1.5 surfaces it reuses", async () => {
   for (const name of ["@deepseek-ai/dsh-client-ui-deliverables",
     "@deepseek-ai/dsh-client-resources", "@deepseek-ai/dsh-client-ui-open-in-app"])
     if (installed(name)) assert.ok(assets.bundle.includes(name), `外壳未包含 ${name}`);
-  // The plan panel is deliberately excluded: it waits for the client-side
-  // `remote.commands` service this composition does not expose, and bundling it
-  // makes the whole client bundle fail to activate.
-  assert.ok(!assets.bundle.includes("@deepseek-ai/dsh-client-ui-plan"), "方案面板需要先暴露 remote.commands");
+  // The native plan panel is excluded by design: it needs the client-side
+  // `remote.commands` Host Remote, which only `api-remotes` publishes — and the
+  // product keeps that row closed so a user's browser gets no host-service channel.
+  assert.ok(!assets.bundle.includes("@deepseek-ai/dsh-client-ui-plan"), "方案面板需要 api-remotes，产品保持关闭");
   assert.match(assets.html, /地缘环境智能计算平台/);
   assert.match(assets.html, /MutationObserver/, "产品标题需要在原生客户端改写后恢复");
 });

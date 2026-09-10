@@ -160,10 +160,23 @@ export function apply(ctx, config = {}) {
     let entries = [];
     try { entries = (await service.remoteExportList(chatId, new AbortController().signal)).entries ?? []; } catch { return; }
     const known = new Map(store.db.prepare("SELECT id,role FROM agent_sessions WHERE chat_id=?").all(chatId).map((row) => [row.id, row.role]));
+    let unbound = null;
     for (const entry of entries) {
       if (entry.kind !== "child" || !entry.id || known.has(entry.id)) continue;
-      const role = RESEARCH_ROLES.find((name) => String(entry.label ?? "").includes(name));
-      if (!role) continue;
+      // The native catalog carries the delegation `description` as `label`, and the
+      // supervisor is told to start it with the role name. When it writes the role
+      // in the prompt body instead, fall back to the child's own first user message
+      // so a specialist is still bound to its role table.
+      let role = RESEARCH_ROLES.find((name) => String(entry.label ?? "").includes(name));
+      if (!role) {
+        try {
+          const child = await ctx.sessionController.inspect(entry.id);
+          const first = (child.events ?? []).find((event) => event.type === "user/message");
+          const body = JSON.stringify(first?.data?.content ?? "");
+          role = RESEARCH_ROLES.find((name) => body.includes(name));
+        } catch { role = undefined; }
+      }
+      if (!role) { unbound ??= entry; continue; }
       try { store.recordChild(chatId, entry.id, storedRole(role)); } catch { continue; }
       const child = ctx.agents?.get?.(entry.id);
       const table = ROLE_TOOLS[role];
@@ -171,6 +184,13 @@ export function apply(ctx, config = {}) {
         try { child.ctx.tools.restrict({ allow: table }); }
         catch (error) { console.error("GeoSentinel: 专家工具限制未生效（按守卫拦截）：" + error.message); }
       }
+    }
+    // One diagnostic per process: a specialist that ran but could not be bound would
+    // otherwise silently keep the supervisor's tool surface and stay invisible in
+    // the member list. The entry shape is the native catalog's, so print it raw.
+    if (unbound && !bindWarned) {
+      bindWarned = true;
+      console.error("GeoSentinel: 子代理无法绑定角色，目录条目为：" + JSON.stringify(unbound).slice(0, 600));
     }
   }
   ctx.on("geosentinel/member-created", (record) =>
@@ -202,6 +222,7 @@ export function apply(ctx, config = {}) {
   });
   const allowed = new Set([...TEAM_TOOLS, ...DOMAIN_TOOLS, ...FS_READ_TOOLS, ...FS_WRITE_TOOLS, ...WEB_TOOLS, ...DOCUMENT_TOOLS, ...VISUAL_TOOLS, ...MCP_TOOLS, ...PLAN_TOOLS, "ask_user_question", "skill"]);
   let restrictWarned = false;
+  let bindWarned = false;
   // The document plugin also registers its own /api/upload route, which has no
   // login check (loopback-only, keyed by an x-session-id header). An exact
   // route shadows it — exact routes win over prefixes — and this shadow
