@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { PlatformStore } from "../plugins/platform/store.mjs";
-import { createUploadProxy, uploadChat } from "../plugins/platform/uploads.mjs";
+import { createUploadProxy, createNativeUploadProxy, uploadChat } from "../plugins/platform/uploads.mjs";
 
 function harness() {
   const dir = mkdtempSync(path.join(tmpdir(), "geo-upload-"));
@@ -69,6 +69,57 @@ test("the upload proxy authenticates, checks ownership and limits, then forwards
   const removed = await call(request({ method: "DELETE", headers: { cookie: h.cookies.alice, "x-session-id": h.chat.id } }));
   assert.equal(removed.status, 200);
   assert.equal(forwarded[1].method, "DELETE");
+});
+
+test("the native attach control uploads through the product bridge, in its own envelope", async (t) => {
+  // On the 0.1.5 line the visible attach control belongs to the native file-upload
+  // plugin and posts to its own route behind DSH's token auth (measured live: 401 and the
+  // file never arrived). The shell points that constant here instead, so this handler has
+  // to authenticate, keep ownership and limits, store through the same handler, and
+  // answer in the envelope the native client parses.
+  const h = harness();
+  t.after(() => { h.store.close(); rmSync(h.dir, { recursive: true, force: true }); });
+  const forwarded = [];
+  let upstream = new Response(JSON.stringify({ path: "/x/.dsh-uploads/y.md", relativePath: ".dsh-uploads/y.md", name: "y.md" }),
+    { status: 200, headers: { "content-type": "application/json" } });
+  const proxy = createNativeUploadProxy({
+    store: h.store,
+    hosts: ["127.0.0.1:8511"],
+    forward: async (req, port, name, chatId) => {
+      forwarded.push({ name, chatId, port, method: req.method });
+      return upstream;
+    },
+  });
+  const call = async ({ url, method = "POST", cookies = h.cookies.alice, headers = {} }) => {
+    const res = response();
+    await proxy({ method, url, headers: { host: "127.0.0.1:8511", "content-length": "10", cookie: cookies, ...headers } }, res, 8511);
+    res.captured.json = (() => { try { return JSON.parse(res.captured.body); } catch { return undefined; } })();
+    return res.captured;
+  };
+  const path = (name = "y.md") => `/api/upload/native?sessionId=${h.chat.id}&name=${name}`;
+
+  assert.equal((await call({ url: path(), cookies: "" })).status, 401);
+  assert.equal((await call({ url: path(), cookies: h.cookies.bob })).status, 404);
+  assert.equal((await call({ url: path("a/b.md") })).status, 400);
+  assert.equal((await call({ url: path(), method: "GET" })).status, 405);
+  assert.equal((await call({ url: path(), headers: { "content-length": String(17 * 1024 * 1024) } })).status, 413);
+
+  const ok = await call({ url: path() });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.json.ok, true);
+  assert.equal(ok.json.value.file.name, "y.md");
+  assert.equal(ok.json.value.file.bytes, 10);
+  // The handles are the stored file's own workspace path, not invented ids.
+  assert.equal(ok.json.value.receiptId, ".dsh-uploads/y.md");
+  assert.equal(ok.json.value.file.attachmentId, ".dsh-uploads/y.md");
+  assert.deepEqual(forwarded, [{ name: "y.md", chatId: h.chat.id, port: 8511, method: "POST" }]);
+
+  upstream = new Response(JSON.stringify({ error: "空间不足" }), { status: 507, headers: { "content-type": "application/json" } });
+  const failed = await call({ url: path() });
+  assert.equal(failed.status, 507);
+  assert.equal(failed.json.ok, false);
+  assert.equal(failed.json.error.message, "空间不足");
+  assert.equal(typeof failed.json.error.details, "object");
 });
 
 test("upload sessions resolve member sessions to their owning chat", (t) => {

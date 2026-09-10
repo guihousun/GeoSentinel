@@ -50,6 +50,78 @@ export function uploadChat(store, user, sessionId) {
 }
 
 /**
+ * Build the handler the NATIVE upload client posts to.
+ *
+ * On the 0.1.5 line the visible attach control belongs to
+ * `@deepseek-ai/dsh-client-file-upload`, which uploads to its own
+ * `/api/session/uploadFileBinary` route — a route served behind DSH's single-user
+ * token auth, so an ordinary product user gets 401 and the file never arrives
+ * (measured: the dock showed 上传失败，点击重试 with one 401 and no stored file). The
+ * shell therefore points that client at this path instead (see
+ * `patchNativeUploadClient` in native-host.mjs), and this handler authenticates the
+ * product session, re-checks chat ownership, enforces the same size and disk limits as
+ * the third-party route, forwards the bytes to that same storage handler, and answers
+ * in the envelope the native client parses:
+ *
+ *   { ok: true, value: { receiptId, file: { attachmentId, name, bytes } } }
+ *
+ * `receiptId`/`attachmentId` are the stored file's workspace-relative path, not invented
+ * handles: anything that resolves them later resolves a real file.
+ * @param options.store - platform store (identity, chats, roots).
+ * @param options.hosts - allowed Host header values.
+ * @param options.forward - test seam; defaults to the loopback request to the plugin.
+ */
+export function createNativeUploadProxy({ store, hosts, forward }) {
+  const send = forward ?? (async (req, port, name, chatId) => {
+    const headers = { "content-type": "application/octet-stream", "x-session-id": chatId, "x-file-name": name };
+    if (typeof req.headers["content-length"] === "string") headers["content-length"] = req.headers["content-length"];
+    return fetch(`http://127.0.0.1:${port}/api/upload/forward`, { method: "POST", headers, body: req, duplex: "half" });
+  });
+  const respond = (res, status, value) => {
+    res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+    res.end(JSON.stringify(value));
+  };
+  return async (req, res, port) => {
+    try {
+      if (req.method !== "POST") throw new PlatformError(405, "请求方式不支持");
+      if (!hosts.includes(req.headers.host)) throw new PlatformError(403, "访问域名未获授权");
+      const url = new URL(req.url, "http://localhost");
+      const page = url.pathname;
+      const name = String(url.searchParams.get("name") ?? "").trim();
+      if (name === "" || name.includes("/") || name.includes("\\") || name.includes("\0")) throw new PlatformError(400, "文件名称无效");
+      const user = store.authenticate(cookieToken(req));
+      const chat = uploadChat(store, user, url.searchParams.get("sessionId"));
+      const declared = Number(req.headers["content-length"]);
+      if (Number.isFinite(declared) && declared > MAX_FILE_BYTES) throw new PlatformError(413, "单个上传文件上限为 16 MiB");
+      const used = await directoryBytes(path.join(store.chatRoot(user, chat.id), ".dsh-uploads"));
+      if (used >= MAX_CHAT_UPLOAD_BYTES) throw new PlatformError(413, "本对话的上传文件已达上限，请先删除不再需要的文件");
+      await new WorkspaceFiles(store, undefined).checkSpace(Number.isFinite(declared) ? declared : MAX_FILE_BYTES);
+      const upstream = await send(req, port, name, chat.id);
+      const body = await upstream.text();
+      if (upstream.status !== 200) {
+        respond(res, upstream.status, { ok: false, error: { code: "geosentinel/upload", message: statusMessage(upstream.status, body), details: { path: page } } });
+        return;
+      }
+      let stored = {};
+      try { stored = JSON.parse(body); } catch { stored = {}; }
+      const relative = typeof stored.relativePath === "string" ? stored.relativePath : undefined;
+      respond(res, 200, { ok: true, value: {
+        receiptId: relative ?? stored.path ?? name,
+        file: { attachmentId: relative ?? stored.path ?? name, name: typeof stored.name === "string" ? stored.name : name,
+          bytes: Number.isFinite(declared) ? declared : 0 } } });
+    } catch (error) {
+      const status = error.status ?? 500;
+      respond(res, status, { ok: false, error: { code: "geosentinel/upload", message: status === 500 ? "上传服务暂不可用" : error.message, details: {} } });
+    }
+  };
+}
+
+function statusMessage(status, body) {
+  const parsed = (() => { try { return JSON.parse(body); } catch { return undefined; } })();
+  return parsed?.error ?? `上传服务返回 ${status}`;
+}
+
+/**
  * Build the authenticated `/api/upload` handler.
  * @param options.store - platform store (identity, chats, roots).
  * @param options.hosts - allowed Host header values.

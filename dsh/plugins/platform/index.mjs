@@ -7,7 +7,7 @@ import { publicEvent } from "./public-events.mjs";
 import { ResearchQueue } from "./admission.mjs";
 import { containedPath, containedWrite } from "./files.mjs";
 import { parseShareDirs, shareContained, shareTarget } from "./share.mjs";
-import { createUploadProxy } from "./uploads.mjs";
+import { createUploadProxy, createNativeUploadProxy } from "./uploads.mjs";
 import { allowedTools, policyPath, readPolicy, skillEnabled } from "./capability-policy.mjs";
 import { DOMAIN_TOOLS, DOCUMENT_TOOLS, FS_READ_TOOLS, FS_WRITE_TOOLS, MCP_TOOLS, PLAN_TOOLS, TEAM_TOOLS, VISUAL_TOOLS, WEB_TOOLS } from "./catalog.mjs";
 import { registerProductSkills } from "./skills.mjs";
@@ -234,6 +234,18 @@ export function apply(ctx, config = {}) {
       kind: "exact",
       path: "/api/upload",
       handler: (req, res) => uploadProxy(req, res, ctx.webServer.port),
+    }),
+  );
+  // The native attach control (0.1.5) uploads to its own route behind DSH's token auth,
+  // which an ordinary user does not have; the shell redirects that client here
+  // (`patchNativeUploadClient`) and this handler authenticates, checks ownership and
+  // limits, then reuses the very same storage handler.
+  const nativeUploadProxy = createNativeUploadProxy({ store, hosts });
+  ctx.effect(() =>
+    ctx.webServer.register({
+      kind: "exact",
+      path: "/api/upload/native",
+      handler: (req, res) => nativeUploadProxy(req, res, ctx.webServer.port),
     }),
   );
   ctx.inject(["systemPrompt"], (inner) => {

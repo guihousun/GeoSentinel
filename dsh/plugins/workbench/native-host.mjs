@@ -116,13 +116,29 @@ export async function nativeAssets() {
   // source (the installed package stays untouched) and fail loudly if the
   // pinned version ever changes so the patch is re-checked.
   function patchUploadClient(name, packageVersion, source) {
-    if (name !== "dsh-file-upload") return source;
-    if (packageVersion !== "0.4.3") throw new Error(`dsh-file-upload ${packageVersion} is not the patched version`);
-    const fixed = source
-      .replaceAll("for (const listener of errorListeners) listener();", "for (const listener of errorListeners) listener(uploadError);")
-      .replace("error !== null &&", "error != null &&");
-    if (fixed === source) throw new Error("dsh-file-upload client patch no longer matches the installed source");
-    return fixed;
+    if (name === "dsh-file-upload") {
+      if (packageVersion !== "0.4.3") throw new Error(`dsh-file-upload ${packageVersion} is not the patched version`);
+      const fixed = source
+        .replaceAll("for (const listener of errorListeners) listener();", "for (const listener of errorListeners) listener(uploadError);")
+        .replace("error !== null &&", "error != null &&");
+      if (fixed === source) throw new Error("dsh-file-upload client patch no longer matches the installed source");
+      return fixed;
+    }
+    if (name === "@deepseek-ai/dsh-client-file-upload") return patchNativeUploadClient(packageVersion, source);
+    return source;
+  }
+  // The native attach control (0.1.5) posts to its own `/api/session/uploadFileBinary`,
+  // a route behind DSH's single-user token auth — an ordinary product user gets 401 and
+  // the file never reaches the workspace (measured: 上传失败，点击重试, one 401, nothing
+  // stored). Point that one constant at the product's authenticated bridge instead
+  // (platform/uploads.mjs `createNativeUploadProxy`), which stores through the same
+  // handler the product already uses. The installed package stays untouched; a version
+  // change fails loudly so the rewrite is re-checked.
+  function patchNativeUploadClient(packageVersion, source) {
+    const original = 'const FILE_UPLOAD_PATH = "/api/session/uploadFileBinary";';
+    if (!source.includes(original))
+      throw new Error(`@deepseek-ai/dsh-client-file-upload ${packageVersion} no longer carries ${original}`);
+    return source.replace(original, 'const FILE_UPLOAD_PATH = "/api/upload/native";');
   }
   async function collect(name, resolver = requireWeb, required = true) {
     name = name.replace(/\/client$/, "");
@@ -290,7 +306,14 @@ export function nativeHandler() {
       mime = ({ ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".webmanifest": "application/manifest+json" })[path.extname(file)] ?? "application/octet-stream";
     }
     res.writeHead(200, { "content-type": mime, "cache-control": "no-store", "x-content-type-options": "nosniff",
-      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'" });
+      // `worker-src 'self' blob:` — the native upload client runs its background
+      // transport in a Worker built from a blob URL (`new Worker(URL.createObjectURL(
+      // new Blob(["(" + worker + ")()"], {type:"text/javascript"})))`). Without this
+      // directive the shell's `default-src 'self'` blocks that worker, so the attach
+      // control accepted a file and then failed before any request was sent
+      // ("上传失败，点击重试" with zero upload traffic). The blob is created by our own
+      // page from our own code, so allowing blob workers keeps script-src tight.
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'" });
     res.end(req.method === "HEAD" ? undefined : body);
     return true;
   };
