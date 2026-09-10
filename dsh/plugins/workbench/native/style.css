@@ -16,6 +16,15 @@ body {font-family:Inter,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;letter
 .geo-native-projects section {margin:12px 0;}
 .geo-native-projects section > button {width:100%;padding-left:30px;}
 .geo-native-bottom {border-top:1px solid var(--geo-border);padding-top:12px;display:grid;gap:4px;}
+/* From 0.1.5 the native sidebar hosts the product's project tree (`sidebar.workspaces`)
+   and tool entries (`sidebar.footer.action`) inside its own region containers, so the
+   row styling can no longer hang off `.geo-native-sidebar`. Same look, scoped to the
+   product's own wrappers instead. */
+.geo-native-tree {display:flex;flex-direction:column;gap:12px;flex:1;min-height:0;box-sizing:border-box;color:var(--dsw-alias-label-primary,#20242a);font-size:14px;}
+.geo-native-tree button,.geo-native-bottom button {display:flex;align-items:center;gap:8px;min-height:36px;padding:8px 10px;border:0;border-radius:6px;background:transparent;color:inherit;text-align:left;cursor:pointer;font:inherit;}
+.geo-native-tree button:hover,.geo-native-tree button.selected,.geo-native-bottom button:hover {background:var(--dsw-alias-interactive-bg-hover);}
+.geo-native-tree svg,.geo-native-bottom svg {flex:none;}
+.geo-native-bottom {width:100%;}
 .geo-native-auth {position:absolute;inset:0;background:var(--geo-surface);display:grid;place-items:center;z-index:40;}
 .geo-native-auth-form {width:min(480px,90vw);display:grid;gap:16px;color:var(--geo-text);}
 .geo-native-auth h1 {font-size:28px;margin:0 0 16px;}

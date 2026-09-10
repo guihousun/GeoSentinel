@@ -174,3 +174,53 @@ test("native client restores remembered history and keeps project/file ownership
   assert.equal((await services.sessions.binding("c2").session.prompt([{ type: "text", text: "你好" }])).ok, true);
   assert.ok(requests.includes("/chats/c2/prompt"), "prompt 未发送到平台接口");
 });
+
+// From 0.1.5 the native sidebar family owns the single `sidebar` slot, so the overlay
+// must contribute at the two positions that shell declares instead: `sidebar.workspaces`
+// for the project/chat navigation (its native filler `ui-workspace` cannot activate —
+// it waits for the closed host directory picker) and `sidebar.footer.action` for the
+// product entries that the retired better-sidebar tabs used to carry. On the older line
+// it must keep registering its own sidebar and neither native slot.
+async function loadOverlay(nativeSidebar) {
+  const source = await readFile(new URL("../plugins/workbench/native/client.js", import.meta.url), "utf8");
+  const slots = new Map();
+  const ctx = { provide: (key, value) => { ctx[key] = value; }, get: () => undefined, plugin: () => ({ dispose() {} }), inject() {}, on() {},
+    slots: { provideRoot() {}, inject(name, register) { register(); }, register(config, component) { slots.set(config.name, { config, component }); } } };
+  const snapshot = (initial) => { let state = initial; return { getSnapshot: () => state, subscribe: () => () => {}, set: (next) => { state = next; } }; };
+  vm.runInNewContext(source, {
+    __GEOSENTINEL_NATIVE_SIDEBAR__: nativeSidebar,
+    window: { __ModuleLoader__: { load({ factory }) { factory((id) => {
+      if (id === "react") return { createElement: () => null, Fragment: {},
+        useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot(), useRef: () => ({}), useEffect() {}, useLayoutEffect() {} };
+      if (id.includes("client-store")) return { createSnapshotStore: snapshot };
+      if (id.includes("api-session-controller")) return { createScope: () => ({ ctx: {}, fiber: { dispose() {} } }), scopeOf() {}, MutableSessionEventSource: class { replace() {} } };
+      return {};
+    }).apply(ctx); } } },
+    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    EventSource: class { close() {} }, setInterval: () => 1, clearInterval() {}, setTimeout, clearTimeout,
+    crypto: { randomUUID: () => "id" },
+    fetch: async () => ({ ok: true, json: async () => ({ user: null }) }),
+  });
+  for (let i = 0; i < 4; i++) await new Promise(setImmediate);
+  return slots;
+}
+
+test("the overlay fills the native sidebar's declared positions on 0.1.5 and keeps its own sidebar before it", async () => {
+  const native = await loadOverlay(true);
+  assert.ok(native.has("sidebar.workspaces"), "未注册原生侧栏的会话列表区域");
+  assert.ok(native.has("sidebar.footer.action"), "未注册原生侧栏的工具入口区域");
+  assert.equal(native.has("sidebar"), false, "原生侧栏存在时不应再抢占 sidebar 槽位");
+  // The registered components must survive a render with no signed-in user instead of
+  // throwing inside the native shell.
+  const state = { user: null };
+  for (const name of ["sidebar.workspaces", "sidebar.footer.action"]) {
+    assert.equal(native.get(name).component({ wide: true }), null, name);
+    assert.equal(native.get(name).component({ wide: false }), null, name);
+  }
+  assert.equal(state.user, null);
+
+  const legacy = await loadOverlay(false);
+  assert.ok(legacy.has("sidebar"), "旧版内核上必须继续注册产品自己的侧栏");
+  assert.equal(legacy.has("sidebar.workspaces"), false);
+  assert.equal(legacy.has("sidebar.footer.action"), false);
+});

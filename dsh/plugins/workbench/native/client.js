@@ -406,27 +406,49 @@ window.__ModuleLoader__.load({
         return h("section", { className: "geo-unified-development", hidden: s.view !== "development", style: { left }, "aria-label": "创造任务" },
           h("iframe", { ref: (element) => { developmentFrame = element; }, src: s.developmentUrl, title: "原生 DSH 创造任务", className: "geo-development-frame" }));
       }
-      function Sidebar({ collapsed }) {
+      // Project/chat navigation. The product renders it inside its own sidebar on the
+      // older line; from 0.1.5 the native sidebar owns that column and exposes the
+      // `sidebar.workspaces` region, whose native filler is `ui-workspace` — the plugin
+      // whose activation needs the closed host directory picker. Filling the native
+      // position with the product's own project/chat model keeps navigation instead of
+      // trading it away. `wide` is the native sidebar's own collapsed signal: in the
+      // rail the native toggle stays and the hero picker still covers selection, which
+      // is the same behaviour the product's own collapsed sidebar had.
+      function ProjectTree({ wide = true }) {
         const s = useState(), l = useList();
+        if (!s.user || !wide) return null;
+        return h("div", { className: "geo-native-tree" },
+          s.previewMode && h("strong", { role: "status" }, "用户版预览"),
+          s.releaseUpdate && button("新版已发布，刷新页面", icons.IconRefreshOutline16, () => location.reload()),
+          s.user.admin && h("div", { className: "geo-mode-tabs", role: "group", "aria-label": "任务模式" }, button("研究任务", icons.IconNewChatOutline16, () => set({ view: "research" }), { "aria-pressed": s.view === "research" }), button("创造任务", icons.IconSettingsOutline16, () => enterDevelopment(), { "aria-pressed": s.view === "development" })),
+          s.view !== "development" && button("新建项目", icons.IconProjectAddOutline16, () => set({ panel: "project" })),
+          h("nav", { "aria-label": s.view === "development" ? "创造任务" : "研究项目", className: "geo-native-projects" }, ...s.projects.filter(() => s.view !== "development").map((p) => h("section", { key: p.id },
+            h("div", { className: "geo-native-project-title" }, button(p.title, icons.IconFolderOpenOutline16, () => selectProject(p.id)), button("新建对话", icons.IconPlusOutline16, () => create({ workspaceId: p.id }), { iconOnly: true, disabled: p.archived }), button("管理项目", icons.IconSettingsOutline16, () => set({ panel: "edit", editing: { kind: "projects", id: p.id, title: p.title } }), { iconOnly: true })),
+            ...l.ids.filter((id) => l.byId[id].projectId === p.id).map((id) => h("div", { key: id, className: "geo-native-chat-row" }, button(l.byId[id].displayTitle, icons.IconNewChatOutline16, () => open(id), { className: s.view === "research" && l.current === id ? "selected" : "" }), button("管理对话", icons.IconSettingsOutline16, () => set({ panel: "edit", editing: { kind: "chats", id, title: l.byId[id].displayTitle } }), { iconOnly: true }))))),
+            s.user.admin && s.view === "development" && h("section", { className: "geo-development-project" }, h("div", { className: "geo-native-project-title" }, button("GeoSentinel 开发", icons.IconFolderOpenOutline16, () => enterDevelopment()), button("新建创造任务", icons.IconPlusOutline16, () => enterDevelopment({ type: "geo:development-create" }), { iconOnly: true })),
+              ...s.developmentItems.map((item) => h("div", { key: item.id, className: "geo-native-chat-row" }, button(item.title, icons.IconNewChatOutline16, () => enterDevelopment({ type: "geo:development-open", id: item.id }), { className: s.view === "development" && s.developmentCurrent === item.id ? "selected" : "" }), item.running && h("span", { role: "status" }, "运行中"), button("管理创造任务", icons.IconSettingsOutline16, () => set({ panel: "edit", editing: { kind: "development", id: item.id, title: item.title } }), { iconOnly: true }))))));
+      }
+      // The product's tool entries. From 0.1.5 they live in the native sidebar's
+      // `sidebar.footer.action` list, which is what the retired better-sidebar tabs
+      // used to provide — including 监测简报 and 空间数据, so those panels get an entry
+      // back instead of only being reachable from inside the conversation header.
+      function ProductEntries({ wide = true }) {
+        const s = useState();
+        if (!s.user) return null;
+        if (!wide) return button("全球事件监测", icons.IconGlobeOutline14, () => openResearchTab("monitor"), { iconOnly: true });
+        return h("div", { className: "geo-native-bottom" },
+          button("全球事件监测", icons.IconGlobeOutline14, () => openResearchTab("monitor")),
+          button("监测简报", icons.IconListPenOutline16, () => openResearchTab("briefs")),
+          button("空间数据", icons.IconDataOutline16, () => openResearchTab("spatial")),
+          s.user.admin && button("管理中心", icons.IconSettingsOutline16, async () => { const data = await api("/admin/users"); set({ panel: "admin", users: data.users }); }),
+          s.user.admin && button("产品配置与发布", icons.IconSettingsOutline16, () => set({ panel: "releases" })),
+          s.user.admin && button("管理员设置", icons.IconSettingsOutline16, () => enterDevelopment({ type: "geo:development-settings" })),
+          button(s.user.username, icons.IconUserOutline16, () => set({ panel: "account" })));
+      }
+      function Sidebar({ collapsed }) {
         return h("aside", { className: "geo-native-sidebar" },
           h("div", { className: "geo-native-toolbar" }, !collapsed && h("strong", null, "地缘环境智能计算平台"), button("收起或展开侧栏", icons.IconPanelLeftOutline16, () => layoutCall("toggleSidebar"), { iconOnly: true })),
-          s.user && !collapsed && h(React.Fragment, null,
-            s.previewMode && h("strong", { role: "status" }, "用户版预览"),
-            s.releaseUpdate && button("新版已发布，刷新页面", icons.IconRefreshOutline16, () => location.reload()),
-            s.user.admin && h("div", { className: "geo-mode-tabs", role: "group", "aria-label": "任务模式" }, button("研究任务", icons.IconNewChatOutline16, () => set({ view: "research" }), { "aria-pressed": s.view === "research" }), button("创造任务", icons.IconSettingsOutline16, () => enterDevelopment(), { "aria-pressed": s.view === "development" })),
-            s.view !== "development" && button("新建项目", icons.IconProjectAddOutline16, () => set({ panel: "project" })),
-            h("nav", { "aria-label": s.view === "development" ? "创造任务" : "研究项目", className: "geo-native-projects" }, ...s.projects.filter(() => s.view !== "development").map((p) => h("section", { key: p.id },
-              h("div", { className: "geo-native-project-title" }, button(p.title, icons.IconFolderOpenOutline16, () => selectProject(p.id)), button("新建对话", icons.IconPlusOutline16, () => create({ workspaceId: p.id }), { iconOnly: true, disabled: p.archived }), button("管理项目", icons.IconSettingsOutline16, () => set({ panel: "edit", editing: { kind: "projects", id: p.id, title: p.title } }), { iconOnly: true })),
-              ...l.ids.filter((id) => l.byId[id].projectId === p.id).map((id) => h("div", { key: id, className: "geo-native-chat-row" }, button(l.byId[id].displayTitle, icons.IconNewChatOutline16, () => open(id), { className: s.view === "research" && l.current === id ? "selected" : "" }), button("管理对话", icons.IconSettingsOutline16, () => set({ panel: "edit", editing: { kind: "chats", id, title: l.byId[id].displayTitle } }), { iconOnly: true }))))),
-              s.user.admin && s.view === "development" && h("section", { className: "geo-development-project" }, h("div", { className: "geo-native-project-title" }, button("GeoSentinel 开发", icons.IconFolderOpenOutline16, () => enterDevelopment()), button("新建创造任务", icons.IconPlusOutline16, () => enterDevelopment({ type: "geo:development-create" }), { iconOnly: true })),
-                ...s.developmentItems.map((item) => h("div", { key: item.id, className: "geo-native-chat-row" }, button(item.title, icons.IconNewChatOutline16, () => enterDevelopment({ type: "geo:development-open", id: item.id }), { className: s.view === "development" && s.developmentCurrent === item.id ? "selected" : "" }), item.running && h("span", { role: "status" }, "运行中"), button("管理创造任务", icons.IconSettingsOutline16, () => set({ panel: "edit", editing: { kind: "development", id: item.id, title: item.title } }), { iconOnly: true }))))),
-            h("div", { className: "geo-native-bottom" },
-              button("全球事件监测", icons.IconGlobeOutline14, () => openResearchTab("monitor")),
-              s.user.admin && button("管理中心", icons.IconSettingsOutline16, async () => { const data = await api("/admin/users"); set({ panel: "admin", users: data.users }); }),
-              s.user.admin && button("产品配置与发布", icons.IconSettingsOutline16, () => set({ panel: "releases" })),
-              s.user.admin && button("管理员设置", icons.IconSettingsOutline16, () => enterDevelopment({ type: "geo:development-settings" })),
-              button(s.user.username, icons.IconUserOutline16, () => set({ panel: "account" })))),
-          collapsed && button("全球事件监测", icons.IconGlobeOutline14, () => openResearchTab("monitor"), { iconOnly: true }));
+          h(ProjectTree, { wide: !collapsed }), h(ProductEntries, { wide: !collapsed }));
       }
       function openResearchTab(kind) {
         const service = ctx.get("betterSidebar");
@@ -507,7 +529,9 @@ window.__ModuleLoader__.load({
               h("label", null, "确认管理员密码", h("input", { name: "password", type: "password", autoComplete: "current-password", required: true })),
               h("button", { type: "submit", disabled: busy }, busy ? "正在准备开发环境…" : "确认并继续")),
             s.panel === "releases" && s.user.admin && h(ReleasePanel),
-            s.panel === "monitor" && h(Monitor));
+            s.panel === "monitor" && h(Monitor),
+            s.panel === "briefs" && h(Briefs),
+            s.panel === "spatial" && h(Spatial));
       }
       const MONITOR_TYPES = {
         conflict: { label: "冲突", color: "#991b1b" },
@@ -993,11 +1017,19 @@ window.__ModuleLoader__.load({
       });
       // From 0.1.5 the native sidebar family owns the single `sidebar` slot, and the
       // native chat itself waits for its `sidebarRight` service, so this overlay only
-      // registers the product's own sidebar on the older line (the host tells us
-      // which build this is). The product panels that used to live in better-sidebar
-      // tabs (monitor / briefs / spatial) still need a native sidebar contribution —
-      // tracked as the remaining parity item for 0.1.5.
+      // registers the product's own sidebar on the older line (the host tells us which
+      // build this is). On the native line the product contributes at the two positions
+      // that slot shell declares for exactly this purpose: `sidebar.workspaces` (single,
+      // the session-list region — no other registrar in this bundle, because its native
+      // owner `ui-workspace` needs the closed directory picker) and
+      // `sidebar.footer.action` (list, the tool entries that the retired better-sidebar
+      // tabs used to carry). Reusing those positions is what keeps project/chat
+      // navigation and the 监测简报 / 空间数据 entries on 0.1.5.
       if (!globalThis.__GEOSENTINEL_NATIVE_SIDEBAR__) ctx.slots.inject("sidebar", () => ctx.slots.register({ name: "sidebar" }, Sidebar));
+      else {
+        ctx.slots.inject("sidebar.workspaces", () => ctx.slots.register({ name: "sidebar.workspaces" }, ProjectTree));
+        ctx.slots.inject("sidebar.footer.action", () => ctx.slots.register({ name: "sidebar.footer.action", id: "geo-entries" }, ProductEntries));
+      }
       function ProjectPicker({ open: visible, onPick, onClose }) {
         const s = useState();
         const picker = React.useRef(null);
