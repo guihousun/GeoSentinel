@@ -27,10 +27,10 @@
 - **影响面（先讲清再动手）**：`pnpm install` 替换的是 `dsh/node_modules`。正在运行的正式实例**不受影响**（它读冻结快照里的独立安装），但同一源码树里的**管理员开发实例与管理员当前会话的 DSH 运行时会被替换**。因此升级应在没有进行中的开发会话时执行，或明确接受该会话重启。
 - **步骤**（在 `dsh/` 目录）：
   1. 记录现状：`node scripts/check-env.mjs`、`git status -sb`、`node tools/release.mjs status`。
-  2. 备份可回滚的依赖树：把 `node_modules` 改名为 `node_modules.bak-<日期>`（体积大，确认新树可用后再删）。
-  3. `pnpm install --offline`（能联网时去掉 `--offline`）。pin 与锁文件一致时加 `--frozen-lockfile`；**pin 有变动时先在副本用 `pnpm install --lockfile-only` 正规重生成锁文件再回灌，不要手改 `pnpm-lock.yaml`**。
-  4. 复核：`node scripts/check-env.mjs` 两条失败消失；再用 `createRequire` 从 `node_modules/@deepseek-ai/dsh-web-app/package.json` 打印版本，应等于 pin。
-  5. `pnpm test`，然后按上面「使用流程」走 `prepare → preview → publish`。
+  2. 用升级工具完成切换：先 `node scripts/upgrade-deps.mjs` 看它要做什么（干跑，不改动任何东西），再 `node scripts/upgrade-deps.mjs --apply`。它会先把 `node_modules` 改名为 `node_modules.bak-<时间戳>`（同盘改名，秒级），再装 pin 版本，然后跑 `check-env.mjs` **并**核对安装后的 `@deepseek-ai/dsh-web-app` 版本等于 pin；任一步失败（安装非零退出、校验不过、版本不一致）都会把新树改名到 `node_modules.failed-<时间戳>` 并把备份原样放回 `node_modules`，退出码非零。成功后备份保留，确认无误再手动删除。
+     - 需要临时改用手工步骤时：`pnpm install --offline`（能联网时去掉 `--offline`）。pin 与锁文件一致时加 `--frozen-lockfile`；**pin 有变动时先在副本用 `pnpm install --lockfile-only` 正规重生成锁文件再回灌，不要手改 `pnpm-lock.yaml`**。
+  3. 复核：`node scripts/check-env.mjs` 两条失败消失。
+  4. `pnpm test`，然后按上面「使用流程」走 `prepare → preview → publish`。
 - **回滚**：把 `node_modules.bak-<日期>` 改回 `node_modules`（或 `git checkout` 回旧的 pin 与锁文件后重装）。依赖回滚不等于版本回滚：已经发布的快照用 `node tools/release.mjs rollback --id <旧版本>` 处理，用户数据与产物都不随代码回滚。
 - **不要**：把新内核的包手工拷进旧树的 `node_modules`，或长期混用两代客户端包——外壳会拒绝打包，而运行中的实例会以难以定位的槽位/服务缺失告终。
 
