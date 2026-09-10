@@ -8,9 +8,9 @@
     memberMaxDepth: 1
     maxMembers: 3
     roleTools:
-      数据助手: [geo_list_files, geo_read_evidence, geo_write_report, geo_inspect_raster, geo_download_gee, geo_download_boundary, geo_inspect_vector, geo_validate_geodata, geo_clip_raster, geo_reproject_raster, geo_mosaic_rasters, skill, read, glob, write, edit, read_document]
-      分析助手: [geo_list_files, geo_read_evidence, geo_write_report, geo_inspect_raster, geo_execute_python, geo_inspect_vector, geo_validate_geodata, geo_calculate_zonal_statistics, geo_calculate_ntl_metrics_for_raster, geo_composite_ntl_rasters, geo_analyze_ntl_trend, geo_detect_ntl_anomaly, geo_filter_points_by_polygon, geo_buffer_points_aeqd, geo_spatial_join_points_to_admin, geo_dissolve_intersections, geo_clip_raster, geo_reproject_raster, geo_mosaic_rasters, skill, read, glob, write, edit, read_document]
-      事件助手: [geo_list_files, geo_read_evidence, geo_write_report, skill, read, glob, write, edit, read_document, web_search, web_fetch]
+      数据助手: [geo_list_files, geo_read_evidence, geo_write_report, geo_inspect_raster, geo_download_gee, geo_download_boundary, geo_inspect_vector, geo_validate_geodata, geo_clip_raster, geo_reproject_raster, geo_mosaic_rasters, skill, read, glob, write, edit, read_document, mcp__cmr__get_collections, mcp__cmr__get_granules, mcp__cmr__get_variables, mcp__amap__maps_regeocode]
+      分析助手: [geo_list_files, geo_read_evidence, geo_write_report, geo_inspect_raster, geo_execute_python, geo_inspect_vector, geo_validate_geodata, geo_calculate_zonal_statistics, geo_calculate_ntl_metrics_for_raster, geo_composite_ntl_rasters, geo_analyze_ntl_trend, geo_detect_ntl_anomaly, geo_filter_points_by_polygon, geo_buffer_points_aeqd, geo_spatial_join_points_to_admin, geo_dissolve_intersections, geo_clip_raster, geo_reproject_raster, geo_mosaic_rasters, skill, read, glob, write, edit, read_document, mcp__amap__maps_geo, mcp__amap__maps_distance, mcp__amap__maps_direction_driving, mcp__amap__maps_direction_transit_integrated]
+      事件助手: [geo_list_files, geo_read_evidence, geo_write_report, skill, read, glob, write, edit, read_document, web_search, web_fetch, mcp__amap__maps_geo, mcp__amap__maps_regeocode, mcp__amap__maps_around_search]
 - id: system-prompt
   config:
     persona: >-
@@ -124,3 +124,34 @@
         uploadMaxBytes: 16777216
         maxFileBytes: 16777216
         asrApiKeyEnv: GEO_ASR_DISABLED
+    # External MCP servers, both REMOTE (streamable-http): nothing is installed
+    # on the host, no third-party process runs locally, and the only new traffic
+    # is outbound HTTPS — the same class of call the product already makes for
+    # web search. Their tools land on ctx.tools as `mcp__<server>__<tool>` and
+    # therefore stay behind the published allowlist, the per-role tables and the
+    # platform guard; results are EXTERNAL sources (cite the query and its time),
+    # never platform observations.
+    #
+    # NASA CMR is the official, public Earthdata catalog: collection/granule
+    # metadata, variable definitions, citations and DOIs. It answers the rule
+    # "never guess a dataset or band; establish its source metadata" without a
+    # key. No credentials in this row on purpose.
+    - id: mcp-nasa-cmr
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: cmr
+        transport: streamable-http
+        url: 'https://cmr.earthdata.nasa.gov/mcp/v1'
+        toolCallTimeoutMs: 30000
+        failOnStartupError: false
+    # Amap (高德) LBS: structured address → coordinates, reverse geocoding,
+    # POI search, distance and multi-modal routing. The key lives in the
+    # administrator's .env only; it never enters the release snapshot.
+    - id: mcp-amap
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: amap
+        transport: streamable-http
+        url: !!js '`https://mcp.amap.com/mcp?key=${process.env.AMAP_API_KEY}`'
+        toolCallTimeoutMs: 30000
+        failOnStartupError: false

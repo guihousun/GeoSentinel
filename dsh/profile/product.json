@@ -23,7 +23,11 @@
       "glob",
       "write",
       "edit",
-      "read_document"
+      "read_document",
+      "mcp__cmr__get_collections",
+      "mcp__cmr__get_granules",
+      "mcp__cmr__get_variables",
+      "mcp__amap__maps_regeocode"
     ],
     "分析助手": [
       "geo_list_files",
@@ -50,7 +54,11 @@
       "glob",
       "write",
       "edit",
-      "read_document"
+      "read_document",
+      "mcp__amap__maps_geo",
+      "mcp__amap__maps_distance",
+      "mcp__amap__maps_direction_driving",
+      "mcp__amap__maps_direction_transit_integrated"
     ],
     "事件助手": [
       "geo_list_files",
@@ -63,7 +71,10 @@
       "edit",
       "read_document",
       "web_search",
-      "web_fetch"
+      "web_fetch",
+      "mcp__amap__maps_geo",
+      "mcp__amap__maps_regeocode",
+      "mcp__amap__maps_around_search"
     ]
   }
 }

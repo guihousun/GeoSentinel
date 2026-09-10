@@ -1,14 +1,15 @@
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { statSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { PlatformStore, PlatformError } from "./store.mjs";
 import { createPlatformHandler } from "./http.mjs";
 import { publicEvent } from "./public-events.mjs";
 import { ResearchQueue } from "./admission.mjs";
 import { containedPath, containedWrite } from "./files.mjs";
+import { parseShareDirs, shareContained, shareTarget } from "./share.mjs";
 import { createUploadProxy } from "./uploads.mjs";
 import { allowedTools, policyPath, readPolicy, skillEnabled } from "./capability-policy.mjs";
-import { DOMAIN_TOOLS, DOCUMENT_TOOLS, FS_READ_TOOLS, FS_WRITE_TOOLS, TEAM_TOOLS, VISUAL_TOOLS, WEB_TOOLS } from "./catalog.mjs";
+import { DOMAIN_TOOLS, DOCUMENT_TOOLS, FS_READ_TOOLS, FS_WRITE_TOOLS, MCP_TOOLS, TEAM_TOOLS, VISUAL_TOOLS, WEB_TOOLS } from "./catalog.mjs";
 import { registerProductSkills } from "./skills.mjs";
 import { RuntimeLedger } from "./runtime.mjs";
 import { monitorService } from "../../monitoring/host.mjs";
@@ -73,6 +74,18 @@ const roleLabel = (role) => ROLE_LABEL[role] ?? role;
 const SUPERVISOR_ROLE = "主管";
 
 export function apply(ctx, config = {}) {
+  // Administrator-curated shared data (`GEO_SHARE_DIR` / `GEO_SHARE_DIRS`), read-only.
+  // Read once at startup: the fence, the explorer and `geo_list_files` all read
+  // the same parsed list, and a change needs the documented restart.
+  const share = parseShareDirs();
+  for (const entry of share) {
+    // A missing root stays silent in the tools (it simply lists nothing), so the
+    // operator has to see the typo here instead.
+    if (!existsSync(entry.root))
+      console.error(`GeoSentinel: 共享数据目录不存在，已忽略：${entry.name || "(默认根)"} → ${entry.root}`);
+  }
+  if (share.length)
+    console.log(`GeoSentinel: 共享数据已配置 ${share.length} 个只读根：${share.map((entry) => `${entry.name || "(默认根)"}=${entry.root}`).join("；")}`);
   // Ordinary-user capability policy: a narrowing layer the administrator edits
   // from the admin-mode workbench. Registered before the development-mode
   // short-circuit so both planes serve the same skill set, and polled cheaply
@@ -148,7 +161,7 @@ export function apply(ctx, config = {}) {
       console.error("GeoSentinel: 会话标题同步失败：" + error.message);
     }
   });
-  const allowed = new Set([...TEAM_TOOLS, ...DOMAIN_TOOLS, ...FS_READ_TOOLS, ...FS_WRITE_TOOLS, ...WEB_TOOLS, ...DOCUMENT_TOOLS, ...VISUAL_TOOLS, "ask_user_question", "skill"]);
+  const allowed = new Set([...TEAM_TOOLS, ...DOMAIN_TOOLS, ...FS_READ_TOOLS, ...FS_WRITE_TOOLS, ...WEB_TOOLS, ...DOCUMENT_TOOLS, ...VISUAL_TOOLS, ...MCP_TOOLS, "ask_user_question", "skill"]);
   // The document plugin also registers its own /api/upload route, which has no
   // login check (loopback-only, keyed by an x-session-id header). An exact
   // route shadows it — exact routes win over prefixes — and this shadow
@@ -168,8 +181,9 @@ export function apply(ctx, config = {}) {
       order: 90,
       text: () =>
         `技能库：先用 skill 工具按名称加载技能正文；若结果给出 resourceBase 目录，可用 read/glob/grep 在该目录内按需读取 references/ 与 scripts/，不要整目录通读。\n` +
-        `read/glob/grep 只能访问本对话工作区与技能库目录；工作区相对路径以工作区为基准，技能库目录只读。\n` +
-        `write/edit 只允许在本对话工作区的 outputs/ 内新建或改写文件；上传文件、项目资料 inputs/、memory/ 与技能库都不可写。手写文件要能被平台工具复核，并在需要时注明数据来源作业 ID。`,
+        `read/glob/grep 只能访问本对话工作区、项目资料、共享数据（share/，只读）与技能库目录；工作区相对路径以工作区为基准，后三者只读。\n` +
+        `共享数据目录也被只读挂载进分析容器（容器内路径 /workspace/share/<库名>/…），可以直接用于计算，不必复制进项目资料。\n` +
+        `write/edit 只允许在本对话工作区的 outputs/ 内新建或改写文件；上传文件、项目资料 inputs/、memory/、共享数据与技能库都不可写。手写文件要能被平台工具复核，并在需要时注明数据来源作业 ID。`,
     });
     inner.systemPrompt.section({
       name: "geosentinel:web",
@@ -186,7 +200,9 @@ export function apply(ctx, config = {}) {
       order: 92,
       text: () =>
         `展示方式：对话要重视可视化——凡是图表、表格、指标卡或结构化面板能说清楚的结果，就不要只给文字和文件路径。\n` +
-        `- 工具结果 artifacts 中 kind=image 的项用 Markdown 图片语法 ![说明](url) 内联；小表直接写成 Markdown 表格。\n` +
+        `- 硬性要求：工具结果 artifacts 里每一项 kind=image 都必须在本条回答中用 Markdown 图片语法 ![说明](url) 内联（同一张图只内联一次）；只说“见图”“已生成图表”而不内联，视为未交付。\n` +
+        `- artifacts 里 kind=table/kind=text 的产物：行数少时写成 Markdown 表格或 dsh-ui table，行数多时给路径与关键指标，不要粘贴整张大表。\n` +
+        `- 图片没显示或链接打不开时如实说明（例如“图片未能内联，请从资料与产出下载”），不得把未展示说成已展示。\n` +
         `- 需要指标卡、仪表盘、对比、时间线、流程图、关系图或交互式面板时，用 dsh-ui 围栏调用 genui 组件（组件规范见 genui 技能，发出前用 validate_dsh_ui 校验）。\n` +
         `- 一个主题一个主组件，同一份数据不重复展示；图与表要写明单位、来源、范围与限制，不得为了好看编造数据、精度或覆盖范围。\n` +
         `- read_document 用于读取用户上传的 PDF/DOCX/XLSX 等文档；它与 read/glob/grep 一样，只能访问本对话工作区、项目 inputs/ 与技能目录。\n` +
@@ -229,16 +245,23 @@ export function apply(ctx, config = {}) {
         if (fields) {
           const args = exec.arguments ?? {};
           // Readable roots: this chat's workspace, the project's uploaded
-          // inputs (uploads are project-scoped) and the shipped skill library.
-          // A relative path may address either the chat root (`outputs/...`)
-          // or the project root (`inputs/...`); containment is re-checked for
-          // both, so nothing outside these three roots is reachable.
+          // inputs (uploads are project-scoped), the shipped skill library and
+          // the administrator's read-only reference libraries. A relative path
+          // may address the chat root (`outputs/...`), the project root
+          // (`inputs/...`) or a library alias (`share/<名称>/...`);
+          // containment is re-checked for every one of them, so nothing outside
+          // these roots is reachable.
           const inputs = path.join(store.projectRoot(identity.user, identity.projectId), "inputs");
-          const roots = [identity.root, inputs, SKILL_ROOT];
+          const shareRoots = share.map((entry) => entry.root);
+          const roots = [identity.root, inputs, SKILL_ROOT, ...shareRoots];
           const bases = [identity.root, path.dirname(inputs)];
-          for (const field of fields)
-            if (!bases.some((base) => containedPath(roots, args[field], base)))
-              return "文件路径超出本对话工作区、项目资料或技能目录";
+          for (const field of fields) {
+            const alias = shareTarget(share, args[field]);
+            const allowed = alias !== null
+              ? containedPath(shareRoots, alias, path.dirname(alias))
+              : bases.some((base) => containedPath(roots, args[field], base));
+            if (!allowed) return "文件路径超出本对话工作区、项目资料、参考资料库或技能目录";
+          }
         }
         const writeFields = FS_WRITE_ARGS[exec.name];
         if (writeFields) {
@@ -594,7 +617,8 @@ export function apply(ctx, config = {}) {
     ensureResearchExecution,
   });
   registerSidebarAdapter(ctx, {
-    store, hosts: process.env.GEO_ALLOWED_HOSTS?.split(",").map((value) => value.trim()).filter(Boolean) ?? config.hosts ?? ["127.0.0.1:8510", "localhost:8510"],
+    store, share,
+    hosts: process.env.GEO_ALLOWED_HOSTS?.split(",").map((value) => value.trim()).filter(Boolean) ?? config.hosts ?? ["127.0.0.1:8510", "localhost:8510"],
   });
   ctx.effect(() =>
     ctx.webServer.register({

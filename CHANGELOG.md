@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-10 - 远端 MCP（高德 / NASA CMR）真正可用：两处缺陷修复
+
+- **发布链路丢掉了 profile 的 `!!js` 标签。** 产品 profile 是 Cordis 条目列表，方言为 `js-yaml` 的 JSON schema 加 `!!js` 表达式标签（`@deepseek-ai/dsh-app-boot` 启动时按此解析，`!!js` 在插件激活时求值，`process.env` 在作用域内）。原发布链路改用另一个 YAML 库解析后再 `YAML.stringify` 重写，标签退化成字面量字符串：实测候选版本真正用于启动的 profile 里写成 `url: "`https://mcp.amap.com/mcp?key=${process.env.AMAP_API_KEY}`"`，高德行随后带着不可用地址启动，并因 `failOnStartupError: false` 静默消失。新增 `release/profile-schema.mjs`（与启动器同一方言，含 `.pnpm` 兜底解析），`manager.validateProfile` 与 `runtime.launchRelease` 改用它；回归测试 `tests/profile-dialect.test.mjs` 固定该行为。
+- **普通用户拿不到 `mcp__*` 工具。** `plugins/platform/index.mjs` 的平台白名单集合漏了 `MCP_TOOLS`，`tools.restrict()` 会把 `mcp__*` 从模型工具清单里剔除，守卫也会以「该工具在本平台不可用」拒绝执行——即使插件行已经加载。白名单补上 `MCP_TOOLS`。
+- 普通用户实测（预览实例、非管理员账号）：`mcp__amap__maps_geo("上海外滩")` 返回 121.493167, 31.245385（GCJ-02，adcode 310109）；`mcp__cmr__get_collections("VIIRS nighttime lights")` 返回 total_hits=23，含 VNP46A2 / C3365931269-LAADS；两次调用均无错误。
+- 技能 `external-geo-services` 增加「工具可用性」一节：高德缺 `AMAP_API_KEY` 时工具不会出现在清单里，必须如实说明不可用，不得凭记忆编造坐标或数据集编号；`RELEASES.md` 写明 profile 方言以及"不许用普通 YAML 解析/重写 profile"的约束。
+
 ## 2026-09-09 - 空间数据预览支持 GeoTIFF 与 Shapefile
 
 - 「空间数据」标签新增两种格式：`.tif/.tiff` 解析 GeoTIFF 标签（BigTIFF、条带与瓦片、未压缩与 DEFLATE、单波段浮点/整型、GeoKey 与 ModelTiepoint），按 2%–98% 分位拉伸在服务端渲染 PNG，并给出波段、数据类型、压缩、CRS、取值范围与范围框；实测上海 2020 NTL 裁剪栅格 311×267 在 69 ms 内出图。

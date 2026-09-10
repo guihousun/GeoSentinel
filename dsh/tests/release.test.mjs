@@ -25,6 +25,11 @@ test("product publication refuses personal authority, credentials and unsafe pro
   assert.equal(validateProduct({ ...product, roleTools: { 分析助手: ["geo_inspect_raster", "skill", "read", "glob", "write", "edit"] } }).roleTools.分析助手.length, 6);
   assert.equal(validateProduct({ ...product, roleTools: { 事件助手: ["web_search", "web_fetch"] } }).roleTools.事件助手.length, 2);
   assert.equal(validateProduct({ ...product, roleTools: { 分析助手: ["read_document"] } }).roleTools.分析助手.length, 1);
+  // Published remote-MCP queries are allowed by name shape; anything that is not
+  // a well-formed `mcp__<server>__<tool>` (or a geo_/known tool) stays refused.
+  assert.equal(validateProduct({ ...product, roleTools: { 事件助手: ["mcp__amap__maps_geo", "mcp__cmr__get_collections"] } }).roleTools.事件助手.length, 2);
+  for (const bad of ["mcp__amap__", "mcp____maps_geo", "mcp__Amap__maps_geo", "mcp__amap__maps geo", "amap__maps_geo"])
+    assert.throws(() => validateProduct({ ...product, roleTools: { 事件助手: [bad] } }), /用户研究角色/, bad);
   // render_ui / validate_dsh_ui are supervisor-only rendering tools: a research
   // role must not be able to receive them through the product configuration.
   assert.throws(() => validateProduct({ ...product, roleTools: { 分析助手: ["render_ui"] } }));

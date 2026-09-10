@@ -2,11 +2,9 @@ import { readdir, readFile, writeFile, mkdir, rename, lstat, open, unlink } from
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { createRequire } from "node:module";
 import { validateAppearance } from "../development/product-draft.mjs";
+import { parseProfile } from "./profile-schema.mjs";
 
-const require = createRequire(import.meta.resolve("@deepseek-ai/dsh-base"));
-const YAML = require("yaml");
 const roots = ["dsh/plugins", "dsh/profile", "dsh/skills", "dsh/monitoring", "dsh/docker", "dsh/release", "dsh/development", "dsh/scripts", "dsh/cli", "dsh/tests", "packages/ntl_toolkit/src"];
 const singles = ["dsh/package.json", "dsh/pnpm-lock.yaml", "monitoring/sources.py"];
 // The monitor collector container mounts the legacy feed adapters by path
@@ -19,8 +17,12 @@ const requiredDisabled = ["connection", "api-remotes", "agent-presets", "directo
 // The non-domain tools a research role may hold: loading a skill, reading its
 // references/ inside the fenced workspace + skill roots, writing only inside the
 // chat's own outputs/ (write/edit), verifying sources on the web (event tracker
-// only), and reading an uploaded document.
+// only), reading an uploaded document, and the published remote-MCP queries
+// (`mcp__<server>__<tool>`). An MCP name is only a SHAPE here: the product table
+// still has to be a subset of the agent-teams row, so a role cannot be granted a
+// tool the release never declared.
 const ROLE_EXTRA_TOOLS = new Set(["skill", "read", "glob", "write", "edit", "web_search", "web_fetch", "read_document"]);
+const MCP_TOOL_NAME = /^mcp__[a-z0-9_-]{1,32}__[a-z0-9_.-]{1,64}$/;
 // The three fixed research roles. The agent-teams fork also accepts the legacy
 // NTL_* ids for teams created before the rename.
 const ROLE_NAMES = new Set(["数据助手", "分析助手", "事件助手"]);
@@ -38,12 +40,15 @@ export function validateProduct(value) {
   if (typeof value.monitorEnabled !== "boolean") throw new Error("monitorEnabled 必须为布尔值");
   if (value.roleTools !== undefined) {
     if (!value.roleTools || Array.isArray(value.roleTools) || Object.keys(value.roleTools).some((role) => !ROLE_NAMES.has(role))) throw new Error("角色工具配置无效");
-    for (const tools of Object.values(value.roleTools)) if (!Array.isArray(tools) || tools.length > 100 || tools.some((name) => !/^geo_[a-z0-9_]+$/.test(name) && !ROLE_EXTRA_TOOLS.has(name))) throw new Error("用户研究角色只能分配已注册的 geo_ 工具与受限的 skill/read/glob/write/edit/web_search/web_fetch/read_document");
+    for (const tools of Object.values(value.roleTools)) if (!Array.isArray(tools) || tools.length > 100 || tools.some((name) => !/^geo_[a-z0-9_]+$/.test(name) && !ROLE_EXTRA_TOOLS.has(name) && !MCP_TOOL_NAME.test(name))) throw new Error("用户研究角色只能分配已注册的 geo_ 工具、受限的 skill/read/glob/write/edit/web_search/web_fetch/read_document，以及已发布的 mcp__<server>__<tool>");
   }
   return value;
 }
 export function validateProfile(text) {
-  const rows = YAML.parse(text);
+  // The entry-list dialect keeps `!!js` expressions as `{ __jsExpr }` nodes, so
+  // a profile that reads a credential from the environment stays an expression
+  // instead of degrading into a literal string. See profile-schema.mjs.
+  const rows = parseProfile(text);
   if (!Array.isArray(rows)) throw new Error("产品 profile 格式无效");
   for (const id of requiredDisabled) if (rows.filter((r) => r.id === id).length !== 1 || rows.find((r) => r.id === id)?.disabled !== true) throw new Error("不能发布普通用户权限放宽：" + id);
   const inserts = rows.flatMap((row) => row.insert ?? []);
