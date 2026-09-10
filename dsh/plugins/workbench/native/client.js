@@ -2,6 +2,16 @@ window.__ModuleLoader__.load({
   id: "@geosentinel/dsh-workbench",
   factory(require) {
     if (globalThis.__GEOSENTINEL_DEVELOPMENT__) return { apply() {} };
+    // This overlay belongs to the PRODUCT SHELL, which injects the theme module into the
+    // same module table (`window.__ModuleLoader__.load({id:"@geosentinel/dsh-theme"…})`)
+    // before the entry runs. A native DSH host — the administrator development instance
+    // mounts `geosentinel-workbench` as its own client entry — has no such module, and a
+    // failed require here takes down the WHOLE loader entry: that GUI then reports
+    // "Failed to load plugins … require(\"@geosentinel/dsh-theme\") missed the module
+    // table". Its absence therefore means "not our shell", and the overlay stays inert
+    // instead of breaking the host it does not belong to.
+    let managedTheme;
+    try { managedTheme = require("@geosentinel/dsh-theme"); } catch { return { apply() {} }; }
     const React = require("react");
     const h = React.createElement;
     const { createSnapshotStore } = require("@deepseek-ai/dsh-client-store");
@@ -12,7 +22,6 @@ window.__ModuleLoader__.load({
     // the native chat requires it), so the overlay keeps working either way.
     let betterSidebarPlugin = null;
     try { betterSidebarPlugin = require("dsh-better-sidebar/client"); } catch {}
-    const managedTheme = require("@geosentinel/dsh-theme");
     const fail = (message) => ({ ok: false, error: { code: "geosentinel/unavailable", message } });
     const ok = (value) => ({ ok: true, value });
     function teamTodos(team) {

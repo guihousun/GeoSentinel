@@ -324,6 +324,34 @@ test("the product answers the native file namespace from its own explorer", asyn
   assert.match(changes.error.message, /不可用/);
 });
 
+test("the overlay stays inert in a host that has no product shell", async () => {
+  // The administrator development instance mounts this package as its own client entry,
+  // but only the product shell injects the `@geosentinel/dsh-theme` module. A failed
+  // require there used to take down the whole loader entry ("failed to import loader
+  // entry … require(\"@geosentinel/dsh-theme\") missed the module table"), blanking that
+  // GUI; the overlay must instead recognise a foreign host and do nothing.
+  const source = await readFile(new URL("../plugins/workbench/native/client.js", import.meta.url), "utf8");
+  const slots = new Map();
+  let plugin = null;
+  const ctx = { provide() {}, get: () => undefined, plugin: () => ({ dispose() {} }), inject() {}, on() {},
+    slots: { provideRoot() {}, inject(name, register) { register(); }, register(config) { slots.set(config.name, config); } } };
+  vm.runInNewContext(source, {
+    window: { __ModuleLoader__: { load(definition) {
+      plugin = definition.factory((id) => {
+        if (id === "@geosentinel/dsh-theme") throw new Error("client-modules: missed the module table");
+        return {};
+      });
+      plugin.apply(ctx);
+    } } },
+    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    EventSource: class { close() {} }, setInterval: () => 1, clearInterval() {}, setTimeout, clearTimeout,
+  });
+  assert.deepEqual(Object.keys(plugin), ["apply"], "外来宿主里应返回惰性插件");
+  assert.equal(slots.size, 0, "外来宿主里不应注册任何槽位");
+  plugin.apply(ctx);
+  assert.equal(slots.size, 0, "惰性插件的 apply 必须是空操作");
+});
+
 test("the overlay fills the native sidebar's declared positions on 0.1.5 and keeps its own sidebar before it", async () => {
   const native = await loadOverlay(true);
   assert.ok(native.has("sidebar.workspaces"), "未注册原生侧栏的会话列表区域");
