@@ -1169,6 +1169,16 @@ window.__ModuleLoader__.load({
       else {
         ctx.slots.inject("sidebar.workspaces", () => ctx.slots.register({ name: "sidebar.workspaces" }, ProjectTree));
         ctx.slots.inject("sidebar.footer.action", () => ctx.slots.register({ name: "sidebar.footer.action", id: "geo-entries" }, ProductEntries));
+        // The native sidebar's brand row is two slots whose fallbacks are the DSH fish
+        // logo and the "本地构建 <version>" label. The product's own sidebar used to
+        // carry the product identity in that corner, so both positions are filled here
+        // instead of leaving a vendor build label in a product shell.
+        ctx.slots.inject("sidebar.brand.mark", () => ctx.slots.register({ name: "sidebar.brand.mark" }, ({ size = 24 }) =>
+          h("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", "aria-hidden": "true" },
+            h("circle", { cx: 12, cy: 12, r: 9, stroke: "currentColor", strokeWidth: 1.6 }),
+            h("path", { d: "M3 12h18M12 3c3.2 3.6 3.2 14.4 0 18M12 3c-3.2 3.6-3.2 14.4 0 18", stroke: "currentColor", strokeWidth: 1.2 }))));
+        ctx.slots.inject("sidebar.brand.name", () => ctx.slots.register({ name: "sidebar.brand.name" }, () =>
+          h("span", { className: "geo-native-brand" }, "地缘环境智能计算平台")));
       }
       function ProjectPicker({ open: visible, onPick, onClose }) {
         const s = useState();

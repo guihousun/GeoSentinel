@@ -190,7 +190,7 @@ async function loadOverlay(nativeSidebar) {
   vm.runInNewContext(source, {
     __GEOSENTINEL_NATIVE_SIDEBAR__: nativeSidebar,
     window: { __ModuleLoader__: { load({ factory }) { factory((id) => {
-      if (id === "react") return { createElement: () => null, Fragment: {},
+      if (id === "react") return { createElement: (type, props, ...children) => ({ type, props, children }), Fragment: {},
         useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot(), useRef: () => ({}), useEffect() {}, useLayoutEffect() {} };
       if (id.includes("client-store")) return { createSnapshotStore: snapshot };
       if (id.includes("api-session-controller")) return { createScope: () => ({ ctx: {}, fiber: { dispose() {} } }), scopeOf() {}, MutableSessionEventSource: class { replace() {} } };
@@ -328,7 +328,16 @@ test("the overlay fills the native sidebar's declared positions on 0.1.5 and kee
   const native = await loadOverlay(true);
   assert.ok(native.has("sidebar.workspaces"), "未注册原生侧栏的会话列表区域");
   assert.ok(native.has("sidebar.footer.action"), "未注册原生侧栏的工具入口区域");
+  assert.ok(native.has("sidebar.brand.name"), "未接回产品名，原生侧栏会显示厂商构建标签");
+  assert.ok(native.has("sidebar.brand.mark"), "未接回产品标识");
   assert.equal(native.has("sidebar"), false, "原生侧栏存在时不应再抢占 sidebar 槽位");
+  // The brand components render the product identity and honour the size the native
+  // sidebar hands the mark.
+  const mark = native.get("sidebar.brand.mark").component({ size: 18 });
+  assert.equal(mark.type, "svg");
+  assert.equal(mark.props.width, 18);
+  const name = native.get("sidebar.brand.name").component({});
+  assert.equal(name.children[0], "地缘环境智能计算平台");
   // The registered components must survive a render with no signed-in user instead of
   // throwing inside the native shell.
   const state = { user: null };
@@ -342,4 +351,5 @@ test("the overlay fills the native sidebar's declared positions on 0.1.5 and kee
   assert.ok(legacy.has("sidebar"), "旧版内核上必须继续注册产品自己的侧栏");
   assert.equal(legacy.has("sidebar.workspaces"), false);
   assert.equal(legacy.has("sidebar.footer.action"), false);
+  assert.equal(legacy.has("sidebar.brand.name"), false, "旧版内核的品牌由产品侧栏自己渲染");
 });

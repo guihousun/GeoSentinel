@@ -25,6 +25,9 @@ body {font-family:Inter,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;letter
 .geo-native-tree button:hover,.geo-native-tree button.selected,.geo-native-bottom button:hover {background:var(--dsw-alias-interactive-bg-hover);}
 .geo-native-tree svg,.geo-native-bottom svg {flex:none;}
 .geo-native-bottom {width:100%;}
+/* The native sidebar's brand row shows the product name instead of the vendor build
+   label (the version itself stays visible in the release panel). */
+.geo-native-brand {font-size:15px;font-weight:600;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .geo-native-auth {position:absolute;inset:0;background:var(--geo-surface);display:grid;place-items:center;z-index:40;}
 .geo-native-auth-form {width:min(480px,90vw);display:grid;gap:16px;color:var(--geo-text);}
 .geo-native-auth h1 {font-size:28px;margin:0 0 16px;}
