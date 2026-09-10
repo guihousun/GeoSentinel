@@ -7,7 +7,11 @@ window.__ModuleLoader__.load({
     const { createSnapshotStore } = require("@deepseek-ai/dsh-client-store");
     const { createScope, scopeOf, MutableSessionEventSource } = require("@deepseek-ai/dsh-api-session-controller/client");
     const icons = require("@deepseek-ai/dsh-client-ui-primitives");
-    const betterSidebarPlugin = require("dsh-better-sidebar/client");
+    // The product's own sidebar panel used to require this third-party plugin. From
+    // the 0.1.5 line the native sidebar family owns the single `sidebar` slot (and
+    // the native chat requires it), so the overlay keeps working either way.
+    let betterSidebarPlugin = null;
+    try { betterSidebarPlugin = require("dsh-better-sidebar/client"); } catch {}
     const managedTheme = require("@geosentinel/dsh-theme");
     const fail = (message) => ({ ok: false, error: { code: "geosentinel/unavailable", message } });
     const ok = (value) => ({ ok: true, value });
@@ -84,7 +88,7 @@ window.__ModuleLoader__.load({
         list.set({ ...list.getSnapshot(), ids, byId, current: byId[current] ? current : undefined, currentAddress: byId[current] ? addresses.get(current) : undefined,
           subagentsByParent: Object.fromEntries(Object.entries(list.getSnapshot().subagentsByParent).filter(([id]) => ids.includes(id))) });
         set({ projects, activeProject: projects.some((p) => p.id === state.getSnapshot().activeProject) ? state.getSnapshot().activeProject : projects[0]?.id });
-        if (!sidebarFiber) sidebarFiber = ctx.plugin(betterSidebarPlugin);
+        if (betterSidebarPlugin && !sidebarFiber) sidebarFiber = ctx.plugin(betterSidebarPlugin);
         if (byId[current] && (current !== previousCurrent || !records.has(current))) open(current);
       }
       function binding(id) {

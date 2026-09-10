@@ -23,6 +23,22 @@ export const nativePlugins = [
   // so the plan UI stays OURS (the ask_user_question review flow) and bundling the
   // native panel is not just unnecessary but breaks the whole client bundle
   // ("web boot: 2 entries did not activate", nothing renders).
+  // 0.1.5's native upload dock. Its `fileUpload` client service is what the native
+  // conversation/chat plugins wait for, so without it the whole client bundle stays
+  // pending and the shell renders nothing (verified on a release candidate:
+  // "web boot: 3 entries did not activate"). It travels with them, and only exists
+  // from 0.1.5 on, so it is optional for older installed clients.
+  "dsh-client-file-upload",
+  // The native sidebar family is REQUIRED from 0.1.5 on: `ui-chat` itself waits for
+  // the `sidebarRight` service ("@deepseek-ai/dsh-client-ui-chat: pending (waiting
+  // for service: sidebarRight)"), so the product cannot ship the native chat without
+  // it. It claims the single `sidebar` slot, which means the third-party
+  // `dsh-better-sidebar` the product used before has to step aside — the product's
+  // three-group file panel is retired in favour of the native one here (see the
+  // note in plugins/platform/sidebar-adapter.mjs).
+  "dsh-client-ui-sidebar", "dsh-client-ui-sidebar-right",
+  "dsh-client-ui-sidebar-files", "dsh-client-ui-sidebar-documentpreview",
+  "dsh-client-ui-attachment", "dsh-client-ui-approval",
   "dsh-client-ui-deliverables", "dsh-client-resources",
   "dsh-client-ui-open-in-app",
 ].map((name) => "@deepseek-ai/" + name);
@@ -30,6 +46,13 @@ export const nativePlugins = [
 // still builds against an older installed client (the product upgrades its pins
 // separately); the bundle then simply lacks those panels.
 export const optionalPlugins = new Set([
+  "@deepseek-ai/dsh-client-file-upload",
+  "@deepseek-ai/dsh-client-ui-sidebar",
+  "@deepseek-ai/dsh-client-ui-sidebar-right",
+  "@deepseek-ai/dsh-client-ui-sidebar-files",
+  "@deepseek-ai/dsh-client-ui-sidebar-documentpreview",
+  "@deepseek-ai/dsh-client-ui-attachment",
+  "@deepseek-ai/dsh-client-ui-approval",
   "@deepseek-ai/dsh-client-ui-deliverables",
   "@deepseek-ai/dsh-client-resources",
   "@deepseek-ai/dsh-client-ui-open-in-app",
@@ -53,17 +76,27 @@ export async function nativeAssets() {
     if (fixed === source) throw new Error("dsh-file-upload client patch no longer matches the installed source");
     return fixed;
   }
-  async function collect(name, resolver = requireWeb) {
+  async function collect(name, resolver = requireWeb, required = true) {
     name = name.replace(/\/client$/, "");
     if (baseline.has(name) || sources.has(name)) return;
     const manifestPath = resolver.resolve(name + "/package.json");
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
     if (name.startsWith("@deepseek-ai/dsh-") && manifest.version !== version)
       throw new Error(`Native UI dependency mismatch: ${name} ${manifest.version} != ${version}`);
-    const source = patchUploadClient(name, manifest.version, await readFile(path.join(path.dirname(manifestPath), "lib/client.js"), "utf8"));
-    sources.set(name, source);
+    // A transitive dependency is often a plain library rather than a client plugin:
+    // only packages that ship a `lib/client.js` factory belong in the bundle. A
+    // NAMED plugin (required) missing its client half is a real composition error.
+    let source;
+    try { source = await readFile(path.join(path.dirname(manifestPath), "lib/client.js"), "utf8"); }
+    catch (error) {
+      if (required && !optionalPlugins.has(name)) throw error;
+      if (!required) return;
+      console.warn(`GeoSentinel: 外壳跳过未安装的原生界面包 ${name}`);
+      return;
+    }
+    sources.set(name, patchUploadClient(name, manifest.version, source));
     for (const dependency of bundleImports(source))
-      await collect(dependency, createRequire(manifestPath));
+      await collect(dependency, createRequire(manifestPath), false);
   }
   // Core surfaces are mandatory; the 0.1.5-only ones are skipped (with a note)
   // when the installed client predates them, so the same shell code serves both.
@@ -77,7 +110,11 @@ export async function nativeAssets() {
   }
   // API helpers are library-only: their unrestricted transport plugins never activate.
   await collect("@deepseek-ai/dsh-api-session-controller");
-  await collect("dsh-better-sidebar", createRequire(import.meta.url));
+  // `dsh-better-sidebar` is deliberately NOT collected any more: the native sidebar
+  // family above owns the single `sidebar` slot from 0.1.5 on, and the native chat
+  // requires it. On the older line the native sidebar does not exist, so the shell
+  // then has no file panel — the product's own panel comes back only if it is
+  // re-expressed as a native sidebar contribution.
   // Data-visualisation client half: renders the dsh-ui fence and render_ui cards.
   await collect("@changfenhuang/dsh-genui", createRequire(import.meta.url));
   // Upload UI (paperclip, drag & drop, preview cards). Its host route is

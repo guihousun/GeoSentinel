@@ -85,7 +85,7 @@ const print = (value) => console.log(JSON.stringify(value, null, 2));
 async function status() {
   const state = await manager.status();
   print({
-    source, directory, fork,
+    source, directory,
     active: state.active,
     candidate: state.candidate,
     pending: state.pending,
