@@ -17,6 +17,7 @@ import { nativeEvent } from "./native-events.mjs";
 import { registerSidebarAdapter } from "./sidebar-adapter.mjs";
 import { QuestionTransport } from "./questions.mjs";
 import { readonlySubagents } from "./subagents.mjs";
+import { createRoleBinder, parentSessionIdOf } from "./role-binding.mjs";
 import { GIS_TOOL_NAMES } from "../research/gis-tools.mjs";
 import { releaseService } from "../../release/service.mjs";
 import { fileURLToPath } from "node:url";
@@ -151,40 +152,18 @@ export function apply(ctx, config = {}) {
   };
   /**
    * Bind the specialists the supervisor delegated to, and narrow each one to its
-   * role's tool table. The role comes from the native subagent catalog label
-   * ("数据助手：…"), which is the delegation description the supervisor wrote.
+   * role's tool table (see role-binding.mjs for why the native catalog poll alone is
+   * not enough: a one-shot specialist can settle before we ever list it).
    */
+  const bindRole = createRoleBinder({ store, agents: ctx.agents, sessionController: ctx.sessionController,
+    roles: RESEARCH_ROLES, roleTools: ROLE_TOOLS, toStored: storedRole,
+    report: (message) => console.error(message) });
   async function bindMembers(chatId) {
     const service = ctx.get("subagents");
     if (!service?.remoteExportList) return;
     let entries = [];
     try { entries = (await service.remoteExportList(chatId, new AbortController().signal)).entries ?? []; } catch { return; }
-    const known = new Map(store.db.prepare("SELECT id,role FROM agent_sessions WHERE chat_id=?").all(chatId).map((row) => [row.id, row.role]));
-    let unbound = null;
-    for (const entry of entries) {
-      if (entry.kind !== "child" || !entry.id || known.has(entry.id)) continue;
-      // The native catalog carries the delegation `description` as `label`, and the
-      // supervisor is told to start it with the role name. When it writes the role
-      // in the prompt body instead, fall back to the child's own first user message
-      // so a specialist is still bound to its role table.
-      let role = RESEARCH_ROLES.find((name) => String(entry.label ?? "").includes(name));
-      if (!role) {
-        try {
-          const child = await ctx.sessionController.inspect(entry.id);
-          const first = (child.events ?? []).find((event) => event.type === "user/message");
-          const body = JSON.stringify(first?.data?.content ?? "");
-          role = RESEARCH_ROLES.find((name) => body.includes(name));
-        } catch { role = undefined; }
-      }
-      if (!role) { unbound ??= entry; continue; }
-      try { store.recordChild(chatId, entry.id, storedRole(role)); } catch { continue; }
-      const child = ctx.agents?.get?.(entry.id);
-      const table = ROLE_TOOLS[role];
-      if (child && Array.isArray(table) && table.length) {
-        try { child.ctx.tools.restrict({ allow: table }); }
-        catch (error) { console.error("GeoSentinel: 专家工具限制未生效（按守卫拦截）：" + error.message); }
-      }
-    }
+    const unbound = await bindRole.bindListed(chatId, entries);
     // One diagnostic per process: a specialist that ran but could not be bound would
     // otherwise silently keep the supervisor's tool surface and stay invisible in
     // the member list. The entry shape is the native catalog's, so print it raw.
@@ -193,6 +172,15 @@ export function apply(ctx, config = {}) {
       console.error("GeoSentinel: 子代理无法绑定角色，目录条目为：" + JSON.stringify(unbound).slice(0, 600));
     }
   }
+  // The native runtime publishes `subagent/start` the moment a specialist begins
+  // (`{ id: childSessionId }` plus the parent agent), which is the only reliable instant
+  // to bind a one-shot child: polling the catalog can miss one that settles in seconds.
+  ctx.on("subagent/start", (identity, parent) => {
+    const childId = identity?.id;
+    const chatId = parentSessionIdOf(parent);
+    if (typeof childId !== "string" || chatId === undefined) return;
+    void bindRole.bind(chatId, childId).catch(() => {});
+  });
   ctx.on("geosentinel/member-created", (record) =>
     store.recordChild(record.captainId, record.memberId, storedRole(record.role)),
   );
