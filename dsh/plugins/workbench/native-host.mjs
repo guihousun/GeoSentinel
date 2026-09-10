@@ -84,14 +84,32 @@ export async function nativeAssets() {
     if (name.startsWith("@deepseek-ai/dsh-") && manifest.version !== version)
       throw new Error(`Native UI dependency mismatch: ${name} ${manifest.version} != ${version}`);
     // A transitive dependency is often a plain library rather than a client plugin:
-    // only packages that ship a `lib/client.js` factory belong in the bundle. A
-    // NAMED plugin (required) missing its client half is a real composition error.
+    // only packages that ship a client factory belong in the bundle. The entry file
+    // is NOT always `lib/client.js` — several 0.1.5 packages ship `lib/index.js` —
+    // so probe the usual candidates (and the manifest's own entry) before giving up.
+    const base = path.dirname(manifestPath);
+    const shipped = manifest.exports?.["./client"] ?? manifest.exports?.["./client.js"];
+    const fromExports = typeof shipped === "string" ? shipped : shipped?.default ?? shipped?.import;
+    // `lib/client.js` first: it is the file that registers the package with the
+    // native module loader. Only when it is absent do we fall back to the manifest's
+    // own entry, which may be a helper module that registers nothing.
+    const candidates = ["lib/client.js", typeof fromExports === "string" ? fromExports : undefined,
+      "lib/index.js", "index.js", manifest.module, manifest.main];
     let source;
-    try { source = await readFile(path.join(path.dirname(manifestPath), "lib/client.js"), "utf8"); }
-    catch (error) {
-      if (required && !optionalPlugins.has(name)) throw error;
+    for (const candidate of candidates) {
+      if (typeof candidate !== "string" || !candidate) continue;
+      let text;
+      try { text = await readFile(path.join(base, candidate), "utf8"); } catch { continue; }
+      // The bundle is loaded through the native module loader: a file that never
+      // calls it is not a client bundle, so keep looking instead of shipping it.
+      if (!text.includes("__ModuleLoader__.load") && !text.includes("__ModuleLoader__")) continue;
+      source = text;
+      break;
+    }
+    if (source === undefined) {
+      if (required && !optionalPlugins.has(name)) throw new Error(`${name} 缺少客户端入口（试过 ${candidates.filter(Boolean).join(", ")}）`);
       if (!required) return;
-      console.warn(`GeoSentinel: 外壳跳过未安装的原生界面包 ${name}`);
+      console.warn(`GeoSentinel: 外壳跳过缺少客户端入口的界面包 ${name}`);
       return;
     }
     sources.set(name, patchUploadClient(name, manifest.version, source));
