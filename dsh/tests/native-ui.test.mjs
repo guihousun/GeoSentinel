@@ -110,8 +110,11 @@ test("the product shell bundles the 0.1.5 surfaces it reuses", async () => {
   for (const name of ["@deepseek-ai/dsh-client-modules", "@deepseek-ai/dsh-client-ui-chat"])
     assert.ok(assets.bundle.includes(name), `外壳未包含核心包 ${name}`);
   for (const name of ["@deepseek-ai/dsh-client-ui-deliverables",
-    "@deepseek-ai/dsh-client-resources", "@deepseek-ai/dsh-client-ui-open-in-app"])
+    "@deepseek-ai/dsh-client-resources"])
     if (installed(name)) assert.ok(assets.bundle.includes(name), `外壳未包含 ${name}`);
+  // `open-in-app` is dropped on purpose: its host API sits behind the closed browser
+  // API plane, so an ordinary user's page load would only log a failed request.
+  assert.ok(!assets.bundle.includes("@deepseek-ai/dsh-client-ui-open-in-app"), "open-in-app 需要封闭通道，不应打包");
   // The native plan panel is excluded by design: it needs the client-side
   // `remote.commands` Host Remote, which only `api-remotes` publishes — and the
   // product keeps that row closed so a user's browser gets no host-service channel.

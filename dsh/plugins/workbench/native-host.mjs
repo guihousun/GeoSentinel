@@ -40,7 +40,10 @@ export const nativePlugins = [
   "dsh-client-ui-sidebar-files", "dsh-client-ui-sidebar-documentpreview",
   "dsh-client-ui-attachment", "dsh-client-ui-approval",
   "dsh-client-ui-deliverables", "dsh-client-resources",
-  "dsh-client-ui-open-in-app",
+  // NOT bundled: `dsh-client-ui-open-in-app`. It polls the host's `/open-in-app/apps`
+  // API, which sits behind the closed browser API plane and answers 401 for an
+  // ordinary user, so the button would be inert and every page load would log a
+  // failed request. The feature needs that channel; it is dropped instead.
 ].map((name) => "@deepseek-ai/" + name);
 // Surfaces that only exist from the 0.1.5 line on. They are optional so the shell
 // still builds against an older installed client (the product upgrades its pins
@@ -55,7 +58,6 @@ export const optionalPlugins = new Set([
   "@deepseek-ai/dsh-client-ui-approval",
   "@deepseek-ai/dsh-client-ui-deliverables",
   "@deepseek-ai/dsh-client-resources",
-  "@deepseek-ai/dsh-client-ui-open-in-app",
 ]);
 // Bundled but never booted as plugins: their activation waits for the browser-facing
 // API plane (`typert` + `api-gateway` + `api-remotes`), which the product keeps
