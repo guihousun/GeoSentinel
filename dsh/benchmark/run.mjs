@@ -33,10 +33,15 @@ const concurrency = Math.max(1, Math.min(4, Number(flag("concurrency", 3)) || 3)
 const only = flag("only") ? String(flag("only")).split(",").map((id) => id.trim()).filter(Boolean) : null;
 const timeoutOverride = Number(flag("timeout", 0)) || 0;
 const autoApprove = flag("no-approve", false) !== true;
+const maxUnblocks = Math.max(0, Math.min(5, Number(flag("unblocks", 2)) ?? 2));
 const outFile = path.resolve(String(flag("out", path.join(here, "report.json"))));
 const projectTitle = String(flag("project", "基准测试 " + new Date().toISOString().slice(0, 16)));
 
 const APPROVE_LABELS = ["确认方案并开始", "开始执行", "确认"];
+// Sent when the model blocks on a question written in prose instead of raising a
+// question. The operator's standing decision is "do not wait for me, deliver the
+// result together with its limits" — it does not supply any method answer.
+const UNBLOCK_PROMPT = "请按平台默认口径继续完成本次任务，不必再等我确认；需要选择时采用你列出的第一个选项。不要再向我提问，直接给出结论、产物与限制说明。";
 let cookie = "";
 
 async function call(route, method = "GET", body) {
@@ -84,17 +89,26 @@ function selectOption(question, wanted) {
 
 function answerOf(pending, wanted) {
   if (!pending) return null;
-  const question = pending.questions?.[0];
-  if (!question) return null;
-  const options = (question.options ?? []).map((option) => option.label);
-  // A declared preference wins when it names (or is contained in) an offered
-  // option; otherwise the standing benchmark decision is the first option, which
-  // is what a user clicking through the plan review would pick.
-  const label = wanted
-    ? options.find((candidate) => candidate.includes(wanted)) ?? (options.includes(wanted) ? wanted : options[0])
-    : APPROVE_LABELS.find((candidate) => options.includes(candidate)) ?? options[0];
-  if (!label) return null;
-  return { requestId: pending.id, answer: { answers: [{ id: question.id, selected: [label] }] } };
+  const questions = pending.questions ?? [];
+  if (!questions.length) return null;
+  // The platform requires EVERY question in the request to be answered
+  // ("请完整回答问题"); answering only the first one was rejected with 400, which
+  // silently left the case waiting until its timeout.
+  const preferences = Array.isArray(wanted) ? wanted : [wanted];
+  const answers = [];
+  for (const [index, question] of questions.entries()) {
+    const preference = preferences[index] ?? preferences[0];
+    const options = (question.options ?? []).map((option) => option.label);
+    // A declared preference wins when it names (or is contained in) an offered
+    // option; otherwise the standing benchmark decision is the first option, which
+    // is what a user clicking through the review would pick.
+    const label = preference
+      ? options.find((candidate) => candidate.includes(preference)) ?? (options.includes(preference) ? preference : options[0])
+      : APPROVE_LABELS.find((candidate) => options.includes(candidate)) ?? options[0];
+    if (label) answers.push({ id: question.id, selected: [label] });
+  }
+  if (answers.length !== questions.length) return null;
+  return { requestId: pending.id, answer: { answers } };
 }
 
 async function collectSubagentTools(chatId) {
@@ -129,6 +143,8 @@ async function runCase(item, projectId) {
   const errors = new Set();
   const unanswered = new Set();
   const answered = new Set();
+  const answerAttempts = new Map();
+  let unblocks = 0;
   let text = "", approvals = 0, idle = 0, lastLength = -1, planSeen = false;
   // A staged plan ends its turn before the approved execution begins, so an
   // idle poll right after approval must not be read as completion.
@@ -162,18 +178,21 @@ async function runCase(item, projectId) {
     }
     scannedSeq = Math.max(scannedSeq, lastSeq);
     const { pending } = await call(`/chats/${chatId}/questions`).catch(() => ({ pending: null }));
-    // A pending request is answered exactly once. Repeating the POST on every
-    // poll (the same request id stays pending until the platform retires it)
-    // produced hundreds of failed attempts and could confuse the turn.
-    if (pending && !answered.has(pending.id)) {
+    // A pending request is answered a bounded number of times. Repeating the POST
+    // on every poll (the id stays pending until the platform retires it) produced
+    // hundreds of failed attempts, but never retrying one transient failure leaves
+    // the case waiting until its timeout — both are wrong.
+    const attempts = pending ? answerAttempts.get(pending.id) ?? 0 : 0;
+    if (pending && !answered.has(pending.id) && attempts < 3) {
       planSeen = planSeen || pending.kind === "plan-review";
       // The plan-approval question is answered automatically, because that is the
-      // user's standing decision for a benchmark run. A case that expects a
-      // method clarification declares `answers`; a case that declares
-      // `clarify: "first"` accepts the first option the platform offers, which is
-      // the same class of standing decision. Anything else is recorded and left
-      // unanswered: inventing a method answer would measure the harness.
-      const wantsClarify = pending.kind !== "plan-review" && item.clarify === "first";
+      // user's standing decision for a benchmark run. Method clarifications are
+      // answered the same way by default (the operator's standing decision is
+      // "accept the platform's first offered option"); a case sets
+      // `clarify: false` to leave them unanswered, and `answers` still forces a
+      // specific choice. Leaving them unanswered by default burned whole case
+      // budgets in B10, C03, C04 and C10 without measuring anything.
+      const wantsClarify = pending.kind !== "plan-review" && item.clarify !== false;
       const declared = Array.isArray(item.answers) && item.answers.length ? item.answers : null;
       const reply = pending.kind === "plan-review" && autoApprove
         ? answerOf(pending, declared?.[0])
@@ -183,8 +202,10 @@ async function runCase(item, projectId) {
             ? answerOf(pending)
             : null;
       if (reply) {
-        answered.add(pending.id);
-        await call(`/chats/${chatId}/questions`, "POST", reply).catch((error) => errors.add("approve:" + error.message));
+        answerAttempts.set(pending.id, attempts + 1);
+        await call(`/chats/${chatId}/questions`, "POST", reply)
+          .then(() => answered.add(pending.id))
+          .catch((error) => errors.add("approve:" + error.message));
         approvals++;
         if (pending.kind === "plan-review") approvedSeq = lastSeq;
       } else if (!unanswered.has(pending.id)) {
@@ -192,11 +213,29 @@ async function runCase(item, projectId) {
         errors.add("unanswered-question:" + (pending.questions?.[0]?.question ?? "").slice(0, 80));
       }
     }
-    if (!history.running) {
+    // A delegated turn ends while the specialists are still working, so "main
+    // session idle" is not "case finished": a case that only looks idle while a
+    // member is running would be scored (and cancelled) halfway through.
+    const members = await call(`/chats/${chatId}/subagents`).catch(() => null);
+    const membersRunning = (members?.entries ?? []).some((entry) => entry.kind === "child" && entry.activity === "running");
+    if (!history.running && !membersRunning) {
       const answeredAfterPlan = approvedSeq < 0 || lastAssistantSeq > approvedSeq;
       if (text.length > 0 && text.length === lastLength && answeredAfterPlan) idle++; else idle = 0;
       lastLength = text.length;
-      if (idle >= 3) break;
+      if (idle >= 3) {
+        // The model sometimes blocks by ASKING IN PROSE ("需要你确认三件事")
+        // instead of raising a question, so there is nothing for the harness to
+        // answer. A real user would say "just proceed" — that is a bounded,
+        // recorded user decision, not a fabricated method answer.
+        if (unblocks < maxUnblocks) {
+          unblocks++;
+          errors.add("unblock-prompt:" + unblocks);
+          await call(`/chats/${chatId}/prompt`, "POST", { text: UNBLOCK_PROMPT }).catch((error) => errors.add("unblock:" + error.message));
+          idle = 0;
+          continue;
+        }
+        break;
+      }
     } else idle = 0;
   }
   const files = await call(`/chats/${chatId}/files`).catch(() => ({ files: [] }));
