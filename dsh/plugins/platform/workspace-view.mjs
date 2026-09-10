@@ -110,9 +110,13 @@ export async function workspaceView({ chatRoot, inputsRoot, projectInputsRoot, s
   for (const source of uploadSources) {
     for (const file of await listFiles(source.root)) {
       uploads.push({
-        // Uploaded files are stored with a session prefix; the user knows them
-        // by the name they chose.
-        name: uniqueName(file.name.replace(/^[0-9a-f-]{36}-/i, ""), usedUploads),
+        // Uploaded files are stored with a generated prefix; the user knows them by
+        // the name they chose. `dsh-file-upload` prefixes 16 hex characters, the
+        // platform's own uploads a full UUID — so the UUID is matched first and the
+        // short form second (a bare `[0-9a-f]{8,36}` would stop inside a UUID).
+        name: uniqueName(file.name
+          .replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i, "")
+          .replace(/^[0-9a-f]{16}-/i, ""), usedUploads),
         real: file.real,
         relative: file.relative,
         size: file.size,

@@ -290,3 +290,21 @@ test("saved files keep their bytes regardless of preview", async (t) => {
   await readGeoTiffPreview(file, bytes.length);
   assert.equal((await readFile(file)).length, bytes.length);
 });
+
+test("the workspace view shows uploads under the name the user chose", async (t) => {
+  const directory = await mkdtemp(path.join(tmpdir(), "geo-view-uploads-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const uploads = path.join(directory, ".dsh-uploads");
+  await mkdir(uploads, { recursive: true });
+  // `dsh-file-upload` prefixes with 16 hex characters, the platform's own uploads with
+  // a UUID; both are storage detail, so the view shows the chosen name in each case.
+  await writeFile(path.join(uploads, "8430ff1533e2f64f-acceptance.md"), "# 验收\n");
+  await writeFile(path.join(uploads, "0f1e2d3c-4b5a-6978-8c9d-0a1b2c3d4e5f-report.pdf"), "%PDF-1.4\n");
+  await writeFile(path.join(uploads, "notes.txt"), "no prefix\n");
+  const view = await workspaceView({ chatRoot: directory, inputsRoot: path.join(directory, "in"), projectInputsRoot: path.join(directory, "in2") });
+  const names = view.uploads.map((entry) => entry.name).sort();
+  assert.deepEqual(names, ["acceptance.md", "notes.txt", "report.pdf"]);
+  // The real path still points at the stored file, prefix and all.
+  const report = view.uploads.find((entry) => entry.name === "report.pdf");
+  assert.equal(path.basename(report.real), "0f1e2d3c-4b5a-6978-8c9d-0a1b2c3d4e5f-report.pdf");
+});
