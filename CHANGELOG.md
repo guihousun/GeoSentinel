@@ -7,8 +7,9 @@
 - **`ui-workspace` 不打包**：它的激活等待 `workspaces` 与 `remote.directoryPicker`，后者在封闭平面内，且没有别的模块引用它（实测引导它会让整包失效）。`uiWorkspace` 服务面由产品叠加层实现——`connectWorkspace`/`openSession`/`openWorkspace`/`startSession`/`forkSession`/`archiveSession`/`pickDirectory`/`listDirectory`/`createDirectory`，把"一个 workspace"映射为"一个研究项目"；主机目录选择、会话归档与分支复刻在本平面没有产品等价物，改为明确失败并给出中文提示，不做静默模拟。
 - **0.1.5 服务面变更的三处兼容**：`layout` 不再有 `closeDetails`（回退到 `closeRightbar`，四处调用统一走受保护的 `layoutCall`，方法缺失或抛错只告警）；提交回声改用 0.1.5 的 `attachments`（同时保留旧 `images`）并补 `placement`；`assistant/message` 事件补 `stream: []`——0.1.5 的 token meter 读 `event.data.usage ?? streamUsage(event.data.stream)`，`undefined` 会直接中断整条事件流，而产品不转发原始流记录，因此如实给出空数组、不显示用量，也不编造 token 数。
 - **浏览器实测**（候选 `0b98c5955ac0e478`，预览实例 8513，普通用户）：登录 → 新建研究项目 → 自动打开会话 → 发送提问 → 用户气泡、助手答复、"用时 1秒"、"1 轮 1 步"完整渲染；控制台错误 0、失败请求 0。真实答复由会话库中的 `assistant/message` 事件独立核对。研究容器、委派链路与 MCP 远程服务已在同一候选线的前序候选上分别验证。
-- **已知缺口（封闭平面所致，需要在下一轮收口）**：侧栏"按项目的会话列表"由 `ui-workspace` 渲染，因此 0.1.5 侧栏目前只有面板与"新会话"，跨会话切换依赖空态的项目选择器；监测简报与空间数据两块面板原先挂在 `dsh-better-sidebar` 标签上，而该唯一 `sidebar` 槽位已由原生 `ui-sidebar` 独占，故目前只有全球事件监测有回退入口。处置方向：为 `ui-workspace` 补 `workspaces` + `remote.directoryPicker`（失败即明确报错）以恢复原生分组导航，或把三块面板重新表达为原生槽位。
-- 单元测试 95 项通过（主树与 0.1.5 副本各一遍）；`prepare → preview` 在副本内通过，生产版本未改动。
+- **侧栏导航与产品入口在 0.1.5 上恢复**（候选 `b855817f18abe1ee`）：原生侧栏是一层槽位外壳，`sidebar.workspaces`（single，会话列表区域）的原生填充者是 `ui-workspace`，而它需要封闭通道的主机目录选择器，因此该区域此前是空的——用户打开一个会话后就无法再切换项目或会话。改为把产品自己的 `ProjectTree` / `ProductEntries` 注册进 `sidebar.workspaces` 与 `sidebar.footer.action`（这两个位置在本 bundle 内没有其他注册者，`sidebar.settings` 与 `sidebar.footer.action` 的原生占用者都未打包）。实测：侧栏列出项目「侧栏导航验收」及其会话行、点击项目即打开会话，底部四个入口（全球事件监测 / 监测简报 / 空间数据 / 账号）齐全，三块面板都能打开并渲染真实内容（监测简报显示线索计数，空间数据渲染 Natural Earth 底图预览）；控制台错误 0、失败请求 0。旧内核上仍由产品自己的侧栏承载这两块内容，注册位置互斥。
+- **仍存的缺口**：① 原生会话列表的分组交互（重命名/归档/拖拽排序/搜索）由 `ui-workspace` 提供，产品用自己的列表替代后这些交互仍是产品自己的实现（管理入口在行的齿轮按钮里）；② 侧栏文件与文档预览（`ui-sidebar-files` / `-documentpreview`）等 `remote.workspaceFiles`，仍在封闭平面之外，产品此前的三组文件面板在 0.1.5 上未恢复；③ 管理员平面两处待改：`development/worker.mjs` 的种子 profile 仍插入 `dsh-better-sidebar`（0.1.5 上原生 `ui-sidebar` 独占该槽位），`plugins/developer/client.js` 注入的 `remote.workspace`/`workspaces` 在封闭平面下没有提供者；④ 正式发布尚未执行，生产仍是 `9e061099f3ccf519`。
+- 单元测试 96 项通过（主树与 0.1.5 副本各一遍）；`prepare → preview` 在副本内通过，生产版本未改动。
 
 ## 2026-09-10 - 远端 MCP（高德 / NASA CMR）真正可用：两处缺陷修复
 
