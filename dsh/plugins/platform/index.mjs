@@ -17,7 +17,7 @@ import { nativeEvent } from "./native-events.mjs";
 import { registerSidebarAdapter } from "./sidebar-adapter.mjs";
 import { QuestionTransport } from "./questions.mjs";
 import { readonlySubagents } from "./subagents.mjs";
-import { createRoleBinder, parentSessionIdOf } from "./role-binding.mjs";
+import { createRoleBinder } from "./role-binding.mjs";
 import { GIS_TOOL_NAMES } from "../research/gis-tools.mjs";
 import { releaseService } from "../../release/service.mjs";
 import { fileURLToPath } from "node:url";
@@ -173,14 +173,20 @@ export function apply(ctx, config = {}) {
     }
   }
   // The native runtime publishes `subagent/start` the moment a specialist begins
-  // (`{ id: childSessionId }` plus the parent agent), which is the only reliable instant
-  // to bind a one-shot child: polling the catalog can miss one that settles in seconds.
-  ctx.on("subagent/start", (identity, parent) => {
+  // (`{ id: childSessionId }` plus the parent agent). Events travel UP the context tree,
+  // and the runtime emits from its own branch, so listening on this plugin's context
+  // never sees them: the listener goes on the root and is disposed with the plugin.
+  ctx.effect(() => (ctx.root ?? ctx).on("subagent/start", (identity) => {
     const childId = identity?.id;
-    const chatId = parentSessionIdOf(parent);
-    if (typeof childId !== "string" || chatId === undefined) return;
-    void bindRole.bind(chatId, childId).catch(() => {});
-  });
+    if (typeof childId !== "string") {
+      if (!spawnSeen) { spawnSeen = true; console.error("GeoSentinel: subagent/start 载荷缺少子会话标识：" + JSON.stringify(identity)); }
+      return;
+    }
+    if (!spawnSeen) { spawnSeen = true; console.error("GeoSentinel: 已在派发瞬间收到 subagent/start"); }
+    void bindRole.bindSpawned(childId).then((role) => {
+      if (role === undefined && !spawnUnbound) { spawnUnbound = true; console.error("GeoSentinel: 子代理在派发时无法归属角色，未收紧工具：" + childId); }
+    }).catch(() => {});
+  }));
   ctx.on("geosentinel/member-created", (record) =>
     store.recordChild(record.captainId, record.memberId, storedRole(record.role)),
   );
@@ -211,6 +217,11 @@ export function apply(ctx, config = {}) {
   const allowed = new Set([...TEAM_TOOLS, ...DOMAIN_TOOLS, ...FS_READ_TOOLS, ...FS_WRITE_TOOLS, ...WEB_TOOLS, ...DOCUMENT_TOOLS, ...VISUAL_TOOLS, ...MCP_TOOLS, ...PLAN_TOOLS, "ask_user_question", "skill"]);
   let restrictWarned = false;
   let bindWarned = false;
+  // One-time diagnostics for the spawn-time binding path, so a specialist that keeps the
+  // supervisor's tool surface can be traced to "the event never arrived" versus "the role
+  // could not be resolved yet" instead of being guessed at.
+  let spawnSeen = false;
+  let spawnUnbound = false;
   // The document plugin also registers its own /api/upload route, which has no
   // login check (loopback-only, keyed by an x-session-id header). An exact
   // route shadows it — exact routes win over prefixes — and this shadow
