@@ -27,6 +27,35 @@ test("the product web surface serves basemap assets and nothing else", async (t)
   assert.ok(Array.isArray(world.features) && world.features.length > 0, "世界底图瓦片应有要素");
 });
 
+test("the shell revalidates its multi-megabyte client instead of re-downloading it", async () => {
+  // `no-store` cost a full bundle download on every visit (9 MB on the 0.1.5 line, which
+  // the remote HTTPS proxy carries). The validator must identify a build exactly: same
+  // build revalidates, changed appearance or a different path does not.
+  const handler = nativeHandler();
+  const shell = async (pathname, headers = {}) => {
+    const captured = {};
+    const res = { writeHead: (status, value) => { captured.status = status; Object.assign(captured, value); }, end: (body) => { captured.body = body; } };
+    assert.equal(await handler({ method: "GET", headers }, res, pathname), true);
+    return captured;
+  };
+  const first = await shell("/geo/native/bundle.js");
+  assert.equal(first.status, 200);
+  assert.equal(first["cache-control"], "no-cache");
+  assert.match(first.etag ?? "", /^"[a-f0-9]{20}"$/);
+  const revalidated = await shell("/geo/native/bundle.js", { "if-none-match": first.etag });
+  assert.equal(revalidated.status, 304);
+  assert.equal(revalidated.body, undefined, "304 不应带正文");
+  assert.equal(revalidated.etag, first.etag);
+  // A different asset must not reuse the bundle's validator.
+  const css = await shell("/geo/native/custom.css", { "if-none-match": first.etag });
+  assert.equal(css.status, 200);
+  assert.notEqual(css.etag, first.etag);
+  // A stale validator gets the body again.
+  const stale = await shell("/geo/native/bundle.js", { "if-none-match": '"0000000000000000000"' });
+  assert.equal(stale.status, 200);
+  assert.ok(stale.body);
+});
+
 test("the product shell allows exactly the blob workers its own clients build", async () => {
   // The native upload client runs its background transport in a Worker created from a
   // blob URL. The shell's CSP governs workers through `default-src 'self'` unless

@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
@@ -305,7 +306,19 @@ export function nativeHandler() {
       try { body = await readFile(file); } catch { res.writeHead(404); res.end(); return true; }
       mime = ({ ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".webmanifest": "application/manifest+json" })[path.extname(file)] ?? "application/octet-stream";
     }
-    res.writeHead(200, { "content-type": mime, "cache-control": "no-store", "x-content-type-options": "nosniff",
+    // The 0.1.5 client family is several megabytes and the appearance stamp already
+    // identifies a build, so the shell revalidates instead of forcing a fresh download on
+    // every visit (`no-store` cost a full 9 MB per page load, which matters over the
+    // remote HTTPS proxy). The validator combines the build identity with the path and
+    // the body length, so any real change — appearance, version, overlay, asset — lands
+    // on a different ETag.
+    const etag = `"${createHash("sha1").update(`${data.version}|${stamp}|${pathname}|${Buffer.byteLength(body)}`).digest("hex").slice(0, 20)}"`;
+    if (req.headers?.["if-none-match"] === etag) {
+      res.writeHead(304, { "etag": etag, "cache-control": "no-cache" });
+      res.end();
+      return true;
+    }
+    res.writeHead(200, { "content-type": mime, "cache-control": "no-cache", "etag": etag, "x-content-type-options": "nosniff",
       // `worker-src 'self' blob:` — the native upload client runs its background
       // transport in a Worker built from a blob URL (`new Worker(URL.createObjectURL(
       // new Blob(["(" + worker + ")()"], {type:"text/javascript"})))`). Without this
