@@ -38,6 +38,7 @@ test("native client restores remembered history and keeps project/file ownership
     "/chats/c1/files": { files: [{ name: "job/result.md" }] }, "/chats/c2/files": { files: [] },
   };
   const storage = new Map([["geosentinel:selection:u1", "c1"]]);
+  const posts = [];
   const context = vm.createContext({
     window: { __ModuleLoader__: { load({ factory }) {
       const plugin = factory((id) => {
@@ -49,7 +50,24 @@ test("native client restores remembered history and keeps project/file ownership
     } } },
     localStorage: { getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) },
     EventSource: class { close() {} }, setInterval: () => 1, clearInterval() {}, setTimeout, clearTimeout,
-    fetch: async (url) => { const route = url.replace("/geo/api", ""); requests.push(route); assert.ok(responses[route], route); return { ok: true, json: async () => responses[route] }; },
+    fetch: async (url, init = {}) => {
+      const route = url.replace("/geo/api", ""), method = init.method ?? "GET";
+      requests.push(route);
+      if (method === "POST") {
+        posts.push(route);
+        const created = { id: "c9", title: "新研究对话" };
+        if (route === "/projects/p2/chats") {
+          responses[route] = { chats: [...responses[route].chats, created] };
+          responses["/chats/c9/native-history"] = { events: [], running: false };
+          responses["/chats/c9/plan"] = { team: null };
+          responses["/chats/c9/questions"] = { pending: null };
+          responses["/chats/c9/subagents"] = { parentAvailable: true, entries: [] };
+        }
+        return { ok: true, json: async () => ({ chat: created }) };
+      }
+      assert.ok(responses[route], route);
+      return { ok: true, json: async () => responses[route] };
+    },
   });
   vm.runInContext(source, context);
   for (let i = 0; i < 8; i++) await new Promise(setImmediate);
@@ -102,4 +120,26 @@ test("native client restores remembered history and keeps project/file ownership
   assert.equal(services.sessions.binding("c2").session.projections.faceOf("todos").getSnapshot().length, 0);
   await assert.rejects(services.sessions.fork());
   assert.match(stores[0].getSnapshot().error, /暂不支持/);
+  // The native provider of `uiWorkspace` (`dsh-client-ui-workspace`) cannot activate
+  // on the closed host plane: it waits for `workspaces` and `remote.directoryPicker`.
+  // `ui-conversation` injects `connectWorkspace` and `ui-sidebar` injects
+  // `startSession`, so the product implements the whole face against its own model.
+  // Guard every method the native service exposes: a native upgrade that starts
+  // calling another one must fail here instead of blanking the browser.
+  for (const name of ["connectWorkspace", "openSession", "openWorkspace", "startSession", "forkSession", "archiveSession", "pickDirectory", "listDirectory", "createDirectory"])
+    assert.equal(typeof services.uiWorkspace[name], "function", name);
+  services.uiWorkspace.openSession("c1");
+  assert.equal(services.sessions.list.getSnapshot().current, "c1");
+  await services.uiWorkspace.openWorkspace("p2");
+  for (let i = 0; i < 8; i++) await new Promise(setImmediate);
+  assert.equal(services.sessions.list.getSnapshot().current, "c2");
+  await services.uiWorkspace.startSession("p2");
+  for (let i = 0; i < 8; i++) await new Promise(setImmediate);
+  assert.deepEqual(posts, ["/projects/p2/chats"]);
+  assert.equal(services.sessions.list.getSnapshot().current, "c9");
+  assert.equal(stores[0].getSnapshot().activeProject, "p2");
+  // No product equivalent on this plane: they must fail loudly, not pretend.
+  for (const [name, args, pattern] of [["archiveSession", ["c9"], /归档/], ["pickDirectory", [], /目录/],
+    ["listDirectory", ["D:\\"], /目录/], ["createDirectory", ["D:\\", "x"], /目录/]])
+    await assert.rejects(services.uiWorkspace[name](...args), pattern, name);
 });

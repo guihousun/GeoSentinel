@@ -119,6 +119,12 @@ test("the product shell bundles the 0.1.5 surfaces it reuses", async () => {
   // `remote.commands` Host Remote, which only `api-remotes` publishes — and the
   // product keeps that row closed so a user's browser gets no host-service channel.
   assert.ok(!assets.bundle.includes("@deepseek-ai/dsh-client-ui-plan"), "方案面板需要 api-remotes，产品保持关闭");
+  // `ui-workspace` provides the client `uiWorkspace` service, but activating it waits
+  // for `workspaces` + `remote.directoryPicker` (closed plane), and the native loader
+  // reports the ENTIRE bundle as failed when one booted entry stays pending. Nothing
+  // else requires its module, so it is neither bundled nor booted; the product overlay
+  // implements the `uiWorkspace` face itself (see workbench/native/client.js).
+  assert.ok(!assets.bundle.includes("@deepseek-ai/dsh-client-ui-workspace"), "ui-workspace 会因封闭通道挂起，不应打包");
   assert.match(assets.html, /地缘环境智能计算平台/);
   assert.match(assets.html, /MutationObserver/, "产品标题需要在原生客户端改写后恢复");
 });

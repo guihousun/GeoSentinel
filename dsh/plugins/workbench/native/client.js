@@ -256,7 +256,33 @@ window.__ModuleLoader__.load({
         fork: async () => { const message = "当前入口暂不支持复制历史分支。请在左栏新建对话。"; set({ error: message }); throw new Error(message); }, search: async () => ok({ items: [], hasMore: false }) };
       ctx.provide("sessions", sessions);
       ctx.provide("connection", { state: createSnapshotStore({ state: "connected" }), generation: createSnapshotStore({ phase: "ready", revision: 1 }) });
-      ctx.provide("uiWorkspace", { connectWorkspace: async (id) => { await selectProject(id); return list.getSnapshot().current ?? await create({ workspaceId: id }); } });
+      // The native provider of this service (`@deepseek-ai/dsh-client-ui-workspace`)
+      // cannot activate here: it waits for the `workspaces` controller and
+      // `remote.directoryPicker`, and directory picking belongs to the host plane the
+      // product keeps closed (see native-host.mjs). Two booted plugins inject it —
+      // `ui-conversation` calls `connectWorkspace`, `ui-sidebar` calls `startSession` —
+      // so the product implements the SAME face against its own model, where one
+      // native "workspace" is one GeoSentinel project and one session is one chat.
+      // Directory picking, archiving and branch forking have no product equivalent on
+      // this plane, so they fail loudly with a Chinese message instead of pretending.
+      const needProject = () => { const id = state.getSnapshot().activeProject; if (!id) throw new Error("请先新建研究项目。"); return id; };
+      const workspaceNavigation = {
+        connectWorkspace: async (id) => { await selectProject(id); return list.getSnapshot().current ?? await create({ workspaceId: id }); },
+        openSession: (id) => { open(id); },
+        openWorkspace: async (id, beforeOpen) => {
+          const sessionId = await workspaceNavigation.connectWorkspace(id);
+          beforeOpen?.(sessionId); open(sessionId);
+        },
+        // `ui-sidebar` calls this from an onClick handler, so it must never throw
+        // synchronously: a missing project is reported through the product error slot.
+        startSession: async (id) => { try { await create({ workspaceId: id ?? needProject() }); } catch (error) { set({ error: error.message }); } },
+        forkSession: async () => { await sessions.fork(); },
+        archiveSession: async () => { throw new Error("平台按项目归档研究对话，暂不支持单独归档会话。"); },
+        pickDirectory: async () => { throw new Error("主机目录选择不可用，请使用平台的项目入口。"); },
+        listDirectory: async () => { throw new Error("主机目录浏览不可用，请使用平台的项目入口。"); },
+        createDirectory: async () => { throw new Error("主机目录创建不可用，请使用平台的项目入口。"); },
+      };
+      ctx.provide("uiWorkspace", workspaceNavigation);
       ctx.provide("remote", { $host: { platform: "managed", isLoopback: false }, $on: (event, listener) => {
         if (event !== "user-questions/request") return () => {};
         remoteListeners.set(event, listener);

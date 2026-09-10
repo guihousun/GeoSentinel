@@ -38,6 +38,17 @@ export const nativePlugins = [
   // note in plugins/platform/sidebar-adapter.mjs).
   "dsh-client-ui-sidebar", "dsh-client-ui-sidebar-right",
   "dsh-client-ui-sidebar-files", "dsh-client-ui-sidebar-documentpreview",
+  // NOT bundled: `dsh-client-ui-workspace`. It is the native provider of the client
+  // `uiWorkspace` service (`connectWorkspace`/`startSession`/`openWorkspace`/
+  // `forkSession`/`archiveSession`/`pickDirectory`), which `ui-conversation` and
+  // `ui-sidebar` inject. Its own activation waits for `workspaces` and
+  // `remote.directoryPicker`, and the picker lives on the host plane the product
+  // keeps closed — booting it leaves the entry pending and the native loader then
+  // reports the WHOLE client bundle as failed. No other module requires it either,
+  // so it is neither bundled nor booted; the product overlay implements the
+  // `uiWorkspace` face against its own project/chat model instead. The package stays a
+  // declared dependency so its pin tracks the rest of the 0.1.5 client and the native
+  // service can be re-enabled if that plane ever opens; it is just not bundled.
   "dsh-client-ui-attachment", "dsh-client-ui-approval",
   "dsh-client-ui-deliverables", "dsh-client-resources",
   // NOT bundled: `dsh-client-ui-open-in-app`. It polls the host's `/open-in-app/apps`
@@ -250,5 +261,7 @@ export function nativeHandler() {
     return true;
   };
 }
+
+
 
 
