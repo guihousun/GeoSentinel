@@ -6,6 +6,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { WorkspaceFiles } from "./files.mjs";
 import { monitorReport } from "../../monitoring/snapshot.mjs";
 import { listSpatialFiles, readSpatialFile, PREVIEW_EXTENSIONS } from "./spatial.mjs";
+import { virtualRoot } from "./sidebar-adapter.mjs";
 
 const cookieName = process.env.GEO_PREVIEW_RELEASE ? "geosentinel_preview_session" : "geosentinel_session";
 // Media types the conversation may render inline (`inline=1` on the artifact
@@ -251,7 +252,11 @@ export function createPlatformHandler({
           return json(res, 200, { ok: true });
         }
         if (parts[2] === "chats" && method === "GET")
-          return json(res, 200, { chats: store.listChats(user, project.id) });
+          // `root` is the chat's UI-only virtual workspace root (`/工作区/<title>`), the
+          // same address the explorer serves. The native right sidebar's file tab reads
+          // it as the session's `cwd`; publishing it here keeps ONE implementation of
+          // that formula instead of mirroring the sanitiser in the browser.
+          return json(res, 200, { chats: store.listChats(user, project.id).map((chat) => ({ ...chat, root: virtualRoot(chat) })) });
         if (parts[2] === "chats" && method === "POST") {
           const data = only(await body(req), ["title"]);
           const chat = store.createChat(user, project.id, data.title);

@@ -58,7 +58,7 @@ export function sidebarChat(user, id, store) {
 
 const safeSegment = (value) => String(value ?? "").replace(/[/\\\0]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40);
 /** UI-only virtual root. It is never a filesystem authority. */
-const virtualRoot = (chat) => `/工作区/${safeSegment(chat.title) || chat.project_id}`;
+export const virtualRoot = (chat) => `/工作区/${safeSegment(chat.title) || chat.project_id}`;
 
 /** The friendly view roots for one chat: user uploads, produced files, raw jobs. */
 async function viewFor(user, chat, store, share) {

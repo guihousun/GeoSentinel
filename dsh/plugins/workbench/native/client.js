@@ -73,6 +73,11 @@ window.__ModuleLoader__.load({
           const { chats } = await api(`/projects/${project.id}/chats`);
           items.push({ workspaceId: project.id, title: project.title, sessionIds: chats.map((c) => c.id) });
           for (const chat of chats) byId[chat.id] = { id: chat.id, title: chat.title, displayTitle: chat.title, projectId: project.id,
+            // The native right sidebar's file tab reads the session's `cwd` to know which
+            // workspace to list; without it the tab bails with "这个会话没有工作区目录".
+            // The host publishes the chat's UI-only virtual root (`/工作区/<title>`), so
+            // the value stays one implementation of that address, not a browser mirror.
+            ...(chat.root ? { cwd: chat.root } : {}),
             blank: records.get(chat.id)?.session.getSnapshot().blank ?? false, running: false, updatedAt: chat.created };
         }
         if (epoch !== generation) return;

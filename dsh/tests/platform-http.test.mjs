@@ -63,6 +63,13 @@ test("HTTP boundary rejects unowned resources, privileged parameters and forged 
   const adminCookie = "geosentinel_session=" + store.login("admin", "valid-admin-password").token;
   assert.equal((await call("/admin/development", 0, "GET", undefined, { cookie: adminCookie })).status, 404);
   assert.equal((await call(`/chats/${chat.id}/history`, 1)).status, 404);
+  // The chat list publishes the chat's UI-only virtual workspace root: the native right
+  // sidebar's file tab reads it as the session `cwd`, and the explorer serves that same
+  // address, so the formula lives in one place (the host) instead of two.
+  const listed = await (await call(`/projects/${projects[0].id}/chats`)).json();
+  const listedChat = listed.chats.find((entry) => entry.id === chat.id);
+  assert.match(listedChat.root, /^\/工作区\//);
+  assert.equal(listedChat.root.includes("\n"), false);
   assert.equal((await call(`/chats/${chat.id}/subagents`, 1)).status, 404);
   assert.equal((await call(`/chats/${chat.id}/subagents`)).status, 200);
   for (const method of ["POST", "PATCH", "DELETE"]) assert.equal((await call(`/chats/${chat.id}/subagents/child/prompt`, 0, method)).status, 405);
