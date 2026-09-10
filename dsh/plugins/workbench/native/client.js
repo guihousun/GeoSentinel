@@ -943,7 +943,13 @@ window.__ModuleLoader__.load({
         // Files use better-sidebar's own explorer, fed by the fenced read-only
         // sidebar adapter, so there is no second, worse file list to maintain.
       });
-      ctx.slots.inject("sidebar", () => ctx.slots.register({ name: "sidebar" }, Sidebar));
+      // From 0.1.5 the native sidebar family owns the single `sidebar` slot, and the
+      // native chat itself waits for its `sidebarRight` service, so this overlay only
+      // registers the product's own sidebar on the older line (the host tells us
+      // which build this is). The product panels that used to live in better-sidebar
+      // tabs (monitor / briefs / spatial) still need a native sidebar contribution —
+      // tracked as the remaining parity item for 0.1.5.
+      if (!globalThis.__GEOSENTINEL_NATIVE_SIDEBAR__) ctx.slots.inject("sidebar", () => ctx.slots.register({ name: "sidebar" }, Sidebar));
       function ProjectPicker({ open: visible, onPick, onClose }) {
         const s = useState();
         const picker = React.useRef(null);

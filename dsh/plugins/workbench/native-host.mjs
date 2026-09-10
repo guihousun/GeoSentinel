@@ -150,8 +150,15 @@ export async function nativeAssets() {
     // restored whenever it is replaced.
     .replace("</head>", `<script>(function(){var t=document.querySelector("title");if(!t)return;var n="地缘环境智能计算平台";var f=function(){if(document.title!==n)document.title=n};new MutationObserver(f).observe(t,{childList:true});f()})()</script></head>`);
   const theme = await dreamSkinTheme();
-  const bundle = [...sources.values()].join("\n") + `\nwindow.__ModuleLoader__.load({id:"@geosentinel/dsh-theme",factory:()=>(${JSON.stringify(theme)})});`;
-  return { dist, html, bundle, version };
+  // The client overlay must know whether the native sidebar family is part of this
+  // build: the native one owns the single `sidebar` slot (and the native chat waits
+  // for its `sidebarRight` service), so the overlay only registers its own sidebar
+  // on the older line where no native sidebar exists.
+  const nativeSidebar = sources.has("@deepseek-ai/dsh-client-ui-sidebar");
+  const bundle = [...sources.values()].join("\n")
+    + `\nglobalThis.__GEOSENTINEL_NATIVE_SIDEBAR__=${nativeSidebar};\n`
+    + `window.__ModuleLoader__.load({id:"@geosentinel/dsh-theme",factory:()=>(${JSON.stringify(theme)})});`;
+  return { dist, html, bundle, version, nativeSidebar };
 }
 
 export function bundleImports(source) {
