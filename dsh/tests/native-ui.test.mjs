@@ -39,6 +39,11 @@ test("native events preserve renderer identity while excluding model request sec
     data: { turn: 1, step: 1, message: { id: "reply", role: "assistant", source: { kind: "model", provider: "deepseek", model: "test", apiKey: "secret" }, content: [{ type: "text", text: "回复" }] } } });
   assert.equal(event.data.message.source.provider, "deepseek");
   assert.equal(event.surfaceOp, "append");
+  // 0.1.5's token meter calls `streamUsage(event.data.stream)` and throws on an
+  // undefined `stream`, which killed the whole event feed in the browser. The product
+  // forwards no raw records, so the honest value is an empty array — never a count.
+  assert.deepEqual(event.data.stream, []);
+  assert.equal("usage" in event.data, false);
   assert.equal(JSON.stringify(event).includes("secret"), false);
   assert.equal(nativeEvent({ type: "user/message", data: { source: { kind: "plugin" }, content: [] } }), null);
 });

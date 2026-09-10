@@ -103,10 +103,17 @@ window.__ModuleLoader__.load({
         const eventSource = new MutableSessionEventSource();
         const session = { sessionId: id, getSnapshot: lifecycle.getSnapshot, subscribe: lifecycle.subscribe,
           projections: { faceOf(key) { if (!projections.has(key)) projections.set(key, createSnapshotStore(undefined)); return projections.get(key); } },
-          beginSubmission({ text, images, onRetire }) {
+          // 0.1.5 calls this as beginSubmission({ mode, text, attachments, onRetire })
+          // and its chat bubble renders `submission.attachments.map(...)`; the older
+          // line used `images`. Emit both, plus the placement the native controller
+          // derives, so neither line's renderer reads an undefined field.
+          beginSubmission({ text, attachments, images, mode, onRetire }) {
             if (addresses.has(id)) throw new Error(readOnlyMessage);
             const requestId = crypto.randomUUID();
-            update({ pendingSubmissions: [{ requestId, text, images, time: Date.now() }], promptAttempted: true });
+            const files = attachments ?? images ?? [];
+            const running = session.getSnapshot().running;
+            update({ pendingSubmissions: [{ requestId, text, attachments: files, images: files,
+              placement: running ? mode === "steer" ? "steering" : "queued" : "transcript", time: Date.now() }], promptAttempted: true });
             session.retire = onRetire;
             return { requestId, abandon: () => update({ pendingSubmissions: [] }) };
           },

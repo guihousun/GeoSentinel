@@ -42,6 +42,7 @@ test("native client restores remembered history and keeps project/file ownership
   };
   const storage = new Map([["geosentinel:selection:u1", "c1"]]);
   const posts = [];
+  let uuid = 0;
   const context = vm.createContext({
     window: { __ModuleLoader__: { load({ factory }) {
       const plugin = factory((id) => {
@@ -52,6 +53,7 @@ test("native client restores remembered history and keeps project/file ownership
       }); plugin.apply(ctx);
     } } },
     localStorage: { getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) },
+    crypto: { randomUUID: () => `id-${++uuid}` },
     EventSource: class { close() {} }, setInterval: () => 1, clearInterval() {}, setTimeout, clearTimeout,
     fetch: async (url, init = {}) => {
       const route = url.replace("/geo/api", ""), method = init.method ?? "GET";
@@ -159,4 +161,16 @@ test("native client restores remembered history and keeps project/file ownership
   services.sessions.open("c2");
   for (let i = 0; i < 4; i++) await new Promise(setImmediate);
   assert.equal(services.sessions.list.getSnapshot().current, "c2");
+  // The native chat bubble renders `submission.attachments.map(...)`, so the product's
+  // submission echo must carry that field (0.1.5) as well as the older `images`, and
+  // the placement the native controller derives.
+  const submission = services.sessions.binding("c2").session.beginSubmission({ mode: "send", text: "你好" });
+  const echo = services.sessions.binding("c2").session.getSnapshot().pendingSubmissions[0];
+  // (the vm realm has its own Array prototype, so assert by shape, not deep equality)
+  assert.ok(Array.isArray(echo.attachments) && echo.attachments.length === 0);
+  assert.ok(Array.isArray(echo.images) && echo.images.length === 0);
+  assert.equal(echo.placement, "transcript");
+  assert.equal(typeof submission.requestId, "string");
+  assert.equal((await services.sessions.binding("c2").session.prompt([{ type: "text", text: "你好" }])).ok, true);
+  assert.ok(requests.includes("/chats/c2/prompt"), "prompt 未发送到平台接口");
 });

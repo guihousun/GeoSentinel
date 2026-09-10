@@ -6,6 +6,13 @@ export function nativeEvent(event) {
     return { ...base, surfaceOp: "append", data: { id: data.id, role: "user", source: { kind: "user" }, content: text(data.content) } };
   if (type === "assistant/message")
     return { ...base, surfaceOp: "append", data: { turn: data.turn, step: data.step,
+      // `stream` is the raw compact records of the settlement. The product never
+      // forwards them (request envelopes and raw payloads stay on the host), but the
+      // 0.1.5 token meter reads `event.data.usage ?? streamUsage(event.data.stream)`
+      // and throws on `undefined.length`, which kills the whole event feed. An empty
+      // array is the honest value: no records forwarded, so no usage is displayed —
+      // we never invent token counts.
+      stream: [],
       message: { id: data.message?.id, role: "assistant", source: { kind: data.message?.source?.kind ?? "model", provider: data.message?.source?.provider, model: data.message?.source?.model }, content: (data.message?.content ?? []).flatMap((part) => part.type === "tool-call" ? [{ type: "tool-call", id: part.id, name: part.name, arguments: "{}" }] : text([part])) } } };
   if (type === "assistant/chunk" && data?.chunk?.type === "text-delta")
     return { ...base, data: { turn: data.turn, step: data.step, chunk: { type: "text-delta", text: data.chunk.text } } };
