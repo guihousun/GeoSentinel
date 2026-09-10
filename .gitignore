@@ -28,6 +28,7 @@ dist/
 .adal/
 .codex/
 .playwright-cli/
+.runtime/
 
 # Local temp and logs
 .tmp/

@@ -1,4 +1,4 @@
-import { open } from "node:fs/promises";
+import { open, readdir } from "node:fs/promises";
 import path from "node:path";
 
 // Minimal ESRI Shapefile + DBF reader for the sidebar preview. It covers the
@@ -193,9 +193,25 @@ export async function readShapefilePreview(shpPath, maxFeatures = 600) {
     bounds,
     attributeFields: attributes?.fields ?? [],
     features: bounded,
-    sidecars: SHAPEFILE_SIDECARS,
+    // The companions that actually exist next to this .shp (not the vocabulary of
+    // possible extensions): the panel prints their count, and "15 种" for a file
+    // with 6 companions was wrong.
+    sidecars: await companionFiles(shpPath),
     note: attributes ? "" : "未找到或无法解析同名 .dbf，属性表为空。",
   };
+}
+
+/** Companion files that travel with this `.shp` (same stem, sidecar extension). */
+async function companionFiles(shpPath) {
+  const directory = path.dirname(shpPath);
+  const stem = path.basename(shpPath, path.extname(shpPath)).toLowerCase();
+  const names = await readdir(directory).catch(() => []);
+  return names
+    .filter((name) => {
+      const lower = name.toLowerCase();
+      return lower !== path.basename(shpPath).toLowerCase() && lower.startsWith(stem) && isShapefileSidecar(name);
+    })
+    .sort();
 }
 
 function boundsOf(features) {

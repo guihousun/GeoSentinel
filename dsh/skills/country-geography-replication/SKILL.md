@@ -54,7 +54,9 @@ R² 高只说明拟合好、不证明“分布均衡”或任何因果；跨期�
 ## 六、交付结构（建议）
 
 `口径定义 → 数据与样本 → 结果表 → 图 → 与原文逐项对照 → 结论 → 限制`。
-回答里给关键数字与图，明细留在 `outputs/` 的 CSV/脚本里；来源与产物路径按
+**图必须真的出现在回答里**：工具结果 artifacts 里每个 `kind=image` 都要用 `![说明](url)` 内联（一次即可），
+只写“见图 6-2”或只给路径等于没交付；对比表用 Markdown 表格或 dsh-ui table，明细留在 `outputs/` 的 CSV/脚本里；
+来源与产物路径按
 `workspace-and-artifact-contract`，证据链按 `claim-evidence-chain` 落到
 `geo_write_evidence`（断言必须引用真实产物或带检索时间的来源）。
 
