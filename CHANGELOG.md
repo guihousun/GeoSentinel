@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-11 - 内核对齐 DSH 0.1.5：原生界面复用与封闭平面下的缺口处置
+
+- **依赖与 profile 跟随 0.1.5**（`0.1.5-rc.1`）：230 个 pin 对齐、2 个已下架包移除、227 条 `pnpm.overrides`，锁文件按 0.1.5 闭包重生成；`agent-presets` 与 `plan-mode` 打开（委派工具随 agent 预设平面移动），`ui-agent-preset` 关闭。0.1.2 时代"关掉原生认证栈"的做法在 0.1.5 不可行：`connection` 与 `web-runtime` 必须保持开启，否则 7 个条目（含 `fileUpload`、`sessionController`）永久 pending。
+- **客户端外壳改为引导 0.1.5 原生界面**：`ui-sidebar` 家族、`file-upload`、`attachment`、`approval`、`deliverables`、`resources` 等。引导必须精确——只要有一个条目 pending，原生加载器就把**整个** bundle 判为失败并白屏；因此 `api-session-controller`/`api-gateway`/`ui-sidebar-files`/`ui-sidebar-documentpreview` 只打包不引导（它们等的是产品刻意关闭的浏览器 API 平面），`open-in-app`（轮询 401）与 `ui-plan`（需 `remote.commands`）直接不打包。
+- **`ui-workspace` 不打包**：它的激活等待 `workspaces` 与 `remote.directoryPicker`，后者在封闭平面内，且没有别的模块引用它（实测引导它会让整包失效）。`uiWorkspace` 服务面由产品叠加层实现——`connectWorkspace`/`openSession`/`openWorkspace`/`startSession`/`forkSession`/`archiveSession`/`pickDirectory`/`listDirectory`/`createDirectory`，把"一个 workspace"映射为"一个研究项目"；主机目录选择、会话归档与分支复刻在本平面没有产品等价物，改为明确失败并给出中文提示，不做静默模拟。
+- **0.1.5 服务面变更的三处兼容**：`layout` 不再有 `closeDetails`（回退到 `closeRightbar`，四处调用统一走受保护的 `layoutCall`，方法缺失或抛错只告警）；提交回声改用 0.1.5 的 `attachments`（同时保留旧 `images`）并补 `placement`；`assistant/message` 事件补 `stream: []`——0.1.5 的 token meter 读 `event.data.usage ?? streamUsage(event.data.stream)`，`undefined` 会直接中断整条事件流，而产品不转发原始流记录，因此如实给出空数组、不显示用量，也不编造 token 数。
+- **浏览器实测**（候选 `0b98c5955ac0e478`，预览实例 8513，普通用户）：登录 → 新建研究项目 → 自动打开会话 → 发送提问 → 用户气泡、助手答复、"用时 1秒"、"1 轮 1 步"完整渲染；控制台错误 0、失败请求 0。真实答复由会话库中的 `assistant/message` 事件独立核对。研究容器、委派链路与 MCP 远程服务已在同一候选线的前序候选上分别验证。
+- **已知缺口（封闭平面所致，需要在下一轮收口）**：侧栏"按项目的会话列表"由 `ui-workspace` 渲染，因此 0.1.5 侧栏目前只有面板与"新会话"，跨会话切换依赖空态的项目选择器；监测简报与空间数据两块面板原先挂在 `dsh-better-sidebar` 标签上，而该唯一 `sidebar` 槽位已由原生 `ui-sidebar` 独占，故目前只有全球事件监测有回退入口。处置方向：为 `ui-workspace` 补 `workspaces` + `remote.directoryPicker`（失败即明确报错）以恢复原生分组导航，或把三块面板重新表达为原生槽位。
+- 单元测试 95 项通过（主树与 0.1.5 副本各一遍）；`prepare → preview` 在副本内通过，生产版本未改动。
+
 ## 2026-09-10 - 远端 MCP（高德 / NASA CMR）真正可用：两处缺陷修复
 
 - **发布链路丢掉了 profile 的 `!!js` 标签。** 产品 profile 是 Cordis 条目列表，方言为 `js-yaml` 的 JSON schema 加 `!!js` 表达式标签（`@deepseek-ai/dsh-app-boot` 启动时按此解析，`!!js` 在插件激活时求值，`process.env` 在作用域内）。原发布链路改用另一个 YAML 库解析后再 `YAML.stringify` 重写，标签退化成字面量字符串：实测候选版本真正用于启动的 profile 里写成 `url: "`https://mcp.amap.com/mcp?key=${process.env.AMAP_API_KEY}`"`，高德行随后带着不可用地址启动，并因 `failOnStartupError: false` 静默消失。新增 `release/profile-schema.mjs`（与启动器同一方言，含 `.pnpm` 兜底解析），`manager.validateProfile` 与 `runtime.launchRelease` 改用它；回归测试 `tests/profile-dialect.test.mjs` 固定该行为。
