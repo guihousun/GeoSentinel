@@ -38,7 +38,9 @@ export function publicEvent(event) {
       time,
       data: { callId: data.message?.toolCallId, error: Boolean(data.error) },
     };
-  if (type.startsWith("agent-teams/")) return { type, seq, time, data };
+  // Native subagent lifecycle (0.1.5). The AgentTeams fork's own `agent-teams/*`
+  // events are gone with the fork; the platform now follows the native ones.
+  if (["subagent/start", "subagent/end", "subagent/descriptor"].includes(type)) return { type, seq, time, data };
   return null;
 }
 function textContent(content) {

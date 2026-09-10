@@ -1,6 +1,6 @@
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { PlatformStore, PlatformError } from "./store.mjs";
 import { createPlatformHandler } from "./http.mjs";
 import { publicEvent } from "./public-events.mjs";
@@ -9,7 +9,7 @@ import { containedPath, containedWrite } from "./files.mjs";
 import { parseShareDirs, shareContained, shareTarget } from "./share.mjs";
 import { createUploadProxy } from "./uploads.mjs";
 import { allowedTools, policyPath, readPolicy, skillEnabled } from "./capability-policy.mjs";
-import { DOMAIN_TOOLS, DOCUMENT_TOOLS, FS_READ_TOOLS, FS_WRITE_TOOLS, MCP_TOOLS, TEAM_TOOLS, VISUAL_TOOLS, WEB_TOOLS } from "./catalog.mjs";
+import { DOMAIN_TOOLS, DOCUMENT_TOOLS, FS_READ_TOOLS, FS_WRITE_TOOLS, MCP_TOOLS, PLAN_TOOLS, TEAM_TOOLS, VISUAL_TOOLS, WEB_TOOLS } from "./catalog.mjs";
 import { registerProductSkills } from "./skills.mjs";
 import { RuntimeLedger } from "./runtime.mjs";
 import { monitorService } from "../../monitoring/host.mjs";
@@ -30,7 +30,6 @@ export const inject = [
   "sessionController",
   "agents",
   "tools",
-  "geosentinelTeams",
   "userQuestions",
   "subagents",
 ];
@@ -70,6 +69,17 @@ const ROLE_LABEL = {
 };
 const storedRole = (name) => STORED_ROLE[name] ?? name;
 const roleLabel = (role) => ROLE_LABEL[role] ?? role;
+// The three fixed research roles, as the user and the model see them.
+const RESEARCH_ROLES = Object.keys(STORED_ROLE);
+// Role tool tables, published in profile/product.json. A specialist's tools are
+// narrowed to its own table when the native subagent catalog reveals it (see
+// bindMembers); restrictions only filter inherited tools, so the child's own
+// structured-output tool — the channel it answers through — is never stripped.
+const product = (() => {
+  try { return JSON.parse(readFileSync(new URL("../../profile/product.json", import.meta.url), "utf8")); }
+  catch (error) { console.error("GeoSentinel: 角色工具表不可读：" + error.message); return {}; }
+})();
+const ROLE_TOOLS = product.roleTools ?? {};
 // Display name of the supervising agent in the progress stream.
 const SUPERVISOR_ROLE = "主管";
 
@@ -123,17 +133,46 @@ export function apply(ctx, config = {}) {
     const agent = ctx.agents.get(chatId);
     if (!agent) return false;
     if (agent.status === "running") return true;
-    const team = await ctx.geosentinelTeams.inspectTeam(agent);
-    return Boolean(
-      team &&
-        team.phase !== "staged" &&
-        !team.halted &&
-        (team.tasks.some(
-          (t) => !["completed", "failed", "cancelled"].includes(t.status),
-        ) ||
-          team.members.some((m) => m.status === "working")),
-    );
+    // A delegated specialist still working keeps the research job active.
+    const service = ctx.get("subagents");
+    if (!service?.remoteExportList) return false;
+    try {
+      const catalog = await service.remoteExportList(chatId, new AbortController().signal);
+      return (catalog.entries ?? []).some((entry) => entry.kind === "child" && entry.activity === "running");
+    } catch { return false; }
   };
+  // Native plan mode is the approval gate. On the 0.1.5 line plan mode belongs to
+  // the AGENT plane (the session preset owns `plan-mode` and the delegation tools),
+  // so a host-plane plugin cannot inject it: read it optionally, and treat "not
+  // readable" as "not planning" rather than blocking the chat.
+  const planOf = (agent) => {
+    const service = ctx.get("planMode");
+    return service?.get?.(agent) ?? null;
+  };
+  /**
+   * Bind the specialists the supervisor delegated to, and narrow each one to its
+   * role's tool table. The role comes from the native subagent catalog label
+   * ("数据助手：…"), which is the delegation description the supervisor wrote.
+   */
+  async function bindMembers(chatId) {
+    const service = ctx.get("subagents");
+    if (!service?.remoteExportList) return;
+    let entries = [];
+    try { entries = (await service.remoteExportList(chatId, new AbortController().signal)).entries ?? []; } catch { return; }
+    const known = new Map(store.db.prepare("SELECT id,role FROM agent_sessions WHERE chat_id=?").all(chatId).map((row) => [row.id, row.role]));
+    for (const entry of entries) {
+      if (entry.kind !== "child" || !entry.id || known.has(entry.id)) continue;
+      const role = RESEARCH_ROLES.find((name) => String(entry.label ?? "").includes(name));
+      if (!role) continue;
+      try { store.recordChild(chatId, entry.id, storedRole(role)); } catch { continue; }
+      const child = ctx.agents?.get?.(entry.id);
+      const table = ROLE_TOOLS[role];
+      if (child && Array.isArray(table) && table.length) {
+        try { child.ctx.tools.restrict({ allow: table }); }
+        catch (error) { console.error("GeoSentinel: 专家工具限制未生效（按守卫拦截）：" + error.message); }
+      }
+    }
+  }
   ctx.on("geosentinel/member-created", (record) =>
     store.recordChild(record.captainId, record.memberId, storedRole(record.role)),
   );
@@ -161,7 +200,8 @@ export function apply(ctx, config = {}) {
       console.error("GeoSentinel: 会话标题同步失败：" + error.message);
     }
   });
-  const allowed = new Set([...TEAM_TOOLS, ...DOMAIN_TOOLS, ...FS_READ_TOOLS, ...FS_WRITE_TOOLS, ...WEB_TOOLS, ...DOCUMENT_TOOLS, ...VISUAL_TOOLS, ...MCP_TOOLS, "ask_user_question", "skill"]);
+  const allowed = new Set([...TEAM_TOOLS, ...DOMAIN_TOOLS, ...FS_READ_TOOLS, ...FS_WRITE_TOOLS, ...WEB_TOOLS, ...DOCUMENT_TOOLS, ...VISUAL_TOOLS, ...MCP_TOOLS, ...PLAN_TOOLS, "ask_user_question", "skill"]);
+  let restrictWarned = false;
   // The document plugin also registers its own /api/upload route, which has no
   // login check (loopback-only, keyed by an x-session-id header). An exact
   // route shadows it — exact routes win over prefixes — and this shadow
@@ -310,16 +350,21 @@ export function apply(ctx, config = {}) {
     const agent = result.agent;
     identityForAgent(agent);
     if (!prepared.has(agent)) {
-      // `restrict` rejects a name that is not registered globally, so a row
-      // disabled in the composed profile would otherwise break every chat. The
-      // guard below is the authoritative boundary either way; keep the chat
-      // working and report the composition drift instead.
+      // A restriction rejects the WHOLE set when one name is not globally
+      // registered yet, and on the 0.1.5 line some of these tools arrive late: the
+      // session preset mounts its delegation tools per agent, and the remote MCP
+      // servers connect asynchronously. So a failed attempt leaves the agent
+      // unprepared and the next call retries; meanwhile the guard below is the
+      // authoritative boundary and refuses anything outside the allowlist.
       try {
         agent.ctx.tools.restrict({ allow: allowedTools(policy, "main", allowed) });
+        prepared.add(agent);
       } catch (error) {
-        console.error("GeoSentinel: 工具限制未生效（按允许列表在守卫处拦截）：" + error.message);
+        if (!restrictWarned) {
+          restrictWarned = true;
+          console.error("GeoSentinel: 工具限制将在工具注册完成后重试（当前由守卫拦截）：" + error.message);
+        }
       }
-      prepared.add(agent);
     }
     return agent;
   }
@@ -333,7 +378,6 @@ export function apply(ctx, config = {}) {
         if ([403, 404].includes(error.status)) return;
         throw error;
       }
-      await ctx.geosentinelTeams.cancelTeam(agent);
       await ctx.sessionController.cancel({ sessionId: job.chat_id });
     },
     async dispatch(job) {
@@ -342,40 +386,19 @@ export function apply(ctx, config = {}) {
       const agent = await agentFor(row, job.chat_id);
       if (runtime.get(job.id)?.status !== "running") return;
       const data = JSON.parse(job.payload);
-      if (job.operation === "prompt") {
-        await ctx.sessionController.prompt({ sessionId: job.chat_id, requestId: job.id, mode: "queue", content: [{ type: "text", text: data.text }], clientTimeZone: "Asia/Shanghai" }, new AbortController().signal);
-      } else if (job.operation === "approve") {
-        const team = await ctx.geosentinelTeams.inspectTeam(agent);
-        if (!team || team.id !== data.teamId || team.phase !== "staged" || team.approvalRevision !== data.revision) throw new PlatformError(409, "排队期间方案已变化，请重新确认");
-        if (runtime.get(job.id)?.status !== "running") return;
-        await ctx.geosentinelTeams.approveStagedTeam(agent, data.teamId, undefined, data.revision);
-        store.audit(row.id, "plan.approve", `${job.chat_id}:${data.teamId}`);
-      } else throw new Error("Unsupported research request");
+      // Plan approval is native (`exit_plan_mode` + the plan UI), so the only
+      // queued research operation left is a user prompt.
+      if (job.operation !== "prompt") throw new Error("Unsupported research request");
+      await ctx.sessionController.prompt({ sessionId: job.chat_id, requestId: job.id, mode: "queue", content: [{ type: "text", text: data.text }], clientTimeZone: "Asia/Shanghai" }, new AbortController().signal);
+      void agent;
     },
   });
   const bridge = {
     ...readonlySubagents({ store, subagents: ctx.subagents, sessionController: ctx.sessionController }),
-    async questions(user, chatId, reopen = false) {
-      const agent = await agentFor(user, chatId);
-      const team = await ctx.geosentinelTeams.inspectTeam(agent);
-      const key = team?.phase === "staged" && !team.halted ? `${team.id}:${team.approvalRevision}` : null;
-      const previous = questions.reviews.get(chatId);
-      if (previous && previous !== key) {
-        if (questions.pending.get(chatId)?.review) questions.cancel(chatId);
-        else questions.reviews.delete(chatId);
-      }
-      if (reopen && agent.status === "running") throw new PlatformError(409, "方案正在整理，请等待当前回复完成");
-      const approvalQueued = runtime.queued("research").some((job) => job.chat_id === chatId && job.operation === "approve");
-      if (key && !approvalQueued && agent.status !== "running" && (previous !== key || reopen) && !questions.pending.has(chatId)) {
-        questions.reviews.set(chatId, key);
-        const approve = "确认方案并开始";
-        const items = [{ id: randomReviewId(), question: "请审阅研究方案", header: "研究方案", detail: [team.description, ...team.tasks.map((t, i) => `${i + 1}. ${t.subject}`)].filter(Boolean).join("\n\n"),
-          options: [{ label: approve }, { label: "暂不执行" }], intent: { kind: "plan-review", approve } }];
-        reviewMetadata.set(items, { teamId: team.id, revision: team.approvalRevision, approve });
-        void ctx.userQuestions.ask({ agent, questions: items }).catch((error) => {
-          if (!["ASK_CANCELLED", "ASK_ABORTED"].includes(error.code)) console.error("GeoSentinel question:", error.code ?? error.name);
-        });
-      }
+    // Plan review is native now (plan mode + the plan UI), so this bridge only
+    // carries the user's own clarifying questions.
+    async questions(user, chatId) {
+      await agentFor(user, chatId);
       return { pending: questions.snapshot(user, chatId) };
     },
     async answerQuestion(user, chatId, data) {
@@ -410,6 +433,9 @@ export function apply(ctx, config = {}) {
         cwd: store.chatRoot(user, chat.id),
       });
       await agentFor(user, chat.id);
+      // Plan mode is NOT forced on: the product defaults to a normal session, and
+      // a user or the supervisor can opt into the native plan flow. When a session
+      // does run in plan mode the plan check below is what gates execution.
     },
     async prompt(user, chatId, text, requestId) {
       const job = runtime.enqueue({ id: requestId, kind: "research", operation: "prompt", user, chatId, payload: { text } });
@@ -425,9 +451,7 @@ export function apply(ctx, config = {}) {
         .map(publicEvent)
         .filter(Boolean)
         .map((e) => ({ ...e, agentRole: "主管" }));
-      const team = await ctx.geosentinelTeams.inspectTeam(agent);
-      for (const member of team?.members ?? [])
-        if (member.id) store.recordChild(chatId, member.id, storedRole(member.name));
+      await bindMembers(chatId);
       for (const member of store.listChildren(user, chatId)) {
         const child = await ctx.sessionController.inspect(member.id);
         events.push(
@@ -437,22 +461,16 @@ export function apply(ctx, config = {}) {
             .map((e) => ({ ...e, agentRole: roleLabel(member.role) })),
         );
       }
-      const running =
-        agent.status === "running" ||
-        (team &&
-          !team.halted &&
-          team.phase !== "staged" &&
-          team.tasks.some((t) => t.status !== "completed"));
+      const plan = planOf(agent);
+      const planning = Boolean(plan?.active || plan?.pending);
       return {
         events: events.sort((a, b) => a.time - b.time),
         status:
-          team?.phase === "staged"
-            ? "waiting_approval"
-            : team?.halted
-              ? "stopped"
-              : running
-                ? "running"
-                : events.some((e) => e.type === "turn/end")
+          agent.status === "running"
+            ? "running"
+            : planning
+              ? "waiting_approval"
+              : events.some((e) => e.type === "turn/end")
                   ? "completed"
                   : "idle",
       };
@@ -470,9 +488,7 @@ export function apply(ctx, config = {}) {
       };
       const agent = await agentFor(user, chatId);
       async function discover() {
-        const team = await ctx.geosentinelTeams.inspectTeam(agent);
-        for (const member of team?.members ?? [])
-          if (member.id) store.recordChild(chatId, member.id, storedRole(member.name));
+        await bindMembers(chatId);
         for (const member of store.listChildren(user, chatId))
           if (!children.has(member.id)) {
             children.add(member.id);
@@ -501,7 +517,7 @@ export function apply(ctx, config = {}) {
             } else {
               const event = publicEvent(frame.event ?? frame);
               if (event) enqueue({ ...event, agentRole });
-              if (event?.type === "agent-teams/member-added") await discover();
+              if (event && (event.type === "subagent/start" || event.type === "subagent/descriptor")) await discover();
             }
           }
         } catch (error) {
@@ -524,54 +540,20 @@ export function apply(ctx, config = {}) {
         signal.removeEventListener("abort", onAbort);
       }
     },
+    // Plan content and its approval live in the native plan projection and the
+    // native plan UI; the platform only reports the mode so a product surface can
+    // mirror it.
     async plan(user, chatId) {
       const agent = await agentFor(user, chatId);
-      const team = await ctx.geosentinelTeams.inspectTeam(agent);
-      return {
-        team: team
-          ? {
-              id: team.id,
-              revision: team.approvalRevision,
-              name: team.name,
-              description: team.description,
-              phase: team.phase ?? "running",
-              halted: team.halted ?? false,
-              tasks: team.tasks.map((t) => ({
-                id: t.id,
-                subject: t.subject,
-                description: t.description,
-                status: t.status,
-                assignee: t.assignee,
-              })),
-              members: team.members.map((m) => ({
-                name: m.name,
-                role: m.role,
-                status: m.status,
-              })),
-            }
-          : null,
-      };
-    },
-    async approve(user, chatId, teamId, revision) {
-      const agent = await agentFor(user, chatId);
-      const current = await ctx.geosentinelTeams.inspectTeam(agent);
-      if (!current || current.id !== teamId || current.phase !== "staged")
-        throw new PlatformError(409, "方案已变化，请刷新后确认");
-      if (current.approvalRevision !== revision)
-        throw new PlatformError(409, "方案已变化，请刷新后确认");
-      const existing = runtime.queued("research").find((job) => job.chat_id === chatId && job.operation === "approve" && job.payload === JSON.stringify({ teamId, revision }));
-      const job = existing ?? runtime.enqueue({ kind: "research", operation: "approve", user, chatId, payload: { teamId, revision } });
-      store.audit(user.id, "plan.approval.queued", job.id);
-      void queue.tick();
-      return { accepted: true, queued: true, requestId: job.id };
+      const plan = planOf(agent);
+      return { team: null, plan: { active: Boolean(plan?.active), pending: Boolean(plan?.pending) } };
     },
     async cancel(user, chatId) {
       store.chat(user, chatId);
       runtime.cancelQueued(chatId);
       runtime.cancelling("research", chatId);
       questions.cancel(chatId);
-      const agent = await agentFor(user, chatId);
-      await ctx.geosentinelTeams.cancelTeam(agent);
+      await agentFor(user, chatId);
       await ctx.sessionController.cancel({ sessionId: chatId });
       await ctx.get("geosentinelResearch")?.cancelChat(chatId);
       if (!(await isActive(chatId))) for (const job of runtime.running("research").filter((job) => job.chat_id === chatId)) runtime.finish(job.id, "cancelled", "用户停止研究");
@@ -592,22 +574,21 @@ export function apply(ctx, config = {}) {
         await bridge.cancelProject(owner, project.id);
     },
   };
-  const reviewMetadata = new WeakMap();
-  const randomReviewId = () => `plan-${randomUUID()}`;
-  const questions = new QuestionTransport({ approve: (...args) => bridge.approve(...args), audit: (...args) => store.audit(...args) });
+  const questions = new QuestionTransport({ audit: (...args) => store.audit(...args) });
   ctx.on("user-questions/request", (request, next) => {
     if (!request.agent) return next();
     const identity = identityForAgent(request.agent);
     if (!ctx.agents.roots().includes(request.agent)) return next();
-    return questions.wait(identity.user, identity.chatId, request.questions, request.signal, reviewMetadata.get(request.questions));
+    return questions.wait(identity.user, identity.chatId, request.questions, request.signal);
   });
+  // Expensive or mutating research work may only start once the plan has left
+  // plan mode — that is, once the user approved the plan in the native plan UI.
   async function ensureResearchExecution(identity) {
     if (!runtime.running("research").some((job) => job.chat_id === identity.chatId && job.status === "running")) throw new PlatformError(409, "研究未获运行名额或已中断，请重新提交");
     const agent = await agentFor(identity.user, identity.chatId);
-    const team = await ctx.geosentinelTeams.inspectTeam(agent);
-    if (team?.phase === "staged")
+    const plan = planOf(agent);
+    if (plan?.active || plan?.pending)
       throw new PlatformError(409, "研究方案尚未获得用户确认");
-    if (team?.halted) throw new PlatformError(409, "研究任务已停止");
   }
   ctx.provide("geosentinelPlatform", {
     store,

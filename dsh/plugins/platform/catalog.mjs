@@ -5,19 +5,18 @@ import { loadSkills } from "./skills.mjs";
 // guard and the agent restriction read these lists; the admin-mode capability
 // panel renders them so the administrator sees exactly what a release exposes.
 export const TEAM_TOOLS = [
-  "agent_teams_create",
-  "agent_teams_add_member",
-  "agent_teams_remove_member",
-  "agent_teams_create_task",
-  "agent_teams_reassign_task",
-  "agent_teams_claim_task",
-  "agent_teams_update_task",
-  "agent_teams_send_message",
-  "agent_teams_status",
-  "agent_teams_resume",
-  "agent_teams_delete",
-  "agent_teams_edit_plan",
+  // Native delegation on DSH 0.1.5 (tool-subagent / tool-subagent-control rows).
+  // The three specialists are spawned through these, and a specialist never
+  // receives a delegation tool of its own, so it cannot hand work to another
+  // specialist. The staged plan itself is native plan mode (`plan-mode` row),
+  // not a product tool.
+  "subagent",
+  "send_message",
+  "list_agents",
+  "interrupt_agent",
 ];
+/** The native plan-mode exit tool: it is how the supervisor submits its plan. */
+export const PLAN_TOOLS = ["exit_plan_mode"];
 export const DOMAIN_TOOLS = [
   "geo_list_files",
   "geo_read_evidence",
@@ -74,7 +73,7 @@ export const DOCUMENT_TOOLS = ["read_document"];
 export const VISUAL_TOOLS = ["render_ui", "validate_dsh_ui"];
 /** Every tool the supervisor may call, before the administrator's policy narrows it. */
 export const MAIN_TOOLS = [
-  ...TEAM_TOOLS, ...DOMAIN_TOOLS, ...FS_READ_TOOLS, ...FS_WRITE_TOOLS, ...WEB_TOOLS, ...DOCUMENT_TOOLS, ...VISUAL_TOOLS, ...MCP_TOOLS,
+  ...TEAM_TOOLS, ...DOMAIN_TOOLS, ...FS_READ_TOOLS, ...FS_WRITE_TOOLS, ...WEB_TOOLS, ...DOCUMENT_TOOLS, ...VISUAL_TOOLS, ...MCP_TOOLS, ...PLAN_TOOLS,
   "ask_user_question", "skill",
 ];
 

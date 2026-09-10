@@ -1,4 +1,4 @@
-/** Durable FIFO admission around AgentTeams; not a second agent loop. */
+/** Durable FIFO admission around the native delegation plane; not a second agent loop. */
 export class ResearchQueue {
   constructor(ledger, { dispatch, isActive, recover, clock = Date.now }) {
     Object.assign(this, { ledger, dispatch, isActive, recover, clock });

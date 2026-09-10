@@ -7,26 +7,28 @@ const source = process.env.GEO_ADMIN_DEV_SOURCE, userId = process.env.GEO_ADMIN_
 if (!process.send || !source || !home || !/^[0-9a-f-]{36}$/.test(userId || "")) throw new Error("Development worker requires the authenticated platform launcher");
 const root = path.join(source, "dsh"), profile = path.join(home, "profiles/geosentinel-development"), modules = path.join(profile, "node_modules");
 const require = createRequire(path.join(root, "node_modules/@deepseek-ai/dsh-base/package.json")), YAML = require("yaml");
-const fork = process.env.GEO_AGENT_TEAMS_DIR || path.join(source, "../GeoSentinel-AgentTeams");
 mkdirSync(modules, { recursive: true });
 const settingsFile = path.join(home, "settings.yaml");
 if (!existsSync(settingsFile)) writeFileSync(settingsFile, YAML.stringify({ "ui-theme": { preference: "dark", fontSize: 16 } }), { flag: "wx" });
 for (const [name, target] of [
   ...["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "dsh-better-sidebar", "dsh-dream-skin"].map((name) => [name, path.join(root, "node_modules", name)]),
-  ["@nanmicoder/dsh-agent-teams", fork], ...["platform", "research", "workbench", "developer"].map((name) => ["@geosentinel/dsh-" + name, path.join(root, "plugins", name)]),
+  ...["platform", "research", "workbench", "developer"].map((name) => ["@geosentinel/dsh-" + name, path.join(root, "plugins", name)]),
 ]) {
   const destination = path.join(modules, name); mkdirSync(path.dirname(destination), { recursive: true });
   if (lstatSync(destination, { throwIfNoEntry: false })) { if (realpathSync(destination) !== realpathSync(target)) throw new Error("Development dependency path changed"); }
   else symlinkSync(target, destination, process.platform === "win32" ? "junction" : "dir");
 }
-const productRows = YAML.parse(readFileSync(path.join(root, "profile/cordis.patch.yml"), "utf8"));
 const product = JSON.parse(readFileSync(path.join(root, "profile/product.json"), "utf8"));
 const seeds = {
-  "package.json": JSON.stringify({ name: "geosentinel-development", private: true, dsh: { profile: { bundles: ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@nanmicoder/dsh-agent-teams"] } } }),
+  "package.json": JSON.stringify({ name: "geosentinel-development", private: true, dsh: { profile: { bundles: ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app"] } } }),
   "cordis.yml": "[]\n",
   "cordis.patch.yml": YAML.stringify([
     { id: "agent-default-model", config: product.defaultModel },
-    { id: "agent-teams", config: { ...productRows.find((row) => row.id === "agent-teams").config, webSurface: true } },
+    // Same native planes the product relies on: the session preset carries the
+    // delegation tools, and plan mode is the staged-plan approval gate.
+    { id: "agent-presets", disabled: false },
+    { id: "plan-mode", disabled: false },
+    { id: "ui-agent-preset", disabled: true },
     { insert: [
       { id: "geosentinel-platform", name: "@geosentinel/dsh-platform" },
       { id: "geosentinel-research", name: "@geosentinel/dsh-research" },

@@ -26,9 +26,8 @@ test("a re-serialized profile keeps !!js readable and evaluable by the DSH loade
   process.env.AMAP_API_KEY = "profile-dialect-test-key";
   try {
     const rows = validateProfile(profile);
-    // the mutations launchRelease performs before writing the boot profile
-    rows.find((row) => row.id === "agent-teams").config.roleTools = { 数据助手: ["geo_list_files"] };
-    rows.push({ id: "agent-default-model", config: { provider: "deepseek-official", model: "deepseek-v4.1-flash" } });
+    // the mutation launchRelease performs before writing the boot profile
+    rows.push({ id: "agent-default-model", config: { provider: "deepseek-official", model: "deepseek-v4-flash" } });
     const written = stringifyProfile(rows);
     assert.match(written, /url: !!js "`https:\/\/mcp\.amap\.com\/mcp\?key=\$\{process\.env\.AMAP_API_KEY\}`"/, "启动 profile 必须保留 !!js 标签并按 YAML 规则加引号");
     const back = parseProfile(written);
@@ -40,7 +39,11 @@ test("a re-serialized profile keeps !!js readable and evaluable by the DSH loade
     // A plain parse must NOT be mistaken for a working row: the literal string
     // is exactly the failure this dialect prevents.
     assert.notEqual(typeof amap.config.url, "string");
-    for (const id of ["connection", "api-remotes", "agent-presets", "directory-picker", "tool-cordis", "tool-workflow", "web-runtime"])
+    for (const id of ["connection", "api-remotes", "directory-picker", "tool-cordis", "tool-workflow", "web-runtime"])
       assert.equal(back.find((row) => row.id === id)?.disabled, true, `权限边界行 ${id} 丢失`);
+    // Native delegation comes from the session preset, not from a host row, so the
+    // preset mechanism is enabled while the picker UI stays hidden.
+    assert.equal(back.find((row) => row.id === "agent-presets")?.disabled, false, "agent-presets 必须启用（原生委派依赖它）");
+    assert.equal(back.find((row) => row.id === "ui-agent-preset")?.disabled, true, "普通用户不应有预设选择入口");
   } finally { delete process.env.AMAP_API_KEY; }
 });

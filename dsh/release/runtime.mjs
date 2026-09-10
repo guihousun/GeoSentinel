@@ -40,15 +40,25 @@ export async function launchRelease(manager, id, { home, args, preview, env = pr
       // client bridge has to be resolvable from the release profile; without
       // this link the rows load as nothing and their tools never appear.
       ["@deepseek-ai/dsh-mcp-client", dependencyPath(dsh, "@deepseek-ai/dsh-mcp-client")],
-      ["@nanmicoder/dsh-agent-teams", path.join(app, "agentteams")], ["@changfenhuang/dsh-genui", path.join(dsh, "node_modules/@changfenhuang/dsh-genui")], ["dsh-file-upload", path.join(dsh, "node_modules/dsh-file-upload")], ...["platform", "research", "workbench"].map((name) => ["@geosentinel/dsh-" + name, path.join(dsh, "plugins", name)])]) {
+      // The native delegation tools (`subagent`, `send_message`, `list_agents`)
+      // are separate packages the product enables as rows, so they must resolve
+      // from the release profile just like the MCP client.
+      ["@deepseek-ai/dsh-tool-subagent", dependencyPath(dsh, "@deepseek-ai/dsh-tool-subagent")],
+      ["@deepseek-ai/dsh-tool-subagent-control", dependencyPath(dsh, "@deepseek-ai/dsh-tool-subagent-control")],
+      ["@changfenhuang/dsh-genui", path.join(dsh, "node_modules/@changfenhuang/dsh-genui")],
+      // Document reading (PDF/DOCX/XLSX → Markdown) has no native equivalent; the
+      // plugin is mounted under its own row id (`geo-file-upload`).
+      ["dsh-file-upload", path.join(dsh, "node_modules/dsh-file-upload")],
+      ...["platform", "research", "workbench"].map((name) => ["@geosentinel/dsh-" + name, path.join(dsh, "plugins", name)])]) {
     const destination = path.join(modules, name); mkdirSync(path.dirname(destination), { recursive: true });
     if (lstatSync(destination, { throwIfNoEntry: false })) { if (realpathSync(destination) !== realpathSync(target)) throw new Error("发布 profile 链接不匹配"); }
     else symlinkSync(target, destination, process.platform === "win32" ? "junction" : "dir");
   }
   const rows = validateProfile(await readFile(path.join(dsh, "profile/cordis.patch.yml"), "utf8"));
-  if (manifest.product.roleTools) rows.find((row) => row.id === "agent-teams").config.roleTools = manifest.product.roleTools;
+  // The role tool tables live in product.json and are read by the platform guard;
+  // there is no agent-teams row to inject them into any more.
   rows.push({ id: "agent-default-model", config: manifest.product.defaultModel });
-  writeFileSync(path.join(profile, "package.json"), JSON.stringify({ name: "geosentinel-release", private: true, dsh: { profile: { bundles: ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@nanmicoder/dsh-agent-teams"] } } }));
+  writeFileSync(path.join(profile, "package.json"), JSON.stringify({ name: "geosentinel-release", private: true, dsh: { profile: { bundles: ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app"] } } }));
   writeFileSync(path.join(profile, "cordis.yml"), "[]\n");
   // Re-serialize in the entry-list dialect so a `!!js` row value — the remote
   // MCP rows read their credential from the environment this way — survives as
@@ -56,7 +66,7 @@ export async function launchRelease(manager, id, { home, args, preview, env = pr
   writeFileSync(path.join(profile, "cordis.patch.yml"), stringifyProfile(rows));
   const childEnv = { ...env, DSH_HOME: home, GEO_DATA_DIR: preview ? path.join(home, "geosentinel") : env.GEO_DATA_DIR || path.join(home, "geosentinel"), GEO_RELEASE_ID: id,
     GEO_DEPLOY_SOURCE: manager.source, GEO_RELEASE_DIR: manager.directory, GEO_GIS_IMAGE: validation.image,
-    GEO_MONITOR_ENABLED: String(manifest.product.monitorEnabled), GEO_AGENT_TEAMS_DIR: manager.fork };
+    GEO_MONITOR_ENABLED: String(manifest.product.monitorEnabled) };
   if (preview) Object.assign(childEnv, { GEO_PREVIEW_RELEASE: id, GEO_PREVIEW_PASSWORD: preview.password, GEO_PREVIEW_TOKEN: preview.token,
     GEO_PREVIEW_EXPIRES: String(preview.expires), GEO_ALLOWED_HOSTS: "127.0.0.1:8513,localhost:8513", GEO_MONITOR_ENABLED: "false", GEO_MONITOR_DIR: path.join(home, "monitor") });
   return spawn(process.execPath, [path.join(dsh, "node_modules/@deepseek-ai/dsh/lib/bin.js"), "--profile", profileName, ...args], { cwd: profile,

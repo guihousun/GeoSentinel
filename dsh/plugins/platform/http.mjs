@@ -376,16 +376,6 @@ export function createPlatformHandler({
         }
         if (parts[2] === "plan" && method === "GET")
           return json(res, 200, await bridge.plan(user, chat.id));
-        if (parts[2] === "approve" && method === "POST") {
-          if (store.project(user, chat.project_id).archived)
-            throw new PlatformError(409, "项目已归档");
-          const data = only(await body(req), ["teamId", "revision"]);
-          return json(
-            res,
-            200,
-            await bridge.approve(user, chat.id, data.teamId, data.revision),
-          );
-        }
         if (parts[2] === "events" && method === "GET") {
           const controller = new AbortController();
           res.on("close", () => controller.abort());

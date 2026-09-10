@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { ReleaseManager, validateProduct, validateProfile, command } from "../release/manager.mjs";
+import { MAIN_TOOLS } from "../plugins/platform/catalog.mjs";
 
 const product = { schema: "geosentinel.product.v1", defaultModel: { provider: "deepseek-official", model: "deepseek-v4-flash" }, monitorEnabled: true };
 test("build commands do not inherit product credentials or runtime settings", async (t) => {
@@ -38,15 +39,22 @@ test("product publication refuses personal authority, credentials and unsafe pro
   assert.ok(rows.length);
   assert.throws(() => validateProfile(profile.replace("- id: connection\n  disabled: true", "- id: connection\n  disabled: false").replace("- id: connection\r\n  disabled: true", "- id: connection\r\n  disabled: false")));
   // The shipped product.json is the published role table: it must stay valid and
-  // stay inside what the agent-teams row declares, so a role cannot be granted a
-  // tool the release never exposed.
+  // stay inside the platform's published allowlist, so a role cannot be granted a
+  // tool the release never exposes (the agent-teams row is gone in the 0.1.5 line).
   const shipped = JSON.parse(await readFile(new URL("../profile/product.json", import.meta.url), "utf8"));
   assert.deepEqual(validateProduct(shipped), shipped);
-  const declared = rows.find((row) => row.id === "agent-teams").config.roleTools;
+  const declared = new Set(MAIN_TOOLS);
   for (const [role, tools] of Object.entries(shipped.roleTools)) {
-    for (const tool of tools) assert.ok(declared[role]?.includes(tool), `${role} 的 ${tool} 未在 agent-teams 角色表中声明`);
+    for (const tool of tools) assert.ok(declared.has(tool), `${role} 的 ${tool} 未在平台白名单中声明`);
     assert.ok(tools.includes("write") && tools.includes("edit"), `${role} 缺少受限的 write/edit`);
   }
+  // The 0.1.5 line delegates through the native subagent tools, so the supervisor
+  // must keep them and a specialist must never receive one.
+  for (const tool of ["subagent", "send_message", "list_agents", "interrupt_agent"])
+    assert.ok(declared.has(tool), `平台白名单缺少 ${tool}`);
+  for (const [role, tools] of Object.entries(shipped.roleTools))
+    for (const tool of ["subagent", "send_message", "list_agents", "interrupt_agent"])
+      assert.ok(!tools.includes(tool), `${role} 不应持有委派工具 ${tool}`);
 });
 test("snapshot, explicit publish, stale draft rejection and rollback preserve the active version", async (t) => {
   const dir = await mkdtemp(path.join(tmpdir(), "geo-release-")), source = path.join(dir, "source"), fork = path.join(dir, "fork");

@@ -6,7 +6,6 @@ import path from "node:path";
 import { createServer } from "node:http";
 import { PlatformStore } from "../plugins/platform/store.mjs";
 import { nativeEvent } from "../plugins/platform/native-events.mjs";
-import { bundleImports, nativeAssets, nativePlugins } from "../plugins/workbench/native-host.mjs";
 import { sidebarPolicy, createSidebarHandler, createSidebarFileHandler, createSidebarBundleHandler } from "../plugins/platform/sidebar-adapter.mjs";
 import { dreamSkinTheme } from "../plugins/workbench/skin-theme.mjs";
 
@@ -32,10 +31,6 @@ test("native events preserve renderer identity while excluding model request sec
   assert.equal(event.surfaceOp, "append");
   assert.equal(JSON.stringify(event).includes("secret"), false);
   assert.equal(nativeEvent({ type: "user/message", data: { source: { kind: "plugin" }, content: [] } }), null);
-});
-
-test("native bundle dependency scanning ignores comments and string examples", () => {
-  assert.deepEqual(bundleImports('/* require("bad") */ const example = `require("bad")`; const x = require("react");'), ["react"]);
 });
 
 test("native tool history keeps call identity and reports business failures without exposing payloads", () => {
@@ -90,18 +85,9 @@ test("research shell follows the administrator development appearance and falls 
   assert.equal((await dreamSkinTheme()).wallpaper, "");
 });
 
-test("pinned native distribution and extension load without activating unrestricted host clients", async () => {
-  const assets = await nativeAssets();
-  assert.equal(assets.version, "0.1.2-rc.1");
-  assert.match(assets.html, /geo\/native\/bundle\.js/);
-  assert.match(assets.bundle, /dsh-better-sidebar/);
-  assert.ok(nativePlugins.includes("@deepseek-ai/dsh-client-ui-user-questions"));
-  assert.match(assets.bundle, /geosentinel-midnight/);
-  assert.ok(!assets.bundle.includes("dsh-dream-skin-nav-icon"));
-  assert.ok(!assets.bundle.includes("/dream-skin/api"));
-  assert.ok(!nativePlugins.includes("@deepseek-ai/dsh-api-session-controller"));
-  assert.ok(!nativePlugins.includes("@deepseek-ai/dsh-api-remotes"));
-});
+// The pinned-native-distribution test is gone with the re-hosting layer: on the
+// 0.1.5 line the native server serves the client, and the product only adds its
+// basemap assets and appearance (see tests/workbench-routes.test.mjs).
 
 test("sidebar adapter enforces identity and project ownership; privileged upstream APIs stay denied", async (t) => {
   const root = await mkdtemp(path.join(tmpdir(), "geo-sidebar-"));

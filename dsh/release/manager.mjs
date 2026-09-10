@@ -3,6 +3,7 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { validateAppearance } from "../development/product-draft.mjs";
+import { MAIN_TOOLS } from "../plugins/platform/catalog.mjs";
 import { parseProfile } from "./profile-schema.mjs";
 
 const roots = ["dsh/plugins", "dsh/profile", "dsh/skills", "dsh/monitoring", "dsh/docker", "dsh/release", "dsh/development", "dsh/scripts", "dsh/cli", "dsh/tests", "packages/ntl_toolkit/src"];
@@ -13,7 +14,12 @@ const singles = ["dsh/package.json", "dsh/pnpm-lock.yaml", "monitoring/sources.p
 // fails to mount.
 const requiredFrozen = ["monitoring/sources.py"];
 const sha = (data) => createHash("sha256").update(data).digest("hex");
-const requiredDisabled = ["connection", "api-remotes", "agent-presets", "directory-picker", "tool-cordis", "tool-workflow", "web-runtime"];
+// Ordinary-user boundaries the product keeps closed in the shipped profile.
+// `agent-presets` is deliberately NOT here any more: on the 0.1.5 line a session
+// receives its delegation tools from a preset, and the ordinary-user ceiling is
+// enforced by the platform allowlist plus its guard (a preset tool outside that
+// list is refused). The client-side preset picker stays disabled instead.
+const requiredDisabled = ["connection", "api-remotes", "directory-picker", "tool-cordis", "tool-workflow", "web-runtime"];
 // The non-domain tools a research role may hold: loading a skill, reading its
 // references/ inside the fenced workspace + skill roots, writing only inside the
 // chat's own outputs/ (write/edit), verifying sources on the web (event tracker
@@ -68,15 +74,14 @@ async function filesUnder(root, prefix, output) {
     }
   }
 }
-export async function collectSource(root, forkRoot = path.resolve(root, "../GeoSentinel-AgentTeams")) {
+export async function collectSource(root) {
   const files = {};
   for (const prefix of roots) await filesUnder(root, prefix, files);
   for (const file of singles) files[file] = await readFile(path.join(root, file));
   for (const file of requiredFrozen) if (!files[file]?.length) throw new Error("发布源缺少必需文件：" + file);
-  const forkFiles = {};
-  for (const folder of ["lib", "skills"]) await filesUnder(forkRoot, folder, forkFiles);
-  for (const file of ["package.json", "pnpm-lock.yaml", "cordis.patch.yml", "LICENSE"]) forkFiles[file] = await readFile(path.join(forkRoot, file));
-  for (const [file, data] of Object.entries(forkFiles)) files["agentteams/" + file] = data;
+  // The AgentTeams fork is no longer part of the product: the 0.1.5 line runs the
+  // four-role flow on the native subagent plane (dsh/plugins/team), so nothing is
+  // frozen from an external checkout any more.
   validateProduct(JSON.parse(files["dsh/profile/product.json"]));
   validateProfile(files["dsh/profile/cordis.patch.yml"].toString());
   for (const [file, data] of Object.entries(files)) if (/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|(?:sk-[A-Za-z0-9]{24,}|gh[pousr]_[A-Za-z0-9]{25,})/.test(data.toString())) throw new Error("发布源疑似包含凭据：" + file);
@@ -98,7 +103,7 @@ export function command(exe, args, cwd, timeout = 600000) {
   });
 }
 export class ReleaseManager {
-  constructor(sourceRoot, directory, forkRoot = process.env.GEO_AGENT_TEAMS_DIR || path.resolve(sourceRoot, "../GeoSentinel-AgentTeams")) { this.source = sourceRoot; this.directory = directory; this.fork = forkRoot; }
+  constructor(sourceRoot, directory) { this.source = sourceRoot; this.directory = directory; }
   state() { return readJson(path.join(this.directory, "state.json"), { active: null, candidate: null, pending: null, history: [] }); }
   save(state) { return atomicJson(path.join(this.directory, "state.json"), state); }
   releaseRoot(id) { if (!/^[a-f0-9]{16}$/.test(id ?? "")) throw new Error("无效发布版本"); return path.join(this.directory, "versions", id); }
@@ -110,7 +115,7 @@ export class ReleaseManager {
     try { return await work(); } finally { await handle.close(); await unlink(lock); }
   }
   async snapshot() {
-    const files = await collectSource(this.source, this.fork), hashes = fileHashes(files), id = sha(JSON.stringify(hashes)).slice(0, 16);
+    const files = await collectSource(this.source), hashes = fileHashes(files), id = sha(JSON.stringify(hashes)).slice(0, 16);
     const root = this.releaseRoot(id), manifestFile = path.join(root, "manifest.json");
     if (!await readJson(manifestFile)) {
       for (const [name, contents] of Object.entries(files)) { const file = path.join(root, "app", name); await mkdir(path.dirname(file), { recursive: true }); await writeFile(file, contents, { flag: "wx" }); }
@@ -125,21 +130,20 @@ export class ReleaseManager {
     return manifest;
   }
   async status() {
-    const state = await this.state(), files = await collectSource(this.source, this.fork);
+    const state = await this.state(), files = await collectSource(this.source);
     const active = state.active ? await readJson(path.join(this.releaseRoot(state.active), "manifest.json")) : null;
-    const product = JSON.parse(files["dsh/profile/product.json"]), rows = validateProfile(files["dsh/profile/cordis.patch.yml"].toString());
-    const roleTools = product.roleTools ?? rows.find((row) => row.id === "agent-teams").config.roleTools;
+    const product = JSON.parse(files["dsh/profile/product.json"]);
+    const roleTools = product.roleTools ?? {};
     const plugins = Object.keys(files).filter((name) => /^dsh\/plugins\/[^/]+\/package.json$/.test(name) && !name.includes("/developer/")).map((file) => { const pkg = JSON.parse(files[file]); return { name: pkg.name, version: pkg.version }; });
     const pkg = JSON.parse(files["dsh/package.json"]);
     for (const name of ["dsh-better-sidebar", "dsh-dream-skin"]) plugins.push({ name, version: pkg.dependencies[name] });
-    plugins.push({ name: "@nanmicoder/dsh-agent-teams", version: JSON.parse(files["agentteams/package.json"]).version });
-    const availableTools = [...new Set(Object.values(rows.find((row) => row.id === "agent-teams").config.roleTools).flat())].sort();
+    // What the release can grant a role: the platform's published allowlist.
+    const availableTools = [...MAIN_TOOLS].sort();
     return { ...state, product, roleTools, availableTools, plugins, changes: changes(active?.hashes, fileHashes(files)), sourceRoot: this.source };
   }
   async saveProduct(product) { return this.locked(async () => {
     validateProduct(product); const state = await this.state(); if (state.pending) throw new Error("发布切换期间不能修改产品配置");
-    const rows = validateProfile(await readFile(path.join(this.source, "dsh/profile/cordis.patch.yml"), "utf8"));
-    const available = new Set(Object.values(rows.find((row) => row.id === "agent-teams").config.roleTools).flat());
+    const available = new Set(MAIN_TOOLS);
     if (Object.values(product.roleTools ?? {}).flat().some((tool) => !available.has(tool))) throw new Error("角色配置包含尚未声明的产品工具");
     await atomicJson(path.join(this.source, "dsh/profile/product.json"), product); return product;
   }); }
@@ -168,7 +172,6 @@ export class ReleaseManager {
     const root = this.releaseRoot(id), app = path.join(root, "app"), cwd = path.join(app, "dsh");
     const pnpm = (args, directory) => process.platform === "win32" ? command(process.env.ComSpec || "cmd.exe", ["/d", "/c", "pnpm", ...args], directory) : command("pnpm", args, directory);
     await pnpm(["install", "--offline", "--frozen-lockfile", "--ignore-scripts"], cwd);
-    await pnpm(["install", "--offline", "--frozen-lockfile", "--ignore-scripts"], path.join(app, "agentteams"));
     const manifest = await this.verify(id);
     for (const file of Object.keys(manifest.hashes).filter((name) => /\.(js|mjs)$/.test(name))) await command(process.execPath, ["--check", path.join(app, file)], cwd, 30000);
     const tests = (await readdir(path.join(cwd, "tests"))).filter((file) => file.endsWith(".test.mjs")).map((file) => path.join("tests", file));

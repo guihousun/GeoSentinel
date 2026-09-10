@@ -3,7 +3,7 @@ import path from "node:path";
 import { PlatformStore } from "../plugins/platform/store.mjs";
 import { createPlatformHandler } from "../plugins/platform/http.mjs";
 import { developmentGateway } from "../development/gateway.mjs";
-import { workbenchHandler } from "../plugins/workbench/index.mjs";
+import { vendorHandler } from "../plugins/workbench/index.mjs";
 import { releaseService } from "../release/service.mjs";
 import { RuntimeLedger } from "../plugins/platform/runtime.mjs";
 import { createSidebarHandler } from "../plugins/platform/sidebar-adapter.mjs";
@@ -15,7 +15,7 @@ const hosts = ["127.0.0.1:8516", "localhost:8516", "geo-qa.example:8516"], runti
 const development = developmentGateway({ store, hosts, source, home });
 const releases = releaseService({ source, directory: path.join(home, "releases"), runtime, store });
 const api = createPlatformHandler({ store, hosts, runtime, development, releases, bridge: {}, secureCookies: false });
-const web = workbenchHandler();
+const web = vendorHandler();
 const sidebar = createSidebarHandler({ store, hosts });
 const server = createServer((req, res) => {
   if (req.url.startsWith("/sidebar/api/")) return sidebar(req, res);
