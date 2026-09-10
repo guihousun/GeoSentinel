@@ -57,11 +57,27 @@ export const optionalPlugins = new Set([
   "@deepseek-ai/dsh-client-resources",
   "@deepseek-ai/dsh-client-ui-open-in-app",
 ]);
+// Bundled but never booted as plugins: their activation waits for the browser-facing
+// API plane (`typert` + `api-gateway` + `api-remotes`), which the product keeps
+// closed so a user's browser gets no direct host-service channel. The product's own
+// overlay talks to /geo/api/* instead and only needs the session-controller client
+// MODULE (not its plugin activation), so that code stays in the bundle while these
+// entries are left out of the boot payload — otherwise the native loader reports the
+// whole client bundle as failed and nothing renders at all.
+export const noBoot = new Set([
+  "@deepseek-ai/dsh-api-session-controller",
+  "@deepseek-ai/dsh-api-gateway",
+  "@deepseek-ai/dsh-client-ui-sidebar-files",
+  "@deepseek-ai/dsh-client-ui-sidebar-documentpreview",
+]);
 const missingModule = (error) => error?.code === "MODULE_NOT_FOUND" || error?.code === "ERR_MODULE_NOT_FOUND" || /Cannot find (module|package)/.test(error?.message ?? "");
 
 export async function nativeAssets() {
   const version = requireWeb("@deepseek-ai/dsh-web-app/package.json").version;
   const sources = new Map();
+  // Every module the native loader must BOOT (in collection order), not just the
+  // named plugins: a self-registering transitive dependency is a plugin as well.
+  const bootable = [];
   // dsh-file-upload 0.4.3 ships a client bug: `subscribeErrors` pokes listeners
   // without the current value, so UploadDock stores `undefined` and then reads
   // `error.text`, which crashes the dock after every upload. Patch the bundled
@@ -113,6 +129,11 @@ export async function nativeAssets() {
       return;
     }
     sources.set(name, patchUploadClient(name, manifest.version, source));
+    // The boot payload decides which modules the native loader actually STARTS.
+    // A transitive dependency that registers itself is a plugin too, so record it:
+    // bundling without booting was why several client services (e.g. sidebarRight)
+    // never appeared even though their package was in the bundle.
+    if (/__ModuleLoader__\s*\.\s*load\s*\(/.test(source)) bootable.push(name);
     for (const dependency of bundleImports(source))
       await collect(dependency, createRequire(manifestPath), false);
   }
@@ -143,7 +164,7 @@ export async function nativeAssets() {
   // Third-party client halves that mount as plugins in the product UI: the
   // visualisation renderer and the upload dock.
   const thirdParty = ["@changfenhuang/dsh-genui", "dsh-file-upload"];
-  const entries = [...collected, ...thirdParty, id].map((name) => ({
+  const entries = [...new Set([...bootable, ...thirdParty, id])].filter((name) => !noBoot.has(name)).map((name) => ({
     id: name, url: "/geo/native/bundle.js", rev: version,
     immediately: name === "@deepseek-ai/dsh-client-modules",
   }));
@@ -227,3 +248,5 @@ export function nativeHandler() {
     return true;
   };
 }
+
+
