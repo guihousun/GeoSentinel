@@ -36,6 +36,7 @@
 | 构建产物 | Docker 镜像 `geosentinel-gis:*` | 不要带（可选导出） | 4.06–4.24 GB/镜像，新机器 `docker build` 重建；也可 `docker save/load` |
 | 平台数据 | `GEO_DSH_HOME`（本机 `dsh\.runtime\upgrade-rc1-home`）：`geosentinel/`（账号·项目·工作区）、`sessions/`、`storages/`、`releases/`（已发布版本与状态） | 仅当要沿用账号/产物/已发布版本 | 只带源码则等于全新开始，账号与产物为空 |
 | 监测数据 | `GEO_MONITOR_DIR`（本机 `dsh\.runtime\home\monitor`） | 可选 | 不带则重新采集一轮即有数据 |
+| 共享数据 | `GEO_SHARE_DIR` / `GEO_SHARE_DIRS` 指向的目录（如 `E:\DSH\缅甸地理`） | 可选 | 公开用例数据/边界/影像/GDP/参考书；不属于账号数据，需单独复制或重新下载 |
 | 临时/QA | `.runtime` 下的 `isolation-*`、`recovery-*`、`migrated-tools-*`、`*-qa-home`、`release-acceptance`、`previews/`、旧 `releases/versions/*`、`.playwright-cli/` | 不要带 | 都是验收与预览残留，体积大且无复用价值 |
 
 原则：**代码靠 Git 与 `pnpm install` 重建，运行数据靠目录复制，凭据靠人工重新放置。**
@@ -68,7 +69,7 @@ D:\GeoSentinel-DSH\
     plugins\research\         GEE 下载、隔离 Docker 计算、报告与证据
     plugins\workbench\        中文界面适配：侧栏、项目对话、全球事件监测、空间数据、简报
     profile\                  cordis.patch.yml（产品 profile）与 product.json（默认模型/角色工具）
-    skills\                   随发布冻结的技能库（21 个技能）
+    skills\                   随发布冻结的技能库（22 个技能）
     monitoring\               监测 worker、快照归一化与关注等级规则
     docker\                   GIS 容器（Dockerfile、worker.py、requirements.txt）
     release\                  冻结/校验/预览/切换/回滚
@@ -199,6 +200,8 @@ notepad .env
 | `GEO_DOCKER_CONCURRENCY` / `GEO_USER_DOCKER_CONCURRENCY` / `GEO_DOCKER_MEMORY_MIB` | 容器并发与单容器内存（3072/4096） |
 | `GEO_MIN_FREE_DISK_MIB` | 磁盘余量保护（默认 1024） |
 | `AMAP_API_KEY` | 可选：中文地名解析；用六位 adcode 下载时不需要 |
+| `GEO_SHARE_DIR` | 共享数据库的单一根目录；按 `share/<子路径>` 访问，只读 |
+| `GEO_SHARE_DIRS` | 共享数据库的多个命名根（`名称=路径`，`;` 分隔）；按 `share/<名称>/<子路径>` 访问，只读 |
 | `GEO_ADMIN_HOME` / `GEO_ADMIN_PWSH_PATH` | 可选：本机管理员入口 home 与 pwsh 路径 |
 
 从旧项目 `.env` 导入（不会覆盖已有 `.env`，不修改源文件）：
@@ -368,7 +371,8 @@ GEO_DSH_HOME/
 
 复制 SQLite 的注意事项：最好停机复制；若必须热复制，把 `platform.sqlite`、`platform.sqlite-wal`、
 `platform.sqlite-shm` 一起带走，或先让 SQLite 做一次 checkpoint（正常关停即可）。复制后按新机器的实际路径
-改写 `.env` 里的 `GEO_DSH_HOME`、`GEO_MONITOR_DIR`、`GEO_GEE_CREDENTIALS`。
+改写 `.env` 里的 `GEO_DSH_HOME`、`GEO_MONITOR_DIR`、`GEO_GEE_CREDENTIALS`，以及共享数据的
+`GEO_SHARE_DIR` / `GEO_SHARE_DIRS`（数据本身也要一起复制，或在新机器重新下载）。
 
 ### 外观与背景图（不随发布快照走）
 
@@ -515,6 +519,7 @@ node scripts/monitor.mjs --translate-cache --once   # 仅重跑中文整理缓�
 - [ ] M 监测：`node scripts/monitor.mjs` 采集一轮，`/geo/api/monitor/events` 返回带 `level` 的快照
 - [ ] N 记录本次安装的实际版本号、镜像 ID、发布 ID，便于下次对比
 - [ ] O 外观：把 `BG1.jpg` 重新导入「管理员设置 → 外观」，确认背景图生效（§12 外观与背景图）
+- [ ] P 共享数据：`GEO_SHARE_DIR` / `GEO_SHARE_DIRS` 指向存在的目录，左栏「文件」出现只读分组「共享数据（只读）」，并且容器内 `ogrinfo /workspace/share/<…>` 能打开数据
 
 ---
 

@@ -7,7 +7,16 @@ description: Use when producing charts, maps or tables from geospatial or remote
 
 ## 环境
 
-`geo_execute_python` 的沙箱里已装好 `matplotlib`、`pandas`、`geopandas`、`rasterio`、`scikit-learn`，以及 **Noto Sans CJK SC 中文字体**；Excel 导出用 `openpyxl`。无网络、不能用凭据，图和数据都在本地产出。
+`geo_execute_python` 的沙箱里已装好 `matplotlib`、`pandas`、`geopandas`、`rasterio`、`scikit-learn`，以及中文字体；Excel 导出用 `openpyxl`。无网络、不能用凭据，图和数据都在本地产出。
+
+**中文字体的实际注册名是 `Noto Sans CJK JP`**（文件 `/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc`）。
+不存在名为 `Noto Sans CJK SC` 的字体：写成 SC **不会报错**，而是静默回退到 DejaVu Sans，图里中文变成方框或空框，
+日志里只留一堆 `Glyph … missing from font(s) DejaVu Sans` 警告。不确定时先查一次：
+
+```python
+import matplotlib.font_manager as fm
+print(sorted({font.name for font in fm.fontManager.ttflist}))
+```
 
 ## 画图（matplotlib）
 
@@ -15,9 +24,8 @@ description: Use when producing charts, maps or tables from geospatial or remote
 import matplotlib
 matplotlib.use("Agg")          # 无显示环境，必须用 Agg
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
 
-plt.rcParams["font.sans-serif"] = ["Noto Sans CJK SC", "DejaVu Sans"]
+plt.rcParams["font.sans-serif"] = ["Noto Sans CJK JP", "Noto Sans CJK SC", "DejaVu Sans"]
 plt.rcParams["font.family"] = "sans-serif"
 plt.rcParams["axes.unicode_minus"] = False
 
@@ -57,6 +65,7 @@ plt.close(fig)
 ## 交付前自检
 
 - 文件确实存在（`geo_list_files` 能看到），且扩展名与内容一致。
+- **运行输出里没有 `missing from font` / `Glyph … missing` 警告**；有警告就说明字体名写错，中文会变空框，必须换名重画。
 - 中文不是方框/乱码；轴标签、图例、数值标注没有被裁掉。
 - 图表结论与数据一致：写进回答的数值必须能在产物里找到。
 - 不要把"图看起来像"当作结论证据；图是表达方式，证据仍是数据与来源。

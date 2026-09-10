@@ -22,6 +22,7 @@ test("the shipped skill library loads, is well named and carries no legacy ident
     "claim-evidence-chain",
     "code-execution-validation",
     "conflict-ntl-workflow",
+    "country-geography-replication",
     "disaster-event-observation-workflow",
     "event-context-and-timeline",
     "event-window-analysis",
@@ -62,7 +63,7 @@ test("the product library registers into the skill registry layer as runtime ski
   ctx.provide("skills", { register: (skill) => { registered.push(skill); return () => {}; } });
   registerProductSkills(ctx, root);
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(registered.length, 21);
+  assert.equal(registered.length, 22);
   for (const skill of registered) {
     assert.equal(skill.source, "custom");
     assert.equal(skill.resourceBase.kind, "directory");
