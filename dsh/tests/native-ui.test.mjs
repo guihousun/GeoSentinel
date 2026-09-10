@@ -141,7 +141,14 @@ test("the product shell bundles the 0.1.5 surfaces it reuses", async () => {
       assert.ok(assets.bundle.includes(name), `外壳未包含 ${name}`);
       assert.ok(assets.entries.includes(name), `未引导 ${name}`);
     }
-  assert.equal(assets.entries.includes("@deepseek-ai/dsh-api-workspace-files"), false, "资源提供者不应引导");
+  // The resource provider behind those tabs MUST boot: the document preview resolves
+  // `dsh-resource://file/…` addresses through `ctx.resources`, which this provider
+  // registers. It needs exactly the three services the product already publishes
+  // (`resources`, `remote`, `remote.workspaceFiles`); its live change feed is opened
+  // lazily, so the missing host change stream only matters if something follows it.
+  // Only the 0.1.5 line ships the tab pair this provider belongs to.
+  if (installed("@deepseek-ai/dsh-client-ui-sidebar-documentpreview"))
+    assert.ok(assets.entries.includes("@deepseek-ai/dsh-api-workspace-files"), "资源提供者未引导：文档预览会报「文件资源服务不可用」");
   assert.match(assets.html, /地缘环境智能计算平台/);
   assert.match(assets.html, /MutationObserver/, "产品标题需要在原生客户端改写后恢复");
 });

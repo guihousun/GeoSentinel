@@ -42,6 +42,13 @@ export const nativePlugins = [
   // note in plugins/platform/sidebar-adapter.mjs).
   "dsh-client-ui-sidebar", "dsh-client-ui-sidebar-right",
   "dsh-client-ui-sidebar-files", "dsh-client-ui-sidebar-documentpreview",
+  // The file-resource provider behind those two tabs. The document preview resolves
+  // `dsh-resource://file/…` addresses through `ctx.resources`, and without this
+  // provider the pane answers "文件资源服务不可用。" It needs exactly the three services
+  // the product already publishes (`resources`, `remote`, `remote.workspaceFiles`), and
+  // its live change feed is opened lazily, so the absent host change stream only
+  // matters if something actually follows it.
+  "dsh-api-workspace-files",
   // NOT bundled: `dsh-client-ui-workspace`. It is the native provider of the client
   // `uiWorkspace` service (`connectWorkspace`/`startSession`/`openWorkspace`/
   // `forkSession`/`archiveSession`/`pickDirectory`), which `ui-conversation` and
@@ -73,6 +80,7 @@ export const optionalPlugins = new Set([
   "@deepseek-ai/dsh-client-ui-approval",
   "@deepseek-ai/dsh-client-ui-deliverables",
   "@deepseek-ai/dsh-client-resources",
+  "@deepseek-ai/dsh-api-workspace-files",
 ]);
 // Bundled but never booted as plugins: their activation waits for the browser-facing
 // API plane (`typert` + `api-gateway` + `api-remotes`), which the product keeps
@@ -84,12 +92,6 @@ export const optionalPlugins = new Set([
 export const noBoot = new Set([
   "@deepseek-ai/dsh-api-session-controller",
   "@deepseek-ai/dsh-api-gateway",
-  // The resource provider behind the right sidebar's file tabs. It registers into
-  // `ctx.resources` and keeps file versions live through `workspaceFiles.stat` /
-  // `changes`; the tabs themselves call `remote.workspaceFiles` directly, and the
-  // product has no live host change stream to offer, so this provider stays bundled
-  // but unstarted while `ui-sidebar-files` / `-documentpreview` DO boot (their only
-  // need is that namespace, which the product overlay answers from its own explorer).
 ]);
 const missingModule = (error) => error?.code === "MODULE_NOT_FOUND" || error?.code === "ERR_MODULE_NOT_FOUND" || /Cannot find (module|package)/.test(error?.message ?? "");
 
