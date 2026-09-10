@@ -370,6 +370,19 @@ GEO_DSH_HOME/
 `platform.sqlite-shm` 一起带走，或先让 SQLite 做一次 checkpoint（正常关停即可）。复制后按新机器的实际路径
 改写 `.env` 里的 `GEO_DSH_HOME`、`GEO_MONITOR_DIR`、`GEO_GEE_CREDENTIALS`。
 
+### 外观与背景图（不随发布快照走）
+
+当前界面的背景图是仓库根目录的 `BG1.jpg`（1090×595 蓝色点阵世界地图）。它**不是**通过文件路径引用的：
+
+- 导入后，图片以 base64 data URL 存进**管理员开发 home** 的 `dream-skin.json`
+  （`<GEO_DSH_HOME>/development/<管理员ID>/dream-skin.json`，约 200 KiB；导入时会重新编码，
+  所以内嵌字节数与源文件不同）。
+- `plugins/workbench/skin-theme.mjs` 的优先级是：**最近改动的开发 home 外观** → 已发布产品的
+  `product.json.appearance` → 内置主题。也就是说当前这张背景属于**运行实例设置**，不随发布快照迁移。
+- 新机器复现：把 `BG1.jpg` 通过「管理员设置 → 外观/皮肤」重新导入一次；若希望普通版用户也一直有它，
+  需要把外观导入到草稿并**发布**（`product.json` 的 `appearance`）。只复制源码不会有这张背景图。
+- 仓库根目录的 `BG2.jpg`（2500×1731，仪表盘风格）是另一张候选图，当前**没有生效**。
+
 ---
 
 ## 13. 验收
@@ -501,6 +514,7 @@ node scripts/monitor.mjs --translate-cache --once   # 仅重跑中文整理缓�
 - [ ] L 跑通基准若干例（`dsh/benchmark/run.mjs`），确认工具、产物、关键词与“禁止词”评分工作
 - [ ] M 监测：`node scripts/monitor.mjs` 采集一轮，`/geo/api/monitor/events` 返回带 `level` 的快照
 - [ ] N 记录本次安装的实际版本号、镜像 ID、发布 ID，便于下次对比
+- [ ] O 外观：把 `BG1.jpg` 重新导入「管理员设置 → 外观」，确认背景图生效（§12 外观与背景图）
 
 ---
 
