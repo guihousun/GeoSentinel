@@ -21,6 +21,19 @@
 
 管理员可在统一工作台的原生设置中调整模型与外观，再用“应用开发设置到草稿”导入受支持字段；当前支持范围和限制见 [管理员开发模式](ADMIN-DEVELOPMENT.md)。
 
+## 升级 DSH 内核依赖（跨内核版本的依赖切换）
+
+- **何时需要**：产品 pin 与已安装依赖树不是同一内核。`node scripts/check-env.mjs` 会给出两条失败：`DSH pin` 与 `Resolved DSH dependency graph`（实测主树 pin `0.1.5-rc.1`、安装树仍是 `0.1.2-rc.1`，217 个包全部不匹配）。此时不要直接 `prepare`：离线安装会以版本不一致或 `ERR_PNPM_OUTDATED_LOCKFILE` 失败，勉强产出的外壳也会以 `Native UI dependency mismatch` 拒绝打包客户端。
+- **影响面（先讲清再动手）**：`pnpm install` 替换的是 `dsh/node_modules`。正在运行的正式实例**不受影响**（它读冻结快照里的独立安装），但同一源码树里的**管理员开发实例与管理员当前会话的 DSH 运行时会被替换**。因此升级应在没有进行中的开发会话时执行，或明确接受该会话重启。
+- **步骤**（在 `dsh/` 目录）：
+  1. 记录现状：`node scripts/check-env.mjs`、`git status -sb`、`node tools/release.mjs status`。
+  2. 备份可回滚的依赖树：把 `node_modules` 改名为 `node_modules.bak-<日期>`（体积大，确认新树可用后再删）。
+  3. `pnpm install --offline`（能联网时去掉 `--offline`）。pin 与锁文件一致时加 `--frozen-lockfile`；**pin 有变动时先在副本用 `pnpm install --lockfile-only` 正规重生成锁文件再回灌，不要手改 `pnpm-lock.yaml`**。
+  4. 复核：`node scripts/check-env.mjs` 两条失败消失；再用 `createRequire` 从 `node_modules/@deepseek-ai/dsh-web-app/package.json` 打印版本，应等于 pin。
+  5. `pnpm test`，然后按上面「使用流程」走 `prepare → preview → publish`。
+- **回滚**：把 `node_modules.bak-<日期>` 改回 `node_modules`（或 `git checkout` 回旧的 pin 与锁文件后重装）。依赖回滚不等于版本回滚：已经发布的快照用 `node tools/release.mjs rollback --id <旧版本>` 处理，用户数据与产物都不随代码回滚。
+- **不要**：把新内核的包手工拷进旧树的 `node_modules`，或长期混用两代客户端包——外壳会拒绝打包，而运行中的实例会以难以定位的槽位/服务缺失告终。
+
 ## 文件与进程
 
 - 开发源：当前 Git 工作目录。发布范围由 release/manager.mjs 显式列出，包括产品插件、profile、GIS 核心、监测代码、Docker 构建文件、校验脚本及 AgentTeams 已构建产物。
