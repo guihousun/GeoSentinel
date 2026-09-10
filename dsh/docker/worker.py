@@ -68,6 +68,12 @@ def main():
         value = {"status": "completed"}
     elif kind == "gee-download":
         value = download(request)
+    elif kind == "boundary-download":
+        from boundaries import download_boundary
+        value = download_boundary(request["parameters"])
+    elif kind == "gis":
+        from gis_dispatch import run_gis
+        value = run_gis(request)
     else:
         raise ValueError("Unknown worker operation")
     Path("/workspace/outputs/result.json").write_text(json.dumps(value, ensure_ascii=False, indent=2))

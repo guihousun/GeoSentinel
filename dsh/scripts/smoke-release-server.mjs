@@ -1,0 +1,13 @@
+import path from "node:path";
+import { PlatformStore } from "../plugins/platform/store.mjs";
+import { runProduct } from "../release/supervisor.mjs";
+process.loadEnvFile(process.env.GEO_ENV_FILE || ".env");
+process.env.GEO_DSH_HOME = path.resolve(".runtime/release-server-home");
+process.env.GEO_RELEASE_DIR = path.resolve(".runtime/release-acceptance");
+process.env.GEO_ALLOWED_HOSTS = "127.0.0.1:8512,localhost:8512";
+process.env.GEO_MONITOR_EXTERNAL = "true";
+process.env.GEO_MONITOR_DIR = path.resolve(".runtime/release-server-home/monitor");
+const store = new PlatformStore(path.join(process.env.GEO_DSH_HOME, "geosentinel"));
+if (!store.db.prepare("SELECT id FROM users LIMIT 1").get()) store.bootstrapAdmin("release_admin", "isolated-release-password");
+store.close();
+await runProduct(path.resolve("."), ["--port", "8512", "--no-open"]);

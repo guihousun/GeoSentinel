@@ -55,7 +55,9 @@ export function monitorService(ctx) {
       worker.on("error", () =>
         console.error("Public monitor process failed to start"),
       );
-      return () => worker.kill();
+      const stop = () => worker.kill();
+      process.once("exit", stop);
+      return () => { process.off("exit", stop); stop(); };
     });
   return async () => ({ ...(await readSnapshot(directory)), enabled });
 }

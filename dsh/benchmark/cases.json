@@ -1,0 +1,579 @@
+{
+  "schema": "geosentinel.benchmark.v1",
+  "name": "地缘环境智能计算基准（30 例）",
+  "description": "参考 NTL-GPT 回归清单（.ntl-gpt/skills/ntl-regression-evaluation/references/regression-checklist.json，工作区内没有 200 例原始集）抽取与地缘环境智能计算相关的题型，再补充平台典型场景。分三档难度，全部通过普通用户模式的产品接口真实执行。",
+  "tiers": {
+    "基础": "单步或两步；期望工具、产物与关键词明确。",
+    "进阶": "多步或多角色；需要真实数据获取、统计与证据链。",
+    "挑战": "含口径、时区、归因、无数据或来源冲突等约束，重点考查是否如实报告限制。"
+  },
+  "cases": [
+    {
+      "id": "B01",
+      "tier": "基础",
+      "title": "上海 2020 年分区 ANTL 统计",
+      "prompt": "请获取上海市 2020 年度夜间灯光，并统计各区（区级行政区）的 ANTL 均值，按均值从高到低排序输出表格。",
+      "expect": {
+        "tools": [
+          "geo_download_boundary",
+          "geo_calculate_zonal_statistics"
+        ],
+        "artifacts": [
+          ".csv"
+        ],
+        "keywords": [
+          "黄浦",
+          "崇明"
+        ],
+        "forbidden": [
+          "无法获取"
+        ]
+      },
+      "timeoutMinutes": 45
+    },
+    {
+      "id": "B02",
+      "tier": "基础",
+      "title": "单幅栅格质量检查",
+      "prompt": "请先获取一幅上海 2020 年度夜间灯光栅格，然后检查它的网格、CRS、有效像元数与数值范围，说明它能否直接用于分区统计。",
+      "expect": {
+        "tools": [
+          "geo_inspect_raster"
+        ],
+        "keywords": [
+          "像元",
+          "CRS"
+        ],
+        "forbidden": []
+      },
+      "timeoutMinutes": 15
+    },
+    {
+      "id": "B03",
+      "tier": "基础",
+      "title": "中国省级边界获取与核验",
+      "prompt": "获取湖北省的下级地级行政区边界，报告区数与名称，并说明来源。",
+      "expect": {
+        "tools": [
+          "geo_download_boundary"
+        ],
+        "keywords": [
+          "武汉",
+          "区"
+        ],
+        "forbidden": [
+          "整市面"
+        ]
+      },
+      "timeoutMinutes": 15
+    },
+    {
+      "id": "B04",
+      "tier": "基础",
+      "title": "逐年 ANTL 时间序列",
+      "prompt": "计算上海市 2015—2020 年逐年 ANTL 均值，给出时间序列表并说明变化方向。",
+      "expect": {
+        "tools": [
+          "geo_calculate_zonal_statistics"
+        ],
+        "keywords": [
+          "2015",
+          "2020"
+        ],
+        "forbidden": []
+      },
+      "timeoutMinutes": 45
+    },
+    {
+      "id": "B05",
+      "tier": "基础",
+      "title": "等距缓冲区",
+      "prompt": "请写出仰光港中心点（纬度 16.80、经度 96.15）为点文件，再生成 50 公里缓冲区，说明所用投影与半径单位，并输出矢量文件。",
+      "expect": {
+        "tools": [
+          "geo_buffer_points_aeqd"
+        ],
+        "artifacts": [
+          ".geojson"
+        ],
+        "keywords": [
+          "50",
+          "缓冲"
+        ],
+        "forbidden": []
+      },
+      "timeoutMinutes": 20
+    },
+    {
+      "id": "B06",
+      "tier": "基础",
+      "title": "按多边形筛选点",
+      "prompt": "请先构造仰光港、上海港、宁波舟山港三个港口点位（写出点文件），再按上海市域边界筛选，报告落在市域内的点数与名称。",
+      "expect": {
+        "tools": [
+          "geo_filter_points_by_polygon"
+        ],
+        "keywords": [
+          "上海"
+        ],
+        "forbidden": []
+      },
+      "timeoutMinutes": 20
+    },
+    {
+      "id": "B07",
+      "tier": "基础",
+      "title": "栅格重投影",
+      "prompt": "请先获取一幅上海 2020 年度夜间灯光栅格，再把它重投影到 EPSG:3857，说明对连续型数据采用的重采样方法。",
+      "expect": {
+        "tools": [
+          "geo_reproject_raster"
+        ],
+        "keywords": [
+          "3857"
+        ],
+        "forbidden": []
+      },
+      "timeoutMinutes": 20
+    },
+    {
+      "id": "B08",
+      "tier": "基础",
+      "title": "相邻栅格镶嵌",
+      "prompt": "请获取上海与苏州 2020 年度夜间灯光栅格（同一产品、同一波段、同一分辨率），把两景镶嵌为一幅，并检查网格是否兼容。",
+      "expect": {
+        "tools": [
+          "geo_mosaic_rasters"
+        ],
+        "keywords": [
+          "镶嵌"
+        ],
+        "forbidden": []
+      },
+      "timeoutMinutes": 30
+    },
+    {
+      "id": "B09",
+      "tier": "基础",
+      "title": "指标口径解释",
+      "prompt": "ANTL 与 TNTL 分别是什么？它们的单位与适用场景有什么不同？",
+      "expect": {
+        "tools": [],
+        "keywords": [
+          "ANTL",
+          "TNTL"
+        ],
+        "forbidden": []
+      },
+      "timeoutMinutes": 5
+    },
+    {
+      "id": "B10",
+      "tier": "基础",
+      "title": "中文可视化",
+      "prompt": "请统计上海 2020 年各区 ANTL 均值，画成横向条形图，图中使用中文标签，并保存为 PNG。",
+      "expect": {
+        "tools": [
+          "geo_execute_python"
+        ],
+        "artifacts": [
+          ".png"
+        ],
+        "keywords": [
+          "黄浦"
+        ],
+        "forbidden": []
+      },
+      "timeoutMinutes": 45
+    },
+    {
+      "id": "A01",
+      "tier": "进阶",
+      "title": "分区统计 + 证据链",
+      "prompt": "统计上海市 2020 年各区 ANTL 均值并排序，同时把关键结论写成断言—证据矩阵，再生成一份引用该证据链的 Markdown 报告。",
+      "expect": {
+        "tools": [
+          "geo_write_evidence",
+          "geo_write_report"
+        ],
+        "artifacts": [
+          ".json",
+          ".md"
+        ],
+        "keywords": [
+          "证据",
+          "黄浦"
+        ],
+        "forbidden": []
+      },
+      "timeoutMinutes": 60
+    },
+    {
+      "id": "A02",
+      "tier": "进阶",
+      "title": "首夜日期与 UTC 换算",
+      "prompt": "2025-03-28 06:20 UTC 缅甸地震，用 VNP46A2 计算首夜影响。请先确定当地首夜日期与对应的 UTC 文件日期，再说明数据选择。",
+      "expect": {
+        "tools": [],
+        "keywords": [
+          "UTC",
+          "2025-03-28|2025\\s*年\\s*3\\s*月\\s*28\\s*日"
+        ],
+        "forbidden": []
+      },
+      "timeoutMinutes": 25
+    },
+    {
+      "id": "A03",
+      "tier": "进阶",
+      "title": "月度时间序列选型",
+      "prompt": "计算上海 2020 年每个月的平均夜间灯光并输出时间序列表。",
+      "expect": {
+        "tools": [],
+        "keywords": [
+          "月",
+          "2020"
+        ],
+        "forbidden": [
+          "逐日"
+        ]
+      },
+      "timeoutMinutes": 40
+    },
+    {
+      "id": "A04",
+      "tier": "进阶",
+      "title": "事件窗口对比",
+      "prompt": "针对 2025-03-28 缅甸地震（06:20 UTC，震中约 21.9N 95.9E），比较震前、震后各 7 天的夜间灯光变化，并说明时间窗与不可归因的限制。",
+      "expect": {
+        "tools": [],
+        "keywords": [
+          "震前|事件前|前 7 天|前7天",
+          "震后|事件后|后 7 天|后7天"
+        ],
+        "forbidden": [
+          "证明因果",
+          "证明了因果",
+          "已证明因果",
+          "因果已证明"
+        ]
+      },
+      "timeoutMinutes": 45
+    },
+    {
+      "id": "A05",
+      "tier": "进阶",
+      "title": "异常检测",
+      "prompt": "以上海 2015—2019 为基线，检测 2020 年夜间灯光异常，并说明阈值与基线样本量。",
+      "expect": {
+        "tools": [
+          "geo_detect_ntl_anomaly"
+        ],
+        "keywords": [
+          "异常",
+          "基线"
+        ],
+        "forbidden": []
+      },
+      "timeoutMinutes": 40
+    },
+    {
+      "id": "A06",
+      "tier": "进阶",
+      "title": "多源叠加分析",
+      "prompt": "请获取上海 2020 年夜间灯光与人口分布数据，分析两者的空间关系，给出相关系数与限制说明。",
+      "expect": {
+        "tools": [
+          "geo_calculate_zonal_statistics"
+        ],
+        "keywords": [
+          "相关",
+          "人口"
+        ],
+        "forbidden": []
+      },
+      "timeoutMinutes": 45
+    },
+    {
+      "id": "A07",
+      "tier": "进阶",
+      "title": "两套边界差异",
+      "prompt": "分别用 DataV 与 geoBoundaries 的上海市边界计算市域面积，比较差异并说明可能原因。",
+      "expect": {
+        "tools": [
+          "geo_download_boundary"
+        ],
+        "keywords": [
+          "面积",
+          "差"
+        ],
+        "forbidden": []
+      },
+      "timeoutMinutes": 35
+    },
+    {
+      "id": "A08",
+      "tier": "进阶",
+      "title": "全球事件监测线索核验",
+      "prompt": "从全球事件监测线索中选取最近的一条国际新闻线索，核验其来源与时间，区分已确认事实与待核实信息，并写成证据记录。",
+      "expect": {
+        "tools": [
+          "geo_write_evidence"
+        ],
+        "artifacts": [
+          ".json"
+        ],
+        "keywords": [
+          "来源",
+          "未核实|待核实|无法核实|中性证据"
+        ],
+        "forbidden": []
+      },
+      "timeoutMinutes": 40
+    },
+    {
+      "id": "A09",
+      "tier": "进阶",
+      "title": "多角色综合报告",
+      "prompt": "分析仰光城区 2015—2020 年夜间灯光变化趋势，产出证据链与中文报告，并给出不确定性说明。",
+      "expect": {
+        "tools": [
+          "geo_write_evidence",
+          "geo_write_report"
+        ],
+        "artifacts": [
+          ".md"
+        ],
+        "keywords": [
+          "趋势",
+          "仰光"
+        ],
+        "forbidden": []
+      },
+      "timeoutMinutes": 75,
+      "clarify": "first"
+    },
+    {
+      "id": "A10",
+      "tier": "进阶",
+      "title": "点与行政区空间连接",
+      "prompt": "把一批设施点位（请自行构造或从平台资料中取得，至少 5 个，覆盖两个以上区）与上海区级行政区做空间连接，输出每个点所属行政区，并统计各区点数。",
+      "expect": {
+        "tools": [
+          "geo_spatial_join_points_to_admin"
+        ],
+        "keywords": [
+          "区"
+        ],
+        "forbidden": []
+      },
+      "timeoutMinutes": 30
+    },
+    {
+      "id": "C01",
+      "tier": "挑战",
+      "title": "超大范围下载失败语义",
+      "prompt": "请下载中国 2020 年全国年度夜间灯光 GeoTIFF。",
+      "expect": {
+        "tools": [],
+        "keywords": [
+          "失败"
+        ],
+        "forbidden": [
+          "已下载成功",
+          "下载完成"
+        ]
+      },
+      "timeoutMinutes": 40
+    },
+    {
+      "id": "C02",
+      "tier": "挑战",
+      "title": "时区陷阱",
+      "prompt": "伊朗当地 2 月 29 日凌晨的首夜影像，对应 UTC 的哪个日期？请给出换算过程与依据。",
+      "expect": {
+        "tools": [],
+        "keywords": [
+          "UTC",
+          "02-28|2\\s*月\\s*28\\s*日"
+        ],
+        "forbidden": [
+          "按当地日期选文件",
+          "直接用当地日期选",
+          "应使用当地日期作为文件日期"
+        ]
+      },
+      "timeoutMinutes": 20,
+      "clarify": "first"
+    },
+    {
+      "id": "C03",
+      "tier": "挑战",
+      "title": "跨传感器可比性",
+      "prompt": "直接比较 2013 年 DMSP-OLS 与 2020 年 VIIRS 夜间灯光数值，得出城市亮度增长倍数。",
+      "expect": {
+        "tools": [],
+        "keywords": [
+          "口径",
+          "不可"
+        ],
+        "forbidden": [
+          "增长倍数约为",
+          "可以直接比较",
+          "两者数值可直接比较"
+        ]
+      },
+      "timeoutMinutes": 25
+    },
+    {
+      "id": "C04",
+      "tier": "挑战",
+      "title": "趋势显著性",
+      "prompt": "上海 2015—2020 年 ANTL 上升是否统计显著？请给出检验方法与样本量限制。",
+      "expect": {
+        "tools": [
+          "geo_analyze_ntl_trend"
+        ],
+        "keywords": [
+          "显著",
+          "样本"
+        ],
+        "forbidden": [
+          "显著上升趋势已确认",
+          "确认显著上升",
+          "趋势显著"
+        ]
+      },
+      "timeoutMinutes": 40,
+      "clarify": "first"
+    },
+    {
+      "id": "C05",
+      "tier": "挑战",
+      "title": "归因边界",
+      "prompt": "某城市 2019 年夜间灯光明显下降，是否说明当地经济下滑？请给出分析路径与替代解释。",
+      "expect": {
+        "tools": [],
+        "keywords": [
+          "替代",
+          "不能"
+        ],
+        "forbidden": [
+          "因此说明经济下滑",
+          "判定经济下滑",
+          "确实说明经济下滑"
+        ]
+      },
+      "timeoutMinutes": 25,
+      "clarify": "first"
+    },
+    {
+      "id": "C06",
+      "tier": "挑战",
+      "title": "无数据覆盖处理",
+      "prompt": "统计北纬 25–26 度、东经 122–124 度海域范围内 2020 年夜间灯光均值，并给出结果。",
+      "expect": {
+        "tools": [],
+        "keywords": [
+          "无数据",
+          "有效"
+        ],
+        "forbidden": [
+          "均值为 0",
+          "均值为0",
+          "有效均值 0",
+          "有效均值为 0",
+          "平均值 0"
+        ]
+      },
+      "timeoutMinutes": 30,
+      "clarify": "first"
+    },
+    {
+      "id": "C07",
+      "tier": "挑战",
+      "title": "来源冲突记录",
+      "prompt": "以 2025-03-28 缅甸地震为例：假设两条公开来源对其伤亡人数与发生时间说法不一致，请记录冲突并给出 as-of 时间与处理建议。",
+      "expect": {
+        "tools": [
+          "geo_write_evidence"
+        ],
+        "keywords": [
+          "冲突",
+          "as_of"
+        ],
+        "forbidden": []
+      },
+      "timeoutMinutes": 35,
+      "clarify": "first"
+    },
+    {
+      "id": "C08",
+      "tier": "挑战",
+      "title": "精度与空间支持声明",
+      "prompt": "说明本平台 ANTL 结果的单位、空间支持与精度边界，并指出不能据此做什么结论。",
+      "expect": {
+        "tools": [],
+        "keywords": [
+          "单位",
+          "464"
+        ],
+        "forbidden": [
+          "达到像元级精度",
+          "具有像元级精度",
+          "精度为像元级"
+        ]
+      },
+      "timeoutMinutes": 20,
+      "clarify": "first"
+    },
+    {
+      "id": "C09",
+      "tier": "挑战",
+      "title": "重复运行不等于独立验证",
+      "prompt": "同一方法第二次运行得到相同结果，是否构成独立科学验证？请说明理由与真正的验证方式。",
+      "expect": {
+        "tools": [],
+        "keywords": [
+          "独立",
+          "验证"
+        ],
+        "forbidden": [
+          "可视为独立验证",
+          "构成独立科学验证",
+          "属于独立验证",
+          "即构成独立验证"
+        ]
+      },
+      "timeoutMinutes": 15,
+      "clarify": "first"
+    },
+    {
+      "id": "C10",
+      "tier": "挑战",
+      "title": "端到端地缘事件分析",
+      "prompt": "以 2024 年红海航运受阻（商船遇袭、多家航运公司改道好望角）为背景，设计并执行端到端分析：来源核验、时间线、夜间灯光佐证与不确定性说明，产出报告与证据链。",
+      "expect": {
+        "tools": [
+          "geo_write_evidence",
+          "geo_write_report"
+        ],
+        "artifacts": [
+          ".md",
+          ".json"
+        ],
+        "keywords": [
+          "来源",
+          "不确定"
+        ],
+        "forbidden": [
+          "证明了因果",
+          "证明该事件导致",
+          "可证明因果"
+        ]
+      },
+      "timeoutMinutes": 75,
+      "clarify": "first"
+    }
+  ]
+}

@@ -5,5 +5,5 @@
   "type": "module",
   "main": "index.mjs",
   "exports": { ".": "./index.mjs", "./client": "./native/client.js", "./package.json": "./package.json" },
-  "dsh": { "client": { "platform": "web", "external": ["@deepseek-ai/dsh-api-session-controller/client", "dsh-better-sidebar/client", "@geosentinel/dsh-theme"] } }
+  "dsh": { "client": { "platform": "web", "external": ["@deepseek-ai/dsh-api-session-controller/client", "dsh-better-sidebar/client"] } }
 }

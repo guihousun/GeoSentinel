@@ -418,10 +418,187 @@ def fetch_gdelt_events(limit: int | None = None) -> tuple[list[dict[str, Any]], 
     return candidates, {"source": source_name, "status": "ok", "http_status": response.status_code, "count": len(candidates), "message": "公开新闻事件索引；仅作为线索，不替代原始证据核验。"}
 
 
+# Public news feeds with no credential. They carry no coordinates, so entries
+# stay list-only leads; the publisher's country is never treated as the event
+# location. Feeds are filtered to geopolitics/conflict/disaster vocabulary so
+# the channel does not fill the shared queue with sport and culture.
+NEWS_FEEDS: tuple[tuple[str, str], ...] = (
+    ("UN News", "https://news.un.org/feed/subscribe/en/news/all/rss.xml"),
+    ("Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml"),
+    ("BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml"),
+    ("RFE/RL", "https://www.rferl.org/api/zrqiteuuir"),
+    ("DW", "https://rss.dw.com/rdf/rss-en-world"),
+    ("Times of Israel", "https://www.timesofisrael.com/feed/"),
+    ("Anadolu", "https://www.aa.com.tr/en/rss/default?cat=guncel"),
+    ("TASS", "https://tass.com/rss/v2.xml"),
+    ("Nikkei Asia", "https://asia.nikkei.com/rss/feed/nar"),
+    ("SCMP", "https://www.scmp.com/rss/91/feed"),
+    ("CNA", "https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml"),
+    ("Africanews", "https://www.africanews.com/feed/rss"),
+    ("Crisis Group", "https://www.crisisgroup.org/rss.xml"),
+)
+NEWS_KEYWORDS = re.compile(
+    r"\b("
+    r"sanction|sanctions|conflict|war|warfare|strike|strikes|airstrike|missile|drone|shelling|offensive|"
+    r"ceasefire|truce|treaty|border|invasion|occupation|annex|military|troops|army|navy|air force|"
+    r"coup|junta|militant|insurgent|terror|attack|bombing|hostage|kidnap|massacre|atrocit|genocide|"
+    r"protest|uprising|unrest|crackdown|martial law|curfew|blockade|embargo|mobiliz|escalat|"
+    r"refugee|displace|humanitarian|famine|aid convoy|peacekeep|"
+    r"nuclear|ballistic|cyberattack|espionage|spy|expel|ambassador|"
+    r"earthquake|flood|wildfire|cyclone|typhoon|drought|volcano|tsunami|landslide|outbreak|epidemic"
+    r")\b",
+    re.IGNORECASE,
+)
+# Political-process words alone are too weak (they match sport, business and
+# culture stories); they only count when at least two of them co-occur.
+NEWS_WEAK_KEYWORDS = re.compile(
+    r"\b(election|referendum|parliament|president|prime minister|regime|summit|talks|negotiat|"
+    r"united nations|nato|european union|g7|brics|diplomat)\b",
+    re.IGNORECASE,
+)
+
+
+def _news_relevant(title: str) -> bool:
+    if NEWS_KEYWORDS.search(title):
+        return True
+    return len(set(match.group(0).lower() for match in NEWS_WEAK_KEYWORDS.finditer(title))) >= 2
+
+
+def _rss_items(root: ElementTree.Element) -> list[ElementTree.Element]:
+    """RSS 2.0 and RDF/XML both use `item`, but RDF puts it in a namespace."""
+    return [node for node in root.iter() if _local_name(node.tag) == "item"]
+
+
+def fetch_news_events(limit: int | None = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """International news leads from public feeds: geopolitics, conflict, disaster."""
+    source_name = "国际新闻"
+    if not _truthy("NTL_MONITOR_NEWS_ENABLED", True):
+        return [], {"source": source_name, "status": "disabled", "count": 0, "message": "已通过配置关闭国际新闻源。"}
+    per_feed = max(1, min(5, _bounded_int("NTL_MONITOR_NEWS_PER_FEED", 2, 1, 5)))
+    total_cap = limit or _bounded_int("NTL_MONITOR_NEWS_MAX", 20, 1, 40)
+    feeds = NEWS_FEEDS
+    configured = str(os.getenv("NTL_MONITOR_NEWS_FEEDS", "") or "").strip()
+    if configured:
+        parsed: list[tuple[str, str]] = []
+        for entry in configured.split(","):
+            name, _, url = entry.partition("=")
+            if name.strip() and url.strip().startswith("http"):
+                parsed.append((name.strip()[:40], url.strip()))
+        if parsed:
+            feeds = tuple(parsed)
+    candidates: list[dict[str, Any]] = []
+    ok_feeds = 0
+    failures: list[str] = []
+    # Fetch every feed, then take items round-robin so one prolific outlet
+    # cannot fill the whole channel and regional coverage stays balanced.
+    pools: list[tuple[str, list[dict[str, Any]]]] = []
+    for name, url in feeds:
+        try:
+            response = _request(url)
+        except Exception as exc:  # noqa: BLE001
+            failures.append(f"{name}:{type(exc).__name__}")
+            continue
+        if response.status_code != 200:
+            failures.append(f"{name}:{response.status_code}")
+            continue
+        try:
+            root = ElementTree.fromstring(response.content)
+        except ElementTree.ParseError:
+            failures.append(f"{name}:xml")
+            continue
+        ok_feeds += 1
+        pool: list[dict[str, Any]] = []
+        for item in _rss_items(root):
+            if len(pool) >= per_feed:
+                break
+            title = _item_text(item, "title")
+            link = _item_text(item, "link")
+            if not title or not link or not _news_relevant(title):
+                continue
+            pool.append(
+                _candidate(
+                    source_name=source_name,
+                    source_event_id=link,
+                    source_url=link,
+                    title=title,
+                    summary=f"{name} 公开新闻条目；无坐标，需结合原始报道与官方来源核验。",
+                    event_type="geopolitical",
+                    severity=_severity_from_title(title),
+                    published_at=_timestamp(_item_text(item, "pubdate") or _item_text(item, "date")),
+                    raw={"feed": name, "description": _item_text(item, "description")[:400]},
+                )
+            )
+        if pool:
+            pools.append((name, pool))
+    for index in range(per_feed):
+        for _, pool in pools:
+            if len(candidates) >= total_cap:
+                break
+            if index < len(pool):
+                candidates.append(pool[index])
+        if len(candidates) >= total_cap:
+            break
+    if not ok_feeds:
+        return [], {
+            "source": source_name,
+            "status": "error",
+            "count": 0,
+            "message": "国际新闻源本轮均不可用：" + (", ".join(failures[:4]) or "无响应"),
+        }
+    status = "ok" if not failures else "degraded"
+    return candidates, {
+        "source": source_name,
+        "status": status,
+        "count": len(candidates),
+        "message": f"{ok_feeds}/{len(feeds)} 个公开新闻源可用；仅作为线索，无坐标。"
+        + (f" 失败：{', '.join(failures[:4])}" if failures else ""),
+    }
+
+
+def fetch_emsc_events(limit: int | None = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """EMSC seismic portal FDSN feed: public GeoJSON, no credential, global recent events."""
+    source_name = "EMSC"
+    max_items = limit or _bounded_int("NTL_MONITOR_MAX_EVENTS_PER_SOURCE", MAX_EVENTS_PER_SOURCE, 1, 40)
+    response = _request(
+        "https://www.seismicportal.eu/fdsnws/event/1/query",
+        params={"format": "json", "limit": max_items, "orderby": "time"},
+    )
+    if response.status_code != 200:
+        return [], {"source": source_name, "status": "error", "http_status": response.status_code, "count": 0, "message": "EMSC 地震目录请求未成功。"}
+    try:
+        payload = response.json()
+    except ValueError:
+        return [], {"source": source_name, "status": "error", "http_status": response.status_code, "count": 0, "message": "EMSC 返回了非 JSON 响应。"}
+    candidates: list[dict[str, Any]] = []
+    for feature in list(payload.get("features") or [])[:max_items]:
+        properties = feature.get("properties") or {}
+        geometry = feature.get("geometry") or {}
+        coordinates = list(geometry.get("coordinates") or [])
+        magnitude = _safe_float(properties.get("mag"))
+        region = _clean_text(properties.get("flynn_region"), 120)
+        candidates.append(
+            _candidate(
+                source_name=source_name,
+                source_event_id=str(properties.get("unid") or feature.get("id") or ""),
+                source_url=f"https://www.seismicportal.eu/eventdetails.html?unid={properties.get('unid')}" if properties.get("unid") else "",
+                title=f"M{magnitude:.1f} 地震 · {region}" if magnitude is not None else f"地震 · {region}",
+                summary="EMSC 地震目录条目；震级与位置为目录值，影响与损失需另行核实。",
+                event_type="earthquake",
+                severity="high" if (magnitude or 0) >= 6 else "medium" if (magnitude or 0) >= 5 else "low",
+                published_at=_timestamp(properties.get("time")),
+                longitude=_safe_float(coordinates[0]) if len(coordinates) >= 2 else None,
+                latitude=_safe_float(coordinates[1]) if len(coordinates) >= 2 else None,
+                location_name=region,
+                raw={"magtype": properties.get("magtype"), "depth": properties.get("depth"), "auth": properties.get("auth")},
+            )
+        )
+    return candidates, {"source": source_name, "status": "ok", "http_status": response.status_code, "count": len(candidates), "message": "EMSC 全球近实时地震目录。"}
+
+
 def collect_monitor_candidates() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     candidates: list[dict[str, Any]] = []
     statuses: list[dict[str, Any]] = []
-    for collector in (fetch_gdacs_events, fetch_eonet_events, fetch_acled_events, fetch_gdelt_events):
+    for collector in (fetch_gdacs_events, fetch_eonet_events, fetch_emsc_events, fetch_news_events, fetch_acled_events, fetch_gdelt_events):
         try:
             items, status = collector()
         except Exception as exc:  # noqa: BLE001

@@ -1,19 +1,26 @@
+import os
 from pathlib import Path, PureWindowsPath
 
 
 def resolve_local_path(raw_path: str | Path, workdir: str | Path) -> Path:
     raw_text = str(raw_path)
-    windows_path = PureWindowsPath(raw_text)
-    if windows_path.root and not windows_path.drive:
-        raise ValueError(
-            f"{raw_text} is a Windows partially-qualified path; "
-            "a fully absolute path or ordinary relative path is required."
-        )
-    if windows_path.drive and not windows_path.root:
-        raise ValueError(
-            f"{raw_text} is a Windows partially-qualified path; "
-            "a fully absolute path or ordinary relative path is required."
-        )
+    # A POSIX-absolute path (`/workspace/previous/...`) is what the Linux
+    # worker and the Docker bind mounts use; PureWindowsPath reads it as a
+    # rooted path without a drive. Keep the Windows partial-path guard for
+    # Windows hosts, and accept POSIX absolute paths where the toolkit runs.
+    posix_absolute = os.name != "nt" and raw_text.startswith("/")
+    if not posix_absolute:
+        windows_path = PureWindowsPath(raw_text)
+        if windows_path.root and not windows_path.drive:
+            raise ValueError(
+                f"{raw_text} is a Windows partially-qualified path; "
+                "a fully absolute path or ordinary relative path is required."
+            )
+        if windows_path.drive and not windows_path.root:
+            raise ValueError(
+                f"{raw_text} is a Windows partially-qualified path; "
+                "a fully absolute path or ordinary relative path is required."
+            )
 
     path = Path(raw_path).expanduser()
     if not path.is_absolute():

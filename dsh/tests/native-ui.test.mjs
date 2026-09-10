@@ -1,13 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createServer } from "node:http";
 import { PlatformStore } from "../plugins/platform/store.mjs";
 import { nativeEvent } from "../plugins/platform/native-events.mjs";
 import { bundleImports, nativeAssets, nativePlugins } from "../plugins/workbench/native-host.mjs";
-import { sidebarPolicy, createSidebarHandler } from "../plugins/platform/sidebar-adapter.mjs";
+import { sidebarPolicy, createSidebarHandler, createSidebarFileHandler, createSidebarBundleHandler } from "../plugins/platform/sidebar-adapter.mjs";
 import { dreamSkinTheme } from "../plugins/workbench/skin-theme.mjs";
 
 test("managed Dream Skin uses real midnight tokens with accessible contrast", async () => {
@@ -47,6 +47,49 @@ test("native tool history keeps call identity and reports business failures with
   assert.ok(!JSON.stringify(result).includes("secret"));
 });
 
+test("research shell follows the administrator development appearance and falls back safely", async (t) => {
+  const root = await mkdtemp(path.join(tmpdir(), "geo-appearance-"));
+  const admin = path.join(root, "development", "admin-1");
+  await mkdir(admin, { recursive: true });
+  const png = "data:image/png;base64,iVBORw0KGgo=";
+  await writeFile(path.join(admin, "dream-skin.json"), JSON.stringify({
+    "dsh-dream-skin:skin": "abyss",
+    "dsh-dream-skin:wallpaper-kind": "image",
+    "dsh-dream-skin:wallpaper": png,
+    "dsh-dream-skin:wallpaper-opacity": 0.5,
+    "dsh-dream-skin:wallpaper-blur": 8,
+  }));
+  await writeFile(path.join(admin, "settings.yaml"), "ui-theme:\n  preference: light\n  fontSize: 18\n");
+  const previousHome = process.env.GEO_DSH_HOME, previousSource = process.env.GEO_APPEARANCE_SOURCE;
+  process.env.GEO_DSH_HOME = root;
+  delete process.env.GEO_APPEARANCE_SOURCE;
+  t.after(async () => {
+    if (previousHome === undefined) delete process.env.GEO_DSH_HOME; else process.env.GEO_DSH_HOME = previousHome;
+    if (previousSource === undefined) delete process.env.GEO_APPEARANCE_SOURCE; else process.env.GEO_APPEARANCE_SOURCE = previousSource;
+    await rm(root, { recursive: true, force: true });
+  });
+  const live = await dreamSkinTheme();
+  assert.equal(live.id, "geosentinel-midnight");
+  assert.equal(live.wallpaper, png);
+  assert.equal(live.wallpaperBlur, 8);
+  assert.equal(live.fontSize, 18);
+  // colorScheme comes from the skin itself; abyss is a dark skin.
+  assert.equal(live.colorScheme, "dark");
+  // 0.5 opacity is the development value; the draft importer's 0.65 floor must not apply here.
+  assert.match(live.tokens["--dsw-alias-bg-base"], /^rgba\(20,20,24,0\.5\)$/);
+  await writeFile(path.join(admin, "dream-skin.json"), JSON.stringify({
+    "dsh-dream-skin:skin": "system",
+    "dsh-dream-skin:wallpaper-kind": "image",
+    "dsh-dream-skin:wallpaper": png,
+    "dsh-dream-skin:wallpaper-opacity": 0.8,
+  }));
+  const light = await dreamSkinTheme();
+  assert.equal(light.colorScheme, "light");
+  assert.match(light.tokens["--dsw-alias-bg-base"], /^rgba\(255,255,255,0\.8\)$/);
+  process.env.GEO_APPEARANCE_SOURCE = "product";
+  assert.equal((await dreamSkinTheme()).wallpaper, "");
+});
+
 test("pinned native distribution and extension load without activating unrestricted host clients", async () => {
   const assets = await nativeAssets();
   assert.equal(assets.version, "0.1.2-rc.1");
@@ -67,6 +110,10 @@ test("sidebar adapter enforces identity and project ownership; privileged upstre
   const user = store.acceptInvite(store.invite(admin), "alice", "user-password");
   const other = store.acceptInvite(store.invite(admin), "other", "other-password");
   const chat = store.createChat(user, store.createProject(user, "private").id);
+  const chatRoot = store.chatRoot(user, chat.id);
+  await mkdir(path.join(chatRoot, "outputs", "job-1"), { recursive: true });
+  await writeFile(path.join(chatRoot, "outputs", "job-1", "report.md"), "# 报告\n结论");
+  await writeFile(path.join(chatRoot, "memory", "notes.md"), "private runtime memory");
   const cookies = {};
   for (const [key, name, password] of [["admin", "admin", "admin-password"], ["user", "alice", "user-password"], ["other", "other", "other-password"]]) cookies[key] = "geosentinel_session=" + store.login(name, password).token;
   let handler;
@@ -79,12 +126,77 @@ test("sidebar adapter enforces identity and project ownership; privileged upstre
   assert.equal((await call("settings.get")).status, 401);
   assert.equal((await call("settings.get", "user", {}, { origin: "https://evil.example" })).status, 403);
   const own = await (await call("session.cwd", "user", { sessionId: chat.id, cwd: "C:/Windows" })).json();
-  assert.match(own.value.cwd, /^\/projects\//);
+  assert.match(own.value.cwd, /^\/工作区\//);
+  // An absolute path outside the session view is refused instead of being read
+  // through a stale token.
+  assert.equal((await call("fs.tree", "user", { sessionId: chat.id, path: "/projects/legacy-id/outputs" })).status, 403);
   assert.equal((await call("session.cwd", "other", { sessionId: chat.id })).status, 404);
-  for (const method of ["fs.read", "fs.write", "pty.create", "git.commit", "settings.update", "sidechat.start"])
+  for (const method of ["fs.write", "pty.create", "git.commit", "settings.update", "sidechat.start"])
     for (const who of ["user", "admin"]) assert.equal((await call(method, who, { sessionId: chat.id })).status, 403);
   assert.equal(sidebarPolicy.tabsEnabled.terminal, false);
+  assert.equal(sidebarPolicy.tabsEnabled.explorer, true);
+  assert.equal(sidebarPolicy.tabsEnabled.subagent, true);
   assert.equal(sidebarPolicy.workspaceFence, true);
+
+  // The 任务管理 tab authorises its root session and answers without an error,
+  // so the client does not poll a forbidden endpoint while it is open.
+  const live = await (await call("subagents.live", "user", { rootSessionId: chat.id })).json();
+  assert.deepEqual(live.value, { live: {} });
+  assert.equal((await call("subagents.live", "other", { rootSessionId: chat.id })).status, 404);
+
+  // The explorer surface is read-only, ownership-fenced and blind to runtime
+  // memory. It presents the friendly view (上传的文件 / 分析结果 / 过程记录)
+  // instead of the raw inputs/outputs layout.
+  const tree = await (await call("fs.tree", "user", { sessionId: chat.id, path: own.value.cwd })).json();
+  assert.deepEqual(tree.value.entries.map((entry) => entry.name), ["上传的文件", "分析结果", "过程记录"]);
+  assert.equal(tree.value.entries.every((entry) => entry.isDir), true);
+  // A produced file appears under its kind, not under its job folder.
+  const groups = await (await call("fs.tree", "user", { sessionId: chat.id, path: `${own.value.cwd}/分析结果` })).json();
+  assert.deepEqual(groups.value.entries.map((entry) => entry.name), ["报告"]);
+  const group = await (await call("fs.tree", "user", { sessionId: chat.id, path: `${own.value.cwd}/分析结果/报告` })).json();
+  assert.deepEqual(group.value.entries.map((entry) => entry.name), ["report.md"]);
+  assert.equal(group.value.entries[0].isDir, false);
+  const file = await (await call("fs.read", "user", { sessionId: chat.id, path: `${own.value.cwd}/分析结果/报告/report.md` })).json();
+  assert.equal(file.value.kind, "text");
+  assert.match(file.value.content, /报告/);
+  // The raw job folder stays reachable for traceability.
+  const history = await (await call("fs.tree", "user", { sessionId: chat.id, path: `${own.value.cwd}/过程记录` })).json();
+  assert.deepEqual(history.value.entries.map((entry) => entry.name), ["job-1"]);
+  const nested = await (await call("fs.tree", "user", { sessionId: chat.id, path: `${own.value.cwd}/过程记录/job-1` })).json();
+  assert.deepEqual(nested.value.entries.map((entry) => entry.name), ["report.md"]);
+  const found = await (await call("fs.search", "user", { sessionId: chat.id, query: "report" })).json();
+  assert.ok(found.value.includes(`${own.value.cwd}/分析结果/报告/report.md`), JSON.stringify(found.value));
+  assert.equal((await call("fs.tree", "user", { sessionId: chat.id, path: "../../../Windows" })).status, 400);
+  assert.equal((await call("fs.tree", "user", { sessionId: chat.id, path: `${own.value.cwd}/../../../Windows` })).status, 400);
+  assert.equal((await call("fs.read", "user", { sessionId: chat.id, path: `${own.value.cwd}/memory/notes.md` })).status, 403);
+  assert.equal((await call("fs.read", "user", { sessionId: chat.id, path: "/projects/legacy/outputs/job-1/report.md" })).status, 403);
+  assert.equal((await call("fs.tree", "other", { sessionId: chat.id, path: own.value.cwd })).status, 404);
+
+  let fileHandler;
+  const files = createServer((req, res) => fileHandler(req, res));
+  await new Promise((resolve) => files.listen(0, "127.0.0.1", resolve));
+  const fileHost = `127.0.0.1:${files.address().port}`;
+  fileHandler = createSidebarFileHandler({ store, hosts: [fileHost] });
+  t.after(async () => { files.closeAllConnections(); await new Promise((resolve) => files.close(resolve)); });
+  const download = await fetch(`http://${fileHost}/sidebar/file?sessionId=${chat.id}&path=${encodeURIComponent(`${own.value.cwd}/分析结果/报告/report.md`)}&download=1`, { headers: { cookie: cookies.user } });
+  assert.equal(download.status, 200);
+  assert.match(download.headers.get("content-disposition"), /attachment/);
+  assert.match(await download.text(), /报告/);
+  assert.equal((await fetch(`http://${fileHost}/sidebar/file?sessionId=${chat.id}&path=${encodeURIComponent(`${own.value.cwd}/memory/notes.md`)}`, { headers: { cookie: cookies.user } })).status, 403);
+  assert.equal((await fetch(`http://${fileHost}/sidebar/file?sessionId=${chat.id}&path=x`, {})).status, 401);
+
+  let bundleHandler;
+  const bundles = createServer((req, res) => bundleHandler(req, res));
+  await new Promise((resolve) => bundles.listen(0, "127.0.0.1", resolve));
+  const bundleHost = `127.0.0.1:${bundles.address().port}`;
+  bundleHandler = createSidebarBundleHandler({ store, hosts: [bundleHost] });
+  t.after(async () => { bundles.closeAllConnections(); await new Promise((resolve) => bundles.close(resolve)); });
+  const chunk = await fetch(`http://${bundleHost}/sidebar/bundle/editor.js`, { headers: { cookie: cookies.user } });
+  assert.equal(chunk.status, 200);
+  assert.match(chunk.headers.get("content-type"), /javascript/);
+  assert.ok((await chunk.text()).length > 1000);
+  assert.equal((await fetch(`http://${bundleHost}/sidebar/bundle/editor.js`, {})).status, 401);
+  assert.equal((await fetch(`http://${bundleHost}/sidebar/bundle/../../package.json`, { headers: { cookie: cookies.user } })).status, 404);
   store.disableUser(admin, other.id, true);
   assert.equal((await call("settings.get", "other")).status, 401);
 });

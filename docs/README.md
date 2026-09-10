@@ -5,6 +5,7 @@ This directory contains public operator and integration documentation. Start wit
 ## Current Platform
 
 - [DSH installation and operation](../dsh/README.md): current recommended product entry, native UI, managed plugins, Docker and account setup.
+- [New-machine install and full replay guide](new-machine-migration.md): what to copy to a new computer, step-by-step install, admin bootstrap, release and rollback, data migration, acceptance checklist, and the failure modes observed on this deployment.
 - [Migration to DSH](migration-to-dsh.md): old Python to DSH, existing DSH upgrades, backups, path constraints, public rollout and rollback.
 - [DSH implementation and acceptance](../dsh/IMPLEMENTATION.md): verified capabilities and explicit limitations.
 

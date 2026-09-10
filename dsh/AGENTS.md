@@ -5,6 +5,7 @@ This directory is the opt-in DSH product implementation. Its entrypoint is
 [`IMPLEMENTATION.md`](IMPLEMENTATION.md) before changing runtime boundaries.
 
 - Keep workbench, platform and research ownership separate. AgentTeams is the sole scheduler here.
+- Administrators may use development remotely through the authenticated GeoSentinel gateway. Native worker ports remain loopback-only; every HTTP/WebSocket request requires a live administrator login and a session-bound password reconfirmation. Each administrator has a separate development home. Never disable ordinary-user guards to implement admin access. See [administrator development](ADMIN-DEVELOPMENT.md).
 - Do not edit the user's personal DSH profile, legacy Conda environments or old Python graph for this runtime.
 - Fixed supervisor and three specialists; no peer delegation, arbitrary model selection or user-controlled host tools.
 - Authenticated user approval, not model text, starts a staged plan. Revised scope needs renewed approval.
@@ -15,5 +16,6 @@ This directory is the opt-in DSH product implementation. Its entrypoint is
 - Do not describe Docker resource limits as proof against all hostile code. Do not claim legacy NTL capability parity without separate acceptance.
 - Keep dependency pins and the independent fork patch synchronized. Never modify installed third-party source directly.
 - Reuse native DSH UI slots, components and interaction contracts before building replacements. Keep GeoSentinel-specific adapters narrow. Reuse never bypasses account/project ownership, revision-bound approval or sandbox policy; do not enable upstream personal-host endpoints to make a component work. Prefer public exports; document unsupported native features rather than silently emulating them.
+- Product deployment uses frozen snapshots, separate dependency installations and pinned Docker image IDs. Source edits and native administrator settings never imply publication. Use the authenticated administrator release flow, preserve running work and user data, and read [RELEASES.md](RELEASES.md) before changing publication or rollback.
 - After changes: `pnpm test`, relevant real smoke tests, syntax checks and desktop browser verification. Do not run acceptance scripts on production user data.
 - Preserve sources and uncertainty. Fixtures must remain visibly labelled; repeated computation is not independent scientific validation.

@@ -1,6 +1,61 @@
 import path from "node:path";
+import { realpathSync } from "node:fs";
 import { readdir, lstat, writeFile, statfs } from "node:fs/promises";
 import { PlatformError, workspacePath } from "./store.mjs";
+
+/** Resolve a path to its real location, tolerating a tail that does not exist yet. */
+function canonicalOf(target) {
+  let current = path.resolve(target), suffix = [];
+  for (;;) {
+    try {
+      const real = realpathSync(current);
+      return suffix.length ? path.join(real, ...suffix) : real;
+    } catch {
+      const parent = path.dirname(current);
+      if (parent === current) return path.resolve(target);
+      suffix.unshift(path.basename(current));
+      current = parent;
+    }
+  }
+}
+
+/**
+ * Containment fence for model-facing filesystem tools.
+ *
+ * DSH fences fs WRITES with the sandbox but resolves reads against the session
+ * cwd, so an absolute path can reach anything the host process may read. The
+ * product therefore checks every path argument itself: relative paths resolve
+ * against the session workspace, and the result must stay inside one of the
+ * allowed roots (the chat workspace and the shipped skill assets). Symlinks are
+ * followed before the comparison, so a link cannot escape the fence.
+ */
+export function containedPath(roots, value, base) {
+  if (value === undefined || value === null || value === "") return true;
+  if (typeof value !== "string" || value.includes("\0") || value.length > 4096) return false;
+  const target = canonicalOf(path.isAbsolute(value) ? value : path.resolve(base, value));
+  return roots.some((root) => {
+    const canonical = canonicalOf(root);
+    return target === canonical || target.startsWith(canonical + path.sep);
+  });
+}
+
+/** The only directory a model-authored write may target, relative to a chat workspace. */
+export const WRITE_DIR = "outputs";
+
+/**
+ * Write fence for `write`/`edit`.
+ *
+ * Reading may span the chat workspace, the project inputs and the skill library;
+ * writing must not. Uploaded files, project-material `inputs/`, the runtime
+ * `memory/` directory and the shipped skills stay read-only, and every artifact
+ * belongs to `outputs/<作业ID>/`. The path is resolved and canonicalised exactly
+ * like a read, so a symlink or `..` cannot escape the single writable root, and a
+ * missing or non-string path is refused instead of being treated as unrestricted.
+ */
+export function containedWrite(root, value) {
+  if (typeof value !== "string" || value === "") return false;
+  return containedPath([path.join(root, WRITE_DIR)], value, root);
+}
 
 export async function directoryUsage(root) {
   let bytes = 0, files = 0, entries = 0;

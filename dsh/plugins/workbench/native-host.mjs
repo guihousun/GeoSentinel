@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
 import { parse } from "acorn";
-import { dreamSkinTheme } from "./skin-theme.mjs";
+import { dreamSkinTheme, appearanceStamp } from "./skin-theme.mjs";
 
 // Resolve from the running Web bundle, never from unrelated top-level links.
 const requireWeb = createRequire(import.meta.resolve("@deepseek-ai/dsh-web-app"));
@@ -11,7 +11,7 @@ export const nativePlugins = [
   "dsh-client-modules", "dsh-client-locale", "dsh-client-ui-theme",
   "dsh-client-ui-layout", "dsh-client-ui-renderer", "dsh-client-ui-session",
   "dsh-client-ui-conversation", "dsh-client-ui-chat", "dsh-client-ui-tool",
-  "dsh-client-ui-user-questions", "dsh-client-ui-subagent",
+  "dsh-client-ui-user-questions", "dsh-client-ui-subagent", "dsh-client-ui-input-trigger",
 ].map((name) => "@deepseek-ai/" + name);
 const baseline = new Set(["react", "react/jsx-runtime", "react-dom", "react-dom/client",
   "@deepseek-ai/cordis", "@deepseek-ai/dsh-client-store",
@@ -20,6 +20,20 @@ const baseline = new Set(["react", "react/jsx-runtime", "react-dom", "react-dom/
 export async function nativeAssets() {
   const version = requireWeb("@deepseek-ai/dsh-web-app/package.json").version;
   const sources = new Map();
+  // dsh-file-upload 0.4.3 ships a client bug: `subscribeErrors` pokes listeners
+  // without the current value, so UploadDock stores `undefined` and then reads
+  // `error.text`, which crashes the dock after every upload. Patch the bundled
+  // source (the installed package stays untouched) and fail loudly if the
+  // pinned version ever changes so the patch is re-checked.
+  function patchUploadClient(name, packageVersion, source) {
+    if (name !== "dsh-file-upload") return source;
+    if (packageVersion !== "0.4.3") throw new Error(`dsh-file-upload ${packageVersion} is not the patched version`);
+    const fixed = source
+      .replaceAll("for (const listener of errorListeners) listener();", "for (const listener of errorListeners) listener(uploadError);")
+      .replace("error !== null &&", "error != null &&");
+    if (fixed === source) throw new Error("dsh-file-upload client patch no longer matches the installed source");
+    return fixed;
+  }
   async function collect(name, resolver = requireWeb) {
     name = name.replace(/\/client$/, "");
     if (baseline.has(name) || sources.has(name)) return;
@@ -27,7 +41,7 @@ export async function nativeAssets() {
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
     if (name.startsWith("@deepseek-ai/dsh-") && manifest.version !== version)
       throw new Error(`Native UI dependency mismatch: ${name} ${manifest.version} != ${version}`);
-    const source = await readFile(path.join(path.dirname(manifestPath), "lib/client.js"), "utf8");
+    const source = patchUploadClient(name, manifest.version, await readFile(path.join(path.dirname(manifestPath), "lib/client.js"), "utf8"));
     sources.set(name, source);
     for (const dependency of bundleImports(source))
       await collect(dependency, createRequire(manifestPath));
@@ -36,8 +50,17 @@ export async function nativeAssets() {
   // API helpers are library-only: their unrestricted transport plugins never activate.
   await collect("@deepseek-ai/dsh-api-session-controller");
   await collect("dsh-better-sidebar", createRequire(import.meta.url));
+  // Data-visualisation client half: renders the dsh-ui fence and render_ui cards.
+  await collect("@changfenhuang/dsh-genui", createRequire(import.meta.url));
+  // Upload UI (paperclip, drag & drop, preview cards). Its host route is
+  // authenticated by the platform's proxy; the microphone button is hidden by
+  // the product stylesheet because voice input is not offered.
+  await collect("dsh-file-upload", createRequire(import.meta.url));
   const id = "@geosentinel/dsh-workbench";
-  const entries = [...nativePlugins, id].map((name) => ({
+  // Third-party client halves that mount as plugins in the product UI: the
+  // visualisation renderer and the upload dock.
+  const thirdParty = ["@changfenhuang/dsh-genui", "dsh-file-upload"];
+  const entries = [...nativePlugins, ...thirdParty, id].map((name) => ({
     id: name, url: "/geo/native/bundle.js", rev: version,
     immediately: name === "@deepseek-ai/dsh-client-modules",
   }));
@@ -77,11 +100,17 @@ export function bundleImports(source) {
 }
 
 export function nativeHandler() {
-  let assets;
+  let assets, stamp;
   return async (req, res, pathname) => {
     if (!pathname.startsWith("/geo/native/")) return false;
     if (req.method !== "GET" && req.method !== "HEAD") { res.writeHead(405); res.end(); return true; }
-    assets ??= nativeAssets();
+    // The appearance can be changed from the creation view at any time, so the
+    // shell bundle is rebuilt only when its appearance inputs actually change.
+    const current = await appearanceStamp();
+    if (!assets || current !== stamp) {
+      stamp = current;
+      assets = nativeAssets().catch((error) => { assets = undefined; stamp = undefined; throw error; });
+    }
     const data = await assets;
     let body, mime;
     if (pathname === "/geo/native/") { body = data.html; mime = "text/html; charset=utf-8"; }

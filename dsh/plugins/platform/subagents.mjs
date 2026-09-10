@@ -1,7 +1,12 @@
 import { PlatformError } from "./store.mjs";
 import { nativeEvent } from "./native-events.mjs";
 
-const labels = { NTL_Data_Searcher: "数据助手", NTL_Analyst: "分析助手", NTL_Event_Tracker: "事件助手" };
+// Display label for a stored child role. Legacy NTL_* ids from earlier records
+// keep resolving so old chats still show the Chinese role name.
+const labels = {
+  数据助手: "数据助手", 分析助手: "分析助手", 事件助手: "事件助手",
+  NTL_Data_Searcher: "数据助手", NTL_Analyst: "分析助手", NTL_Event_Tracker: "事件助手",
+};
 
 /** Read-only projection: platform ownership AND native parentage must agree. */
 export function readonlySubagents({ store, subagents, sessionController }) {

@@ -14,6 +14,8 @@ test("native child records require account ownership and durable parentage, with
   const bob = store.acceptInvite(store.invite(alice), "bob", "test-password");
   const root = store.createChat(alice, store.createProject(alice, "Study").id).id;
   const other = store.createChat(alice, store.listProjects(alice)[0].id).id;
+  // The persisted role column keeps the stable legacy key; the catalog shows
+  // the Chinese research role.
   store.recordChild(root, "child", "NTL_Data_Searcher");
   store.recordChild(root, "wrong-parent", "NTL_Analyst");
   assert.equal(sidebarChat(alice, "child", store).id, root);

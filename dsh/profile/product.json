@@ -1,0 +1,69 @@
+{
+  "schema": "geosentinel.product.v1",
+  "defaultModel": {
+    "provider": "deepseek-official",
+    "model": "deepseek-v4.1-flash-expires-on-0910"
+  },
+  "monitorEnabled": true,
+  "roleTools": {
+    "数据助手": [
+      "geo_list_files",
+      "geo_read_evidence",
+      "geo_write_report",
+      "geo_inspect_raster",
+      "geo_download_gee",
+      "geo_download_boundary",
+      "geo_inspect_vector",
+      "geo_validate_geodata",
+      "geo_clip_raster",
+      "geo_reproject_raster",
+      "geo_mosaic_rasters",
+      "skill",
+      "read",
+      "glob",
+      "write",
+      "edit",
+      "read_document"
+    ],
+    "分析助手": [
+      "geo_list_files",
+      "geo_read_evidence",
+      "geo_write_report",
+      "geo_inspect_raster",
+      "geo_execute_python",
+      "geo_inspect_vector",
+      "geo_validate_geodata",
+      "geo_calculate_zonal_statistics",
+      "geo_calculate_ntl_metrics_for_raster",
+      "geo_composite_ntl_rasters",
+      "geo_analyze_ntl_trend",
+      "geo_detect_ntl_anomaly",
+      "geo_filter_points_by_polygon",
+      "geo_buffer_points_aeqd",
+      "geo_spatial_join_points_to_admin",
+      "geo_dissolve_intersections",
+      "geo_clip_raster",
+      "geo_reproject_raster",
+      "geo_mosaic_rasters",
+      "skill",
+      "read",
+      "glob",
+      "write",
+      "edit",
+      "read_document"
+    ],
+    "事件助手": [
+      "geo_list_files",
+      "geo_read_evidence",
+      "geo_write_report",
+      "skill",
+      "read",
+      "glob",
+      "write",
+      "edit",
+      "read_document",
+      "web_search",
+      "web_fetch"
+    ]
+  }
+}

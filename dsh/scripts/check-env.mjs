@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runtimeLimits } from "../plugins/platform/runtime.mjs";
 import { dockerMemoryMiB } from "../plugins/research/docker.mjs";
+import { usablePowerShell } from "../development/shell.mjs";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const envFile = process.env.GEO_ENV_FILE ?? path.join(root, ".env");
@@ -15,6 +16,10 @@ try {
 const report = [];
 const check = (name, ok, detail) =>
   report.push({ name, ok: Boolean(ok), detail });
+if (process.platform === "win32") {
+  try { check("Administrator PowerShell", true, usablePowerShell()); }
+  catch (error) { check("Administrator PowerShell", false, error.message); }
+}
 try {
   const limits = runtimeLimits(), reserve = Number(process.env.GEO_MIN_FREE_DISK_MIB ?? 1024);
   check("Resource admission limits", Number.isSafeInteger(reserve) && reserve >= 0, { ...limits, dockerMemoryMiB: dockerMemoryMiB(), minFreeDiskMiB: reserve });
@@ -88,6 +93,7 @@ check(
   "presence only; not printed",
 );
 let credential = false;
+check("Boundary place-name lookup", true, (process.env.AMAP_API_KEY || process.env.amap_api_key) ? "Amap configured (not printed)" : "Optional Amap key missing; use verified adcode or geoBoundaries/GEE");
 try {
   if (process.env.GEO_GEE_CREDENTIALS) {
     await access(process.env.GEO_GEE_CREDENTIALS);

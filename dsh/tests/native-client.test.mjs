@@ -55,8 +55,10 @@ test("native client restores remembered history and keeps project/file ownership
   for (let i = 0; i < 8; i++) await new Promise(setImmediate);
   assert.equal(services.sessions.list.getSnapshot().current, "c1");
   assert.ok(requests.includes("/chats/c1/native-history"));
-  assert.equal(stores[0].getSnapshot().files[0].path, "first.txt");
-  assert.equal(stores[0].getSnapshot().files[1].path, "job/result.md");
+  // The retired 资料与产出 panel is gone: opening a chat no longer fetches the
+  // project/file lists (uploads live in the session workspace and the upload
+  // dock owns them).
+  assert.equal(requests.some((route) => route.endsWith("/files")), false);
   const todos = services.sessions.binding("c1").session.projections.faceOf("todos").getSnapshot();
   assert.equal(todos[0].status, "completed");
   assert.equal(todos[1].status, "in_progress");
@@ -76,7 +78,6 @@ test("native client restores remembered history and keeps project/file ownership
   assert.equal((await child.rename("changed")).ok, false);
   assert.throws(() => child.beginSubmission({ text: "run" }), /只读/);
   assert.equal(requests.some((route) => route.startsWith("/chats/child1")), false);
-  assert.equal(stores[0].getSnapshot().files[1].path, "job/result.md");
   await services.sessions.refresh();
   assert.equal(services.sessions.list.getSnapshot().current, "child1");
   await assert.rejects(services.sessions.openSubagent({ ...address, parentSessionId: "c2" }), /不可访问/);
@@ -91,8 +92,6 @@ test("native client restores remembered history and keeps project/file ownership
   for (let i = 0; i < 8; i++) await new Promise(setImmediate);
   assert.equal(services.sessions.list.getSnapshot().current, "c2");
   assert.equal(stores[0].getSnapshot().activeProject, "p2");
-  assert.equal(stores[0].getSnapshot().files[0].path, "second.txt");
-  assert.equal(stores[0].getSnapshot().files.length, 1);
   const secondTodos = services.sessions.binding("c2").session.projections.faceOf("todos").getSnapshot();
   assert.equal(secondTodos.length, 1);
   assert.equal(secondTodos[0].status, "pending");

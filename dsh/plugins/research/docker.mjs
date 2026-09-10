@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process";
-import { mkdir, writeFile, readdir, readFile, lstat } from "node:fs/promises";
+import { mkdir, writeFile, readdir, readFile, lstat, unlink } from "node:fs/promises";
 import { realpathSync, statSync } from "node:fs";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { RuntimeLedger } from "../platform/runtime.mjs";
 import { WorkspaceFiles } from "../platform/files.mjs";
 import { PlatformError } from "../platform/store.mjs";
@@ -159,16 +159,24 @@ export class DockerRunner {
   }
   async run(identity, request, { signal, script } = {}) {
     if (signal?.aborted) throw new Error("Task cancelled");
-    if (request.kind === "gee-download") {
+    const requiresGee = request.kind === "gee-download" || (request.kind === "boundary-download" && request.parameters?.provider === "gee");
+    const networked = requiresGee || request.kind === "boundary-download";
+    if (requiresGee) {
       if (!this.geeCredentials || !this.geeProject) throw new PlatformError(503, "平台 GEE 授权未配置：请管理员检查实际 GEO_ENV_FILE 中的 GEO_GEE_CREDENTIALS 和 GEE_DEFAULT_PROJECT_ID；这不是数据集不存在，也不需要用户上传替代影像");
       try { if (!statSync(this.geeCredentials).isFile()) throw new Error("not a file"); }
       catch { throw new PlatformError(503, "平台 GEE 凭据文件不可读取，请管理员检查凭据路径和权限"); }
     }
     await this.ensureRecovered();
     await this.storage.checkSpace();
-    if (!["inspect", "execute", "gee-download"].includes(request.kind))
+    if (!["inspect", "execute", "gee-download", "boundary-download", "gis"].includes(request.kind))
       throw new Error("Unsupported operation");
-    const id = randomUUID(),
+    // Job ids double as output directory names, so they carry time, operation
+    // and a short random suffix instead of an opaque UUID: sortable, readable
+    // in the file explorer, and still collision-free.
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, "").replace("T", "-");
+    const slug = (request.kind === "gis" ? `gis-${String(request.operation ?? "job")}` : request.kind.replace(/-download$/, ""))
+      .toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 24) || "job";
+    const id = `${stamp}-${slug}-${randomBytes(3).toString("hex")}`,
       container = `geosentinel-${id}`;
     const job = {
       id,
@@ -193,6 +201,14 @@ export class DockerRunner {
     try {
       await mkdir(jobRoot, { recursive: true });
       await mkdir(output, { recursive: true });
+      // Materialize the outputs directory on the host before the container
+      // mounts it: a brand-new Windows directory is not always visible through
+      // Docker Desktop's 9p cache, and the first container write then fails.
+      try {
+        const probe = path.join(output, ".geosentinel-probe");
+        await writeFile(probe, "");
+        await unlink(probe);
+      } catch {}
       await writeFile(
         path.join(jobRoot, "request.json"),
         JSON.stringify(request),
@@ -242,7 +258,8 @@ export class DockerRunner {
         ),
         ...mount(path.join(identity.root, "outputs"), "/workspace/previous"),
       ];
-      if (request.kind === "gee-download") {
+      if (requiresGee || request.kind === "gis") args.push(...mount(realpathSync(this.toolkitRoot), "/opt/ntl-toolkit"), "-e", "PYTHONPATH=/opt/ntl-toolkit");
+      if (requiresGee) {
         if (!this.geeCredentials || !this.geeProject)
           throw new Error("Platform GEE authentication is not configured");
         args.push(
@@ -250,13 +267,16 @@ export class DockerRunner {
             realpathSync(this.geeCredentials),
             "/home/worker/.config/earthengine/credentials",
           ),
-          ...mount(realpathSync(this.toolkitRoot), "/opt/ntl-toolkit"),
-          "-e",
-          "PYTHONPATH=/opt/ntl-toolkit",
           "-e",
           `GEE_DEFAULT_PROJECT_ID=${this.geeProject}`,
         );
-        if (this.geeProxy) {
+      }
+      if (request.kind === "boundary-download" && request.parameters?.provider === "datav") {
+        const key = process.env.AMAP_API_KEY || process.env.amap_api_key;
+        if (key) args.push("-e", `AMAP_API_KEY=${key}`);
+      }
+      if (networked) {
+        if (this.geeProxy && request.parameters?.provider !== "datav") {
           if (!["http:", "https:"].includes(new URL(this.geeProxy).protocol))
             throw new Error("Unsupported acquisition proxy");
           for (const key of [
@@ -297,33 +317,95 @@ export class DockerRunner {
         } finally {
           checking = false;
         }
-      }, 1000);
+        // A 3s cadence keeps the disk guard and output cap while cutting host
+        // reads on the Windows bind mount: walking the tree every second while
+        // the container writes the same directory is what makes Docker
+        // Desktop's 9p layer return EIO.
+      }, 3000);
       if (signal?.aborted) cancel();
       job.status = "running";
       await writeFile(path.join(jobRoot, "manifest.json"), JSON.stringify(job));
       let log = "";
-      await invoke(["start", "--attach", container], {
-        attach: true,
-        onOutput: (chunk) => {
-          log = (log + chunk).slice(-64000);
-        },
-      });
+      const runContainer = async () => {
+        log = "";
+        await invoke(["start", "--attach", container], {
+          attach: true,
+          onOutput: (chunk) => {
+            log = (log + chunk).slice(-64000);
+          },
+        });
+      };
+      const rebuild = async () => {
+        await invoke(["rm", "-f", container]).catch(() => {});
+        await invoke(args);
+      };
+      // Docker Desktop's 9p bind mount intermittently returns EIO while the
+      // Windows workspace is mounted into the VM. That is an environment fault,
+      // not a task result: the same container usually succeeds on a later run.
+      // Retry with a short backoff, both when the container itself dies and
+      // when the worker returns an error envelope caused by the mount.
+      const transientMountError = (text) =>
+        /Input\/output error|Errno 5|\bEIO\b/i.test(String(text));
+      const retryMount = async () => {
+        for (const delay of [2000, 6000]) {
+          if (job.cancelled || signal?.aborted) return false;
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          if (job.cancelled || signal?.aborted) return false;
+          try {
+            await rebuild();
+            await runContainer();
+            return true;
+          } catch (error) {
+            if (!transientMountError(error.message)) throw error;
+          }
+        }
+        return false;
+      };
+      try {
+        await runContainer();
+      } catch (error) {
+        if (!transientMountError(error.message) || job.cancelled || signal?.aborted)
+          throw error;
+        job.retriedForMountError = true;
+        if (!(await retryMount())) throw error;
+      }
       await writeFile(path.join(jobRoot, "execution.log"), log);
       if (job.cancelled) throw new Error("Task cancelled");
-      const files = (
-        await outputFiles(
-          output,
-          "",
-          { bytes: 0, count: 0 },
-          this.maxOutputBytes,
-        )
-      ).map((file) => ({ ...file, path: `${id}/${file.path}` }));
-      const resultInfo = await lstat(path.join(output, "result.json"));
-      if (resultInfo.size > 1024 * 1024)
-        throw new Error("Worker result envelope exceeded");
-      const result = JSON.parse(
-        await readFile(path.join(output, "result.json"), "utf8"),
-      );
+      const readOutcome = async () => {
+        const files = (
+          await outputFiles(
+            output,
+            "",
+            { bytes: 0, count: 0 },
+            this.maxOutputBytes,
+          )
+        ).map((file) => ({ ...file, path: `${id}/${file.path}` }));
+        const resultInfo = await lstat(path.join(output, "result.json"));
+        if (resultInfo.size > 1024 * 1024)
+          throw new Error("Worker result envelope exceeded");
+        return {
+          files,
+          result: JSON.parse(
+            await readFile(path.join(output, "result.json"), "utf8"),
+          ),
+        };
+      };
+      let { files, result } = await readOutcome();
+      if (
+        result?.status === "error" &&
+        transientMountError(JSON.stringify(result)) &&
+        !job.cancelled &&
+        !signal?.aborted
+      ) {
+        job.retriedForMountError = true;
+        if (!(await retryMount())) {
+          ({ files, result } = await readOutcome());
+        } else {
+          await writeFile(path.join(jobRoot, "execution.log"), log);
+          if (job.cancelled) throw new Error("Task cancelled");
+          ({ files, result } = await readOutcome());
+        }
+      }
       if (Array.isArray(result.outputs))
         for (const artifact of result.outputs) {
           if (

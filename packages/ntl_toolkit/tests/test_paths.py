@@ -40,6 +40,19 @@ def test_resolve_local_path_keeps_absolute_paths_absolute_and_resolved(
     assert result == (tmp_path / "absolute" / "result.tif").resolve(strict=False)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX absolute paths only exist on POSIX hosts")
+def test_resolve_local_path_keeps_posix_absolute_paths(
+    tmp_path: Path,
+) -> None:
+    # The Linux worker mounts upstream artifacts at /workspace/previous/...;
+    # PureWindowsPath reads that as rooted-without-drive, but it is a valid
+    # POSIX absolute path and must not be rejected.
+    resolve_local_path = _runtime_function("resolve_local_path")
+    raw_path = "/workspace/previous/20260909-211000-boundary-6c28fe/boundary.geojson"
+
+    assert resolve_local_path(raw_path, tmp_path) == Path(raw_path)
+
+
 def test_resolve_local_path_rejects_rooted_relative_windows_path(
     tmp_path: Path,
 ) -> None:

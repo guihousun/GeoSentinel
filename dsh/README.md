@@ -2,9 +2,15 @@
 
 地缘环境智能计算平台的独立 DSH 运行入口：邀请制登录、多研究项目、多对话、固定角色协作、用户方案确认，以及 Docker 内的数据获取和分析。
 
-本目录不替换旧 FastAPI/Streamlit 服务，也不读取或迁移旧对话。首次运行使用全新的账号与项目库。共享公共监测已接入；完整 NTL 工具迁移和专题地图尚未完成，不能据此宣称所有旧功能已经接入。
+换一台电脑从零安装并完整复盘（迁移清单、安装步骤、发布与回滚、数据迁移、验收清单、已知故障）：见 [新机器安装与完整复盘指南](../docs/new-machine-migration.md)。
+
+本目录不替换旧 FastAPI/Streamlit 服务，也不读取或迁移旧对话。首次运行使用全新的账号与项目库。共享全球事件监测已接入；完整 NTL 工具迁移和专题地图尚未完成，不能据此宣称所有旧功能已经接入。
 
 ## 三个插件
+
+管理员开发改动通过“验证 → 用户版预览 → 确认同步发布”进入正式快照，详见 [同步发布说明](RELEASES.md)。普通启动不再直接运行可变开发源码；首次建立快照会安装隔离依赖并构建固定镜像。
+
+新接入的行政区获取和 14 项 GIS/NTL 原子工具见 [工具迁移](TOOL-MIGRATION.md)。管理员可通过平台内“开发模式”远程使用原生 DSH 设置、创造模式和主机工具，见 [管理员开发模式](ADMIN-DEVELOPMENT.md)；独立本机命令 `geosentinel admin` 继续兼容。
 
 | 插件 | 职责 |
 | --- | --- |
@@ -54,7 +60,7 @@ docker build --provenance=false -t geosentinel-gis:0.1 docker
 
 `GEO_GEE_PROXY` 只传给固定 GEE 获取容器，不给模型生成的 Python。Docker 中的 `127.0.0.1` 是容器本身；Docker Desktop 访问主机代理时使用 `host.docker.internal`。代理与 Google 服务可达性应按部署机器实际验证。
 
-如果此前用旧项目 `.env` 启动而缺少新版 GEE 参数，可运行 `node scripts/import-env.mjs --source <旧.env路径> --home <已有DSH-home路径> --credentials <Earth-Engine凭据路径> --port 8511` 生成独立 `dsh/.env`；需要主机代理时添加 `--proxy http://host.docker.internal:7897`，公共监测目录外置时添加 `--monitor-dir <目录>`。该命令拒绝覆盖已有 `.env`，只导入产品使用的配置，不修改源文件，也不会重新初始化账号。Windows 常见凭据位置为 `%USERPROFILE%\.config\earthengine\credentials`，以本机实际认证文件为准。
+如果此前用旧项目 `.env` 启动而缺少新版 GEE 参数，可运行 `node scripts/import-env.mjs --source <旧.env路径> --home <已有DSH-home路径> --credentials <Earth-Engine凭据路径> --port 8511` 生成独立 `dsh/.env`；需要主机代理时添加 `--proxy http://host.docker.internal:7897`，全球事件监测目录外置时添加 `--monitor-dir <目录>`。该命令拒绝覆盖已有 `.env`，只导入产品使用的配置，不修改源文件，也不会重新初始化账号。Windows 常见凭据位置为 `%USERPROFILE%\.config\earthengine\credentials`，以本机实际认证文件为准。
 
 使用 `GEO_ENV_FILE` 时确认它指向新文件。启动器会先读取管理员配置，再从受控 profile 目录运行 DSH，让启动变量通过进程环境继承，避免 DSH 将 `DEEPSEEK_BASE_URL` 当作普通研究项目 `.env` 的禁止变量。不要绕过 `scripts/start.mjs` 直接在含该产品配置的目录运行裸 `dsh web`。
 
@@ -84,6 +90,24 @@ pnpm start --port 8510 --no-open
 
 ### 日常启动与端口占用
 
+推荐注册独立启动命令（每台电脑仅需一次，无需管理员权限）：
+
+```powershell
+cd <GeoSentinel仓库>\dsh\cli
+npm link --ignore-scripts --package-lock=false
+```
+
+这是不含依赖的本地启动器包，不使用 npm 安装或修改 DSH 的 pnpm 依赖树。注册后可在任意目录运行：
+
+```powershell
+geosentinel
+# 等价命令：geosentinel web
+```
+
+该快捷入口默认端口 **8511**，读取注册仓库的 `dsh/.env`，通过现有 `scripts/start.mjs` 加载独立配置与插件。`geosentinel --port 8512 --no-open` 可覆盖端口；与下方兼容入口默认 8510 的区别是有意保留。配置中的 `GEO_ALLOWED_HOSTS` 必须包含实际端口。如果终端提示找不到命令，确认 `npm prefix -g` 对应的 Windows 目录在 PATH 中，并重新打开终端。查看帮助：`geosentinel --help`。
+
+移动/删除仓库前，在该 `cli` 目录执行 `npm unlink --global @geosentinel/launcher`；更换克隆目录后重新注册。已有 `GEO_ENV_FILE` 环境变量仍优先，请勿让它指向旧 NTL 项目。快捷命令不会改写或接管原来的 `dsh web`。
+
 在本目录运行 `pnpm start --no-open` 即可，默认端口为 **8510**。不要使用全局 `dsh web`，它不会自动加载本项目的独立配置与插件。
 
 - 同一地址已有健康的 GeoSentinel：显示访问链接并正常退出，不创建第二个实例，也不修改已有运行配置。
@@ -95,7 +119,7 @@ pnpm start --port 8510 --no-open
 
 ## 使用流程
 
-公共地图、事件队列、数据来源和独立运行方式见 [公共监测说明](MONITOR.md)。项目资料与产出收纳在左栏“资料与产出”，右栏用于共享监测。
+公共地图、事件队列、数据来源和独立运行方式见 [全球事件监测说明](MONITOR.md)。项目资料与产出收纳在左栏“资料与产出”，右栏用于共享监测。
 
 1. 接受邀请并登录，创建研究项目，在项目中建立一个或多个对话。
 2. 按需上传当前项目资料。其他项目和其他用户都不可见。
@@ -109,7 +133,7 @@ pnpm start --port 8510 --no-open
 
 ## 存储与运行边界
 
-子智能体原生持久化、进程展示与 AgentTeams 的职责对比见 [架构调研](SUBAGENT-ARCHITECTURE.md)。当前未替换调度器；原生子会话只读查看仍需后续适配。
+子智能体原生持久化、进程展示与 AgentTeams 的职责对比见 [架构调研](SUBAGENT-ARCHITECTURE.md)。当前保留调度器，已接通原生子会话只读查看。
 
 ```text
 .runtime/home/
@@ -132,7 +156,7 @@ pnpm start --port 8510 --no-open
 - 排队记录持久化到 SQLite；重启恢复未派发的研究请求，已执行的任务及其 Docker 等待调用标记中断，不自动重放。执行前再次校验账号、项目和方案版本。详见 [资源与队列管理](RESOURCE-MANAGEMENT.md)。
 - 每 Docker 作业默认 1 CPU、3 GiB 内存、30 分钟、256 MiB 输出监测限额。可用 `GEO_DOCKER_MEMORY_MIB=4096` 改为 4 GiB。排队等待不计入运行时限。10 个容器的内存上限合计为 30 GiB（4 GiB 配置则为 40 GiB），应给系统、DSH 和监测另留余量。输出限额是轮询终止策略，并非文件系统硬配额。
 - 上传暂限 16 MiB/文件、512 MiB/项目，项目写入串行核算；账号最多 100 个项目、每项目 200 个对话。默认可用磁盘低于 1 GiB 时阻止新写入或计算。
-- 删除为软删除。管理员可停机运行 `node scripts/maintenance.mjs` 预览超过 30 天的已删除工作区，再显式加 `--apply` 清理。不会清理正常/仅归档项目、公共监测和 DSH 会话记录；不是磁盘安全擦除。生产备份须同时覆盖整个独立 DSH home 和平台数据目录。
+- 删除为软删除。管理员可停机运行 `node scripts/maintenance.mjs` 预览超过 30 天的已删除工作区，再显式加 `--apply` 清理。不会清理正常/仅归档项目、全球事件监测和 DSH 会话记录；不是磁盘安全擦除。生产备份须同时覆盖整个独立 DSH home 和平台数据目录。
 - 此版本是单服务进程的受控试点，同一平台数据目录设有进程占用保护，不支持多机共享 SQLite。Docker 不等于无条件安全沙箱；公网运行仍需硬磁盘配额、备份、漏洞更新与运维监控。
 
 ## 公网
@@ -150,6 +174,6 @@ node scripts/check-env.mjs
 
 开发独立 fork 后运行 `node scripts/export-fork.mjs` 更新可重建补丁；此命令使用临时 Git index，不改写 fork 的正常暂存区。新增能力先迁移确定性工具/数据契约，再做针对性验收，不重新启用旧调度器。
 
-DSH 原生界面 + Better Sidebar 是本目录唯一的工作台入口。访问 `/` 或 `/geo/` 会转到 `/geo/native/`。旧自建工作台及其页面脚本、样式、专用资源路由已移除；不再使用 `GEO_NATIVE_UI_PREVIEW` 开关，旧配置中的该变量不会恢复旧页面。账号、项目、对话、文件及公共监测 API 保留。
+DSH 原生界面 + Better Sidebar 是本目录唯一的工作台入口。访问 `/` 或 `/geo/` 会转到 `/geo/native/`。旧自建工作台及其页面脚本、样式、专用资源路由已移除；不再使用 `GEO_NATIVE_UI_PREVIEW` 开关，旧配置中的该变量不会恢复旧页面。账号、项目、对话、文件及全球事件监测 API 保留。
 
-原生入口为 `/geo/native/`。它使用项目依赖 `dsh-dream-skin@8.30.1` 的 Midnight 深色配色，通过 DSH 原生 `theme.register` 接入。登录、对话、Better Sidebar、公共监测和资料面板共享主题变量；次要文字与控件边框增强对比度。不启用上游共享换肤 API、壁纸上传、任意主题包导入或主机配置入口。主题由项目统一管理，与用户账号和研究任务无关。升级皮肤包后须重新运行主题数据与对比度测试。
+原生入口为 `/geo/native/`。它使用项目依赖 `dsh-dream-skin@8.30.1` 的 Midnight 深色配色，通过 DSH 原生 `theme.register` 接入。登录、对话、Better Sidebar、全球事件监测和资料面板共享主题变量；次要文字与控件边框增强对比度。不启用上游共享换肤 API、壁纸上传、任意主题包导入或主机配置入口。主题由项目统一管理，与用户账号和研究任务无关。升级皮肤包后须重新运行主题数据与对比度测试。

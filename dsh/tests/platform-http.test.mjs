@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { PlatformStore } from "../plugins/platform/store.mjs";
@@ -59,6 +59,9 @@ test("HTTP boundary rejects unowned resources, privileged parameters and forged 
     });
   assert.equal((await fetch(base + "/projects")).status, 401);
   assert.equal((await call("/admin/users")).status, 403);
+  assert.equal((await call("/admin/development")).status, 403);
+  const adminCookie = "geosentinel_session=" + store.login("admin", "valid-admin-password").token;
+  assert.equal((await call("/admin/development", 0, "GET", undefined, { cookie: adminCookie })).status, 404);
   assert.equal((await call(`/chats/${chat.id}/history`, 1)).status, 404);
   assert.equal((await call(`/chats/${chat.id}/subagents`, 1)).status, 404);
   assert.equal((await call(`/chats/${chat.id}/subagents`)).status, 200);
@@ -135,5 +138,41 @@ test("HTTP boundary rejects unowned resources, privileged parameters and forged 
   assert.deepEqual(
     (await (await call(`/projects/${projects[1].id}/files`, 1)).json()).files,
     [],
+  );
+
+  // Artifacts render inline only for allowlisted media types, inside the
+  // caller's own chat; everything else keeps the download disposition.
+  const chatRoot = store.chatRoot(users[0], chat.id);
+  mkdirSync(path.join(chatRoot, "outputs", "job-1"), { recursive: true });
+  writeFileSync(path.join(chatRoot, "outputs", "job-1", "chart.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  writeFileSync(path.join(chatRoot, "outputs", "job-1", "data.zip"), Buffer.from([0x50, 0x4b]));
+  const inline = await call(`/chats/${chat.id}/files?path=job-1/chart.png&inline=1`);
+  assert.equal(inline.status, 200);
+  assert.equal(inline.headers.get("content-type"), "image/png");
+  assert.equal(inline.headers.get("content-disposition"), "inline");
+  assert.equal(inline.headers.get("cache-control"), "no-store");
+  // Research tool results link artifacts with the chat-workspace form
+  // (`outputs/<job>/<file>`, as `withArtifacts` emits); both forms must work.
+  const workspaceForm = await call(
+    `/chats/${chat.id}/files?path=${encodeURIComponent("outputs/job-1/chart.png")}&inline=1`,
+  );
+  assert.equal(workspaceForm.status, 200);
+  assert.equal(workspaceForm.headers.get("content-type"), "image/png");
+  assert.equal((await workspaceForm.arrayBuffer()).byteLength, 4);
+  const download = await call(`/chats/${chat.id}/files?path=job-1/chart.png`);
+  assert.equal(download.headers.get("content-type"), "application/octet-stream");
+  assert.match(download.headers.get("content-disposition"), /^attachment;/);
+  const notInline = await call(`/chats/${chat.id}/files?path=job-1/data.zip&inline=1`);
+  assert.equal(notInline.headers.get("content-type"), "application/octet-stream");
+  assert.match(notInline.headers.get("content-disposition"), /^attachment;/);
+  assert.equal((await call(`/chats/${chat.id}/files?path=job-1/chart.png&inline=1`, 1)).status, 404);
+  assert.equal((await call(`/chats/${chat.id}/files?path=../../secret.png&inline=1`)).status, 400);
+  assert.equal(
+    (await call(`/chats/${chat.id}/files?path=${encodeURIComponent("outputs/../secret.png")}&inline=1`)).status,
+    400,
+  );
+  assert.equal(
+    (await call(`/chats/${chat.id}/files?path=${encodeURIComponent("outputs/job-1/../secret.png")}&inline=1`)).status,
+    400,
   );
 });

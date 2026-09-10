@@ -53,6 +53,7 @@ export class RuntimeLedger {
     });
   }
   enqueue({ id = randomUUID(), kind, operation, user, chatId, payload }) {
+    if (kind === "research" && this.admissionGuard?.()) throw new PlatformError(503, "平台正在等待现有研究结束后发布新版，请稍后提交");
     this.assertOwner(); this.store.chat(user, chatId);
     if (!["research", "docker"].includes(kind)) throw new Error("Invalid queue kind");
     return this.store.transaction(() => {

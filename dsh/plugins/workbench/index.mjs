@@ -62,5 +62,6 @@ export function workbenchHandler() {
   };
 }
 export function apply(ctx) {
+  if (ctx.geosentinelPlatform.development) return;
   ctx.effect(() => ctx.webServer.registerFallback(workbenchHandler()));
 }

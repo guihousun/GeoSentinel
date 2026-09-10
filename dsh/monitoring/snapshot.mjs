@@ -4,19 +4,48 @@ import path from "node:path";
 export const typeLabels = {
   wildfires: "野火",
   wildfire: "野火",
+  wf: "野火",
   severe_storms: "风暴",
+  storm: "风暴",
+  storms: "风暴",
   floods: "洪涝",
+  flood: "洪涝",
   fl: "洪涝",
   eq: "地震",
+  earthquakes: "地震",
   earthquake: "地震",
   tc: "热带气旋",
   dr: "干旱",
+  drought: "干旱",
   vo: "火山活动",
+  volcano: "火山活动",
   volcanoes: "火山活动",
+  landslide: "滑坡",
+  landslides: "滑坡",
   conflict: "冲突事件",
   geopolitical: "地缘政治新闻",
   other: "公开事件",
 };
+export const severityLabels = { high: "高关注", medium: "中关注", low: "低关注" };
+/** Display grade labels. `key` is a presentation tier, not a source field. */
+export const levelLabels = { key: "重点线索", high: "高关注", medium: "中关注", low: "低关注" };
+/**
+ * Window that turns a high-attention lead into a key lead. The rule is visible in
+ * the panel legend, so a reader can always tell why one point outranks another.
+ */
+export const KEY_LEAD_HOURS = 72;
+/**
+ * Display grade for one monitored event. It restates the source-declared severity
+ * plus that one recency rule; it is NOT an impact, magnitude or confidence
+ * estimate, and the panel must not present it as a verified severity.
+ */
+export function monitorLevel(event, now = Date.now()) {
+  if (event?.severity === "high") {
+    const age = Number.isFinite(event.publishedAt) ? now - event.publishedAt : null;
+    return age !== null && age >= 0 && age <= KEY_LEAD_HOURS * 3600000 ? "key" : "high";
+  }
+  return event?.severity === "medium" ? "medium" : "low";
+}
 export const safeUrl = (value) => {
   try {
     const url = new URL(value);
@@ -76,6 +105,26 @@ export function normalizeCandidate(value, now = Date.now()) {
     seenAt: now,
   };
 }
+/** Normalize one model-written event brief; unknown or empty fields are dropped. */
+export function normalizeBrief(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const field = (text, max) =>
+    typeof text === "string" ? text.replace(/\s+/g, " ").trim().slice(0, max) : "";
+  const summary = field(value.summary, 240);
+  if (!summary) return undefined;
+  const facts = Array.isArray(value.facts)
+    ? value.facts
+        .map((fact) => field(fact, 160))
+        .filter(Boolean)
+        .slice(0, 5)
+    : [];
+  return {
+    summary,
+    facts,
+    significance: field(value.significance, 180),
+    uncertainty: field(value.uncertainty, 180),
+  };
+}
 export function mergeEvents(
   previous,
   incoming,
@@ -95,6 +144,37 @@ export function mergeEvents(
     )
     .slice(0, 200);
 }
+/** Render one monitored event as a structured Markdown brief. Only fields the
+ * snapshot actually carries are printed; missing sections are marked as
+ * unverified rather than filled in. */
+export function monitorReport(event, snapshot = {}) {
+  const brief = event.brief ?? {};
+  const lines = [`# ${event.displayTitle ?? event.title ?? "公开监测事件"}`, ""];
+  lines.push(
+    `- 来源渠道：${event.source ?? "未说明"}`,
+    `- 事件类型：${typeLabels[event.type] ?? "公开事件"}`,
+    `- 严重度：${severityLabels[event.severity] ?? "未说明"}`,
+    `- 发布时间：${event.publishedAt ? new Date(event.publishedAt).toISOString() : "来源未说明"}`,
+    `- 地点：${event.displayLocation ?? event.location ?? "地点待核验"}`,
+    `- 坐标：${Number.isFinite(event.latitude) && Number.isFinite(event.longitude) ? `${event.latitude.toFixed(4)}, ${event.longitude.toFixed(4)}` : "来源未提供坐标"}`,
+    `- 来源链接：${safeUrl(event.url) ?? "来源未提供链接"}`,
+    "",
+  );
+  lines.push("## 概要", "", brief.summary ?? "来源未提供概要。", "");
+  if (brief.facts?.length) lines.push("## 已记录要点", "", ...brief.facts.map((fact) => `- ${fact}`), "");
+  if (brief.significance) lines.push("## 关注点", "", brief.significance, "");
+  lines.push("## 待核实", "", brief.uncertainty ?? "尚未核实的关键点未列出。", "");
+  lines.push(
+    "## 证据与限制",
+    "",
+    "- 本报告是公共监测快照的结构化整理，不是独立核实结论；未进行遥感或遥感以外的二次验证。",
+    "- 事件类型、严重度与时间为来源目录字段；影响、损失与因果均未在来源中确认。",
+    `- 快照状态：${snapshot.state ?? "未说明"}；数据陈旧：${snapshot.stale ? "是" : "否"}。`,
+    `- 事件记录 ID：${event.id ?? "未说明"}。`,
+    "",
+  );
+  return lines.join("\n");
+}
 export async function readSnapshot(directory, now = Date.now()) {
   try {
     const snapshot = JSON.parse(
@@ -108,9 +188,9 @@ export async function readSnapshot(directory, now = Date.now()) {
       now - heartbeat > 90000;
     return {
       ...snapshot,
-      items: (snapshot.items || []).filter(
-        (e) => e.seenAt > now - 7 * 86400000,
-      ),
+      items: (snapshot.items || [])
+        .filter((e) => e.seenAt > now - 7 * 86400000)
+        .map((e) => ({ ...e, level: monitorLevel(e, now) })),
       stale,
       workerOnline: snapshot.state !== "stopped" && now - heartbeat < 90000,
     };
