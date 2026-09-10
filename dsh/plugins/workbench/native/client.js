@@ -305,13 +305,148 @@ window.__ModuleLoader__.load({
         createDirectory: async () => { throw new Error("主机目录创建不可用，请使用平台的项目入口。"); },
       };
       ctx.provide("uiWorkspace", workspaceNavigation);
+      // The native right sidebar (`ui-sidebar-right` + `-files` + `-documentpreview`)
+      // reads the session workspace through the Host Remote namespace
+      // `remote.workspaceFiles`. That namespace normally arrives over the browser API
+      // plane, which the product keeps closed, so the product answers it from its OWN
+      // explorer surface: `/sidebar/api/fs.tree` and `/sidebar/file`, both
+      // ownership-checked and both already serving the product's virtual view
+      // (上传的文件 / 分析结果 / 过程记录, display names resolved back to real files on
+      // the host). Two consequences worth stating instead of hiding:
+      //  - the tree addresses a virtual path, so it can never name a host file directly;
+      //  - the product's explorer publishes no file mtime, so `version` is derived from
+      //    the byte size: a same-size edit is not distinguishable by version (reads are
+      //    always served with `cache-control: no-store`, so content is never stale).
+      const PAGE_BYTES = 2 * 1024 * 1024, FULL_FILE_BYTES = 32 * 1024 * 1024;
+      async function explorer(route, body) {
+        const response = await fetch("/sidebar/api/" + route, { method: "POST", credentials: "same-origin",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.ok === false) throw new Error(data.error?.message ?? `文件接口失败 (${response.status})`);
+        return data.value;
+      }
+      async function explorerBytes(sessionId, target) {
+        const query = new URLSearchParams({ sessionId, path: target });
+        const response = await fetch(`/sidebar/file?${query}`, { credentials: "same-origin" });
+        if (!response.ok) throw new Error(response.status === 404 ? "文件不存在" : `文件读取失败 (${response.status})`);
+        return await response.arrayBuffer();
+      }
+      const fileRoots = new Map();
+      const workspaceRootOf = async (sessionId) => {
+        if (!fileRoots.has(sessionId)) fileRoots.set(sessionId, (await explorer("session.cwd", { sessionId })).root);
+        return fileRoots.get(sessionId);
+      };
+      // The native tree descends by joining `parent + "/" + name`, so after the first
+      // level it addresses the view with RELATIVE paths while the host expects the
+      // absolute virtual path. Accept both, and refuse anything that could leave the
+      // session's own view. `.` segments are dropped the way the host would resolve
+      // them (`./报告.md` is an ordinary sibling reference); `..` is refused outright.
+      function normalizeSegments(value) {
+        const segments = [];
+        for (const segment of String(value ?? "").split("/")) {
+          if (segment === "" || segment === ".") continue;
+          if (segment === "..") throw new Error("文件路径无效");
+          segments.push(segment);
+        }
+        return segments;
+      }
+      function assertSafe(value) {
+        if (value.includes("\0") || value.includes("\\")) throw new Error("文件路径无效");
+        return value;
+      }
+      async function virtualAddress(sessionId, target) {
+        const value = assertSafe(typeof target === "string" ? target : "");
+        const root = await workspaceRootOf(sessionId);
+        if (value === "" || value === "/") return root;
+        // An absolute address must be inside this session's own virtual root; a relative
+        // one is resolved against it. Both are rebuilt from validated segments, so the
+        // address the host receives can never point outside the view.
+        if (value.startsWith("/")) {
+          if (value !== root && !value.startsWith(root + "/")) throw new Error("文件路径超出工作区");
+          return [root, ...normalizeSegments(value.slice(root.length))].join("/");
+        }
+        return [root, ...normalizeSegments(value)].join("/");
+      }
+      const fileVersion = (size) => (typeof size === "number" ? String(size) : "0");
+      function workspaceFilesFace() {
+        const stats = async (sessionId, target) => {
+          const path = await virtualAddress(sessionId, target);
+          const parent = path.slice(0, path.lastIndexOf("/")) || path;
+          const { entries } = await explorer("fs.tree", { sessionId, path: parent });
+          const entry = entries.find((item) => item.path === path);
+          if (!entry) throw new Error("文件不存在");
+          return { absolutePath: path, version: fileVersion(entry.size), ...(typeof entry.size === "number" ? { bytes: entry.size } : {}) };
+        };
+        const page = async (sessionId, target, range) => {
+          const offset = Number.isSafeInteger(range?.offset) && range.offset > 0 ? range.offset : 1;
+          const limit = Number.isSafeInteger(range?.limit) && range.limit > 0 ? range.limit : 2000;
+          const path = await virtualAddress(sessionId, target);
+          const buffer = await explorerBytes(sessionId, path);
+          const info = await stats(sessionId, path);
+          const decoded = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+          if (decoded.includes("\0")) throw new Error(`“${path}”不是文本文件`);
+          const lines = decoded.split("\n");
+          const slice = lines.slice(offset - 1, offset - 1 + limit);
+          const text = slice.join("\n");
+          if (new TextEncoder().encode(text).length > PAGE_BYTES) throw new Error(`“${path}”的这一页超出 2 MiB 上限`);
+          return { ...info, offset, text, lines: slice.length, eof: offset - 1 + slice.length >= lines.length };
+        };
+        const complete = async (sessionId, target) => {
+          const path = await virtualAddress(sessionId, target);
+          const buffer = await explorerBytes(sessionId, path);
+          if (buffer.byteLength > FULL_FILE_BYTES) throw new Error(`“${path}”超过 32 MiB 的整文件读取上限`);
+          const bytes = new Uint8Array(buffer);
+          let binary = "";
+          for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+          return { absolutePath: path, version: fileVersion(bytes.length), bytes: bytes.length, offset: 0, data: btoa(binary), eof: true };
+        };
+        return {
+          list: async (sessionId, target) => {
+            try {
+              const path = await virtualAddress(sessionId, target);
+              const { entries } = await explorer("fs.tree", { sessionId, path });
+              // The native tree wants lstat-style entries and derives child addresses by
+              // joining names, so only the name, kind and size travel.
+              return ok({ path, truncated: false,
+                entries: entries.map((entry) => ({ name: entry.name, type: entry.isDir ? "directory" : "file",
+                  ...(typeof entry.size === "number" ? { size: entry.size } : {}) })) });
+            } catch (error) { return fail(error.message); }
+          },
+          stat: async (sessionId, target) => { try { return ok(await stats(sessionId, target)); } catch (error) { return fail(error.message); } },
+          read: async (sessionId, target, range) => { try { return ok(await page(sessionId, target, range)); } catch (error) { return fail(error.message); } },
+          readAll: async (sessionId, target) => { try { return ok(await complete(sessionId, target)); } catch (error) { return fail(error.message); } },
+          readRelated: async (sessionId, target, relativePath) => {
+            try {
+              const relative = assertSafe(String(relativePath ?? ""));
+              if (relative === "" || relative.startsWith("/") || /^[a-z][a-z\d+.-]*:/iu.test(relative))
+                throw new Error("关联文件路径无效");
+              const base = await virtualAddress(sessionId, target);
+              const parent = base.slice(0, base.lastIndexOf("/"));
+              return ok(await complete(sessionId, `${parent}/${relative}`));
+            } catch (error) { return fail(error.message); }
+          },
+          // A live observation stream over the host filesystem. The product has none
+          // for an ordinary user, and pretending would silently drop refreshes, so this
+          // fails loudly and the tree keeps its explicit refresh path.
+          changes: async () => fail("文件变更订阅不可用，请手动刷新。") };
+      }
       ctx.provide("remote", { $host: { platform: "managed", isLoopback: false }, $on: (event, listener) => {
         if (event !== "user-questions/request") return () => {};
         remoteListeners.set(event, listener);
         return () => { if (remoteListeners.get(event) === listener) remoteListeners.delete(event); };
       },
-        session: { openWorkspacePath: async () => fail("主机路径不可访问，请在会话工作区查看文件。") } });
+        session: { openWorkspacePath: async () => fail("主机路径不可访问，请在会话工作区查看文件。") },
+        // The native right sidebar's file tree and document preview read the workspace
+        // through this Remote namespace (`list` / `read` / `readAll` / `readRelated` /
+        // `stat`). It normally arrives over the browser API plane, which the product
+        // keeps closed, so the product answers it from its OWN explorer surface
+        // (`/sidebar/api/fs.tree` and `/sidebar/file`, both ownership-checked) — the
+        // same virtual view the retired product file panel used: 上传的文件 /
+        // 分析结果 / 过程记录, with display names resolved back to real files on the
+        // host. Paths are virtual, so they can never name a host file directly.
+        workspaceFiles: workspaceFilesFace() });
       ctx.provide("remote.session", ctx.remote.session);
+      ctx.provide("remote.workspaceFiles", ctx.remote.workspaceFiles);
       const preferences = new Map();
       ctx.provide("settingsScope", { bind({ namespace }) {
         if (!preferences.has(namespace)) {

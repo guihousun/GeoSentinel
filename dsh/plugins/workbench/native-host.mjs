@@ -7,6 +7,10 @@ import { dreamSkinTheme, appearanceStamp } from "./skin-theme.mjs";
 
 // Resolve from the running Web bundle, never from unrelated top-level links.
 const requireWeb = createRequire(import.meta.resolve("@deepseek-ai/dsh-web-app"));
+// The product's own root, for client packages the product declares as direct
+// dependencies (see `collect`): those are linked beside `dsh/package.json`, not inside
+// the web-app's dependency closure.
+const requireProduct = createRequire(new URL("../../package.json", import.meta.url));
 const baseline = new Set(["react", "react/jsx-runtime", "react-dom", "react-dom/client",
   "@deepseek-ai/cordis", "@deepseek-ai/dsh-client-store",
   "@deepseek-ai/dsh-client-ui-slots", "@deepseek-ai/dsh-client-ui-primitives"]);
@@ -80,8 +84,12 @@ export const optionalPlugins = new Set([
 export const noBoot = new Set([
   "@deepseek-ai/dsh-api-session-controller",
   "@deepseek-ai/dsh-api-gateway",
-  "@deepseek-ai/dsh-client-ui-sidebar-files",
-  "@deepseek-ai/dsh-client-ui-sidebar-documentpreview",
+  // The resource provider behind the right sidebar's file tabs. It registers into
+  // `ctx.resources` and keeps file versions live through `workspaceFiles.stat` /
+  // `changes`; the tabs themselves call `remote.workspaceFiles` directly, and the
+  // product has no live host change stream to offer, so this provider stays bundled
+  // but unstarted while `ui-sidebar-files` / `-documentpreview` DO boot (their only
+  // need is that namespace, which the product overlay answers from its own explorer).
 ]);
 const missingModule = (error) => error?.code === "MODULE_NOT_FOUND" || error?.code === "ERR_MODULE_NOT_FOUND" || /Cannot find (module|package)/.test(error?.message ?? "");
 
@@ -108,7 +116,17 @@ export async function nativeAssets() {
   async function collect(name, resolver = requireWeb, required = true) {
     name = name.replace(/\/client$/, "");
     if (baseline.has(name) || sources.has(name)) return;
-    const manifestPath = resolver.resolve(name + "/package.json");
+    let manifestPath;
+    try { manifestPath = resolver.resolve(name + "/package.json"); }
+    catch (error) {
+      if (!missingModule(error)) throw error;
+      // A client package the product declares as its OWN dependency is linked at the
+      // product root, which the web-app's dependency closure cannot see — the 0.1.5
+      // sidebar-right family is exactly that case. Fall back to the product's own root
+      // once, so declaring the dependency is enough to make it resolvable.
+      if (resolver !== requireWeb) throw error;
+      manifestPath = requireProduct.resolve(name + "/package.json");
+    }
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
     if (name.startsWith("@deepseek-ai/dsh-") && manifest.version !== version)
       throw new Error(`Native UI dependency mismatch: ${name} ${manifest.version} != ${version}`);
@@ -210,7 +228,7 @@ export async function nativeAssets() {
   const bundle = [...sources.values()].join("\n")
     + `\nglobalThis.__GEOSENTINEL_NATIVE_SIDEBAR__=${nativeSidebar};\n`
     + `window.__ModuleLoader__.load({id:"@geosentinel/dsh-theme",factory:()=>(${JSON.stringify(theme)})});`;
-  return { dist, html, bundle, version, nativeSidebar };
+  return { dist, html, bundle, version, nativeSidebar, entries: entries.map((entry) => entry.id) };
 }
 
 export function bundleImports(source) {

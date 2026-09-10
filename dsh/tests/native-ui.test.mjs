@@ -130,6 +130,18 @@ test("the product shell bundles the 0.1.5 surfaces it reuses", async () => {
   // else requires its module, so it is neither bundled nor booted; the product overlay
   // implements the `uiWorkspace` face itself (see workbench/native/client.js).
   assert.ok(!assets.bundle.includes("@deepseek-ai/dsh-client-ui-workspace"), "ui-workspace 会因封闭通道挂起，不应打包");
+  // The right sidebar family IS booted: its only missing piece was the
+  // `remote.workspaceFiles` namespace, which the product overlay now answers from its
+  // own explorer surface (the tabs call that namespace directly). The resource
+  // provider behind it needs a live host change stream, so it stays bundled but
+  // unstarted — booting it would leave an entry pending and blank the client.
+  for (const name of ["@deepseek-ai/dsh-client-ui-sidebar-right", "@deepseek-ai/dsh-client-ui-sidebar-files",
+    "@deepseek-ai/dsh-client-ui-sidebar-documentpreview"])
+    if (installed(name)) {
+      assert.ok(assets.bundle.includes(name), `外壳未包含 ${name}`);
+      assert.ok(assets.entries.includes(name), `未引导 ${name}`);
+    }
+  assert.equal(assets.entries.includes("@deepseek-ai/dsh-api-workspace-files"), false, "资源提供者不应引导");
   assert.match(assets.html, /地缘环境智能计算平台/);
   assert.match(assets.html, /MutationObserver/, "产品标题需要在原生客户端改写后恢复");
 });

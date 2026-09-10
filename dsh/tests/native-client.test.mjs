@@ -205,6 +205,125 @@ async function loadOverlay(nativeSidebar) {
   return slots;
 }
 
+// The native right sidebar's file tabs read the session workspace through the Host
+// Remote namespace `remote.workspaceFiles`; the product answers it from its own
+// explorer surface. These are the four methods those tabs call, exercised against a
+// stubbed explorer so the mapping (virtual paths, line pages, base64, refusals) is
+// fixed by a test instead of by a browser session.
+async function loadOverlayForFiles({ files, tree }) {
+  const source = await readFile(new URL("../plugins/workbench/native/client.js", import.meta.url), "utf8");
+  const services = {};
+  const requests = [];
+  const ctx = { provide: (key, value) => { services[key] = value; ctx[key] = value; }, get: () => undefined,
+    plugin: () => ({ dispose() {} }), inject() {}, on() {}, slots: { provideRoot() {}, inject() {}, register() {} } };
+  const snapshot = (initial) => { let state = initial; return { getSnapshot: () => state, subscribe: () => () => {}, set: (next) => { state = next; } }; };
+  vm.runInNewContext(source, {
+    window: { __ModuleLoader__: { load({ factory }) { factory((id) => {
+      if (id === "react") return { createElement: () => null, Fragment: {} };
+      if (id.includes("client-store")) return { createSnapshotStore: snapshot };
+      if (id.includes("api-session-controller")) return { createScope: () => ({ ctx: {}, fiber: { dispose() {} } }), scopeOf() {}, MutableSessionEventSource: class { replace() {} } };
+      return {};
+    }).apply(ctx); } } },
+    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    EventSource: class { close() {} }, setInterval: () => 1, clearInterval() {}, setTimeout, clearTimeout,
+    crypto: { randomUUID: () => "id" }, TextDecoder, TextEncoder, URLSearchParams, btoa,
+    fetch: async (url, init = {}) => {
+      requests.push(`${init.method ?? "GET"} ${url}`);
+      if (url.startsWith("/geo/api/auth/status")) return { ok: true, json: async () => ({ user: null }) };
+      if (url === "/sidebar/api/session.cwd") return { ok: true, json: async () => ({ ok: true, value: { sessionId: "c1", cwd: "/工作区/甲", root: "/工作区/甲", parent: null } }) };
+      if (url === "/sidebar/api/fs.tree") {
+        const body = JSON.parse(init.body);
+        const entries = tree[body.path] ?? [];
+        return { ok: true, json: async () => ({ ok: true, value: { entries } }) };
+      }
+      if (url.startsWith("/sidebar/file?")) {
+        const parsed = new URLSearchParams(url.slice("/sidebar/file?".length));
+        const path = parsed.get("path");
+        if (!(path in files)) return { ok: false, status: 404, json: async () => ({ ok: false, error: { message: "文件不存在" } }) };
+        return { ok: true, arrayBuffer: async () => new TextEncoder().encode(files[path]).buffer, status: 200 };
+      }
+      throw new Error(`unexpected request ${url}`);
+    },
+  });
+  for (let i = 0; i < 4; i++) await new Promise(setImmediate);
+  return { services, requests };
+}
+
+test("the product answers the native file namespace from its own explorer", async () => {
+  const root = "/工作区/甲";
+  const state = await loadOverlayForFiles({
+    tree: { [root]: [{ name: "上传的文件", path: `${root}/上传的文件`, isDir: true },
+      { name: "分析结果", path: `${root}/分析结果`, isDir: true }],
+      [`${root}/上传的文件`]: [{ name: "报告.md", path: `${root}/上传的文件/报告.md`, isDir: false, size: 12 }] },
+    files: { [`${root}/上传的文件/报告.md`]: "第一行\n第二行\n第三行" },
+  });
+  const face = state.services["remote.workspaceFiles"];
+  assert.equal(typeof face.list, "function");
+  for (const name of ["list", "stat", "read", "readAll", "readRelated", "changes"])
+    assert.equal(typeof face[name], "function", name);
+
+  // The root listing arrives through the session's own virtual root, and entries are
+  // translated to the native lstat shape ("directory"/"file").
+  const listing = await face.list("c1", "");
+  assert.equal(listing.ok, true);
+  assert.equal(listing.value.path, root);
+  assert.equal(listing.value.entries[0].type, "directory");
+  assert.equal(listing.value.truncated, false);
+
+  // The native tree descends with RELATIVE paths (`parent + "/" + name`), so a relative
+  // address must resolve against the same virtual root instead of the host filesystem.
+  const child = await face.list("c1", "上传的文件");
+  assert.equal(child.ok, true);
+  assert.equal(child.value.entries[0].name, "报告.md");
+  assert.equal(child.value.entries[0].type, "file");
+  assert.equal(child.value.entries[0].size, 12);
+  assert.ok(state.requests.includes(`POST /sidebar/api/fs.tree`));
+  assert.equal(JSON.stringify(state.requests).includes("/geo/api/chats"), false, "文件读取不应绕过 explorer 接口");
+
+  // Line pages: 1-based offset, `lines` counts the page, `eof` says whether it reached
+  // the last line, and the address stays the virtual path.
+  const firstPage = await face.read("c1", "上传的文件/报告.md", { offset: 1, limit: 2 });
+  assert.equal(firstPage.ok, true);
+  assert.equal(firstPage.value.text, "第一行\n第二行");
+  assert.equal(firstPage.value.lines, 2);
+  assert.equal(firstPage.value.eof, false);
+  assert.equal(firstPage.value.absolutePath, `${root}/上传的文件/报告.md`);
+  const lastPage = await face.read("c1", "上传的文件/报告.md", { offset: 3, limit: 2 });
+  assert.equal(lastPage.value.text, "第三行");
+  assert.equal(lastPage.value.eof, true);
+
+  // Complete read: base64 of the raw bytes, with the stat metadata the tabs expect.
+  const complete = await face.readAll("c1", "上传的文件/报告.md");
+  assert.equal(complete.ok, true);
+  assert.equal(complete.value.offset, 0);
+  assert.equal(complete.value.eof, true);
+  const decoded = new TextDecoder().decode(Uint8Array.from(atob(complete.value.data), (character) => character.charCodeAt(0)));
+  assert.equal(decoded, "第一行\n第二行\n第三行");
+
+  // Related reads join a sibling path; anything that could leave the view is refused
+  // with a message instead of reaching the host.
+  const related = await face.readRelated("c1", "上传的文件/报告.md", "./报告.md");
+  assert.equal(related.ok, true);
+  const escaped = await face.readRelated("c1", "上传的文件/报告.md", "../../etc/passwd");
+  assert.equal(escaped.ok, false);
+  assert.match(escaped.error.message, /路径无效/);
+  const absolute = await face.readRelated("c1", "上传的文件/报告.md", "/etc/passwd");
+  assert.equal(absolute.ok, false);
+  const traversal = await face.list("c1", "../../etc");
+  assert.equal(traversal.ok, false);
+  assert.match(traversal.error.message, /路径无效/);
+
+  // A missing file surfaces as a failed envelope (the tree renders the message), never
+  // as an exception that would take the whole client down.
+  const missing = await face.read("c1", "上传的文件/缺失.md");
+  assert.equal(missing.ok, false);
+  assert.match(missing.error.message, /文件不存在/);
+  // No live change stream exists for an ordinary user: say so instead of pretending.
+  const changes = await face.changes("c1");
+  assert.equal(changes.ok, false);
+  assert.match(changes.error.message, /不可用/);
+});
+
 test("the overlay fills the native sidebar's declared positions on 0.1.5 and keeps its own sidebar before it", async () => {
   const native = await loadOverlay(true);
   assert.ok(native.has("sidebar.workspaces"), "未注册原生侧栏的会话列表区域");
