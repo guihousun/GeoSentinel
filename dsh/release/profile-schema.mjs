@@ -77,5 +77,17 @@ export function parseProfile(text) {
  * @param rows - entry list produced by {@link parseProfile}.
  */
 export function stringifyProfile(rows) {
-  return yaml.dump(rows, { schema: profileSchema, lineWidth: -1, noRefs: true, quotingType: '"' });
+  return stringifyDocument(rows);
+}
+
+/**
+ * Serialize any JSON-safe document with the same emitter and schema, for the
+ * other YAML files the product writes (the development instance's settings).
+ * Living here keeps one loader for the whole product: `js-yaml` as reached from
+ * the boot loader's own dependency tree, which the 0.1.5 install only exposes
+ * through the content-addressed store.
+ * @param value - JSON-safe document.
+ */
+export function stringifyDocument(value) {
+  return yaml.dump(value, { schema: profileSchema, lineWidth: -1, noRefs: true, quotingType: '"' });
 }

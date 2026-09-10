@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { PlatformStore } from "../plugins/platform/store.mjs";
@@ -8,6 +9,8 @@ import { developmentAccess } from "../development/access.mjs";
 import { rewriteDevelopmentHtml } from "../development/gateway.mjs";
 import { usablePowerShell } from "../development/shell.mjs";
 import { developmentDraft, validateAppearance } from "../development/product-draft.mjs";
+import { developmentFiles } from "../development/profile.mjs";
+import { parseProfile } from "../release/profile-schema.mjs";
 
 test("remote administrators can unlock development; users, cross-origin and revoked logins cannot", async (t) => {
   const dir = await mkdtemp(path.join(tmpdir(), "geo-admin-access-")), store = new PlatformStore(dir);
@@ -63,4 +66,35 @@ test("appearance input rejects executable backgrounds and invalid dimensions", (
     assert.throws(() => validateAppearance({ ...appearance, wallpaper }));
   assert.throws(() => validateAppearance({ ...appearance, fontSize: 8 }));
   assert.throws(() => validateAppearance({ ...appearance, wash: .1 }));
+});
+test("the development composition stays in the boot dialect and drops the unlinked yaml package", () => {
+  const product = { defaultModel: { provider: "deepseek-official", model: "deepseek-v4-flash" } };
+  for (const platform of ["win32", "linux"]) {
+    const files = developmentFiles({ product, platform, pwshPath: "pwsh.exe" });
+    // The same rows as before the extraction: the required planes stay enabled, the
+    // product plugins are inserted, and the development-only overlay keeps its guard
+    // rows (no directory picker host, no browser, loopback-only runtime).
+    assert.match(files.seeds["cordis.patch.yml"], /- id: agent-presets\n  disabled: false/);
+    assert.match(files.seeds["cordis.patch.yml"], /- id: plan-mode\n  disabled: false/);
+    assert.match(files.seeds["cordis.patch.yml"], /- id: ui-agent-preset\n  disabled: true/);
+    assert.match(files.overlay, /- id: directory-picker\n  disabled: true/);
+    assert.match(files.overlay, /@geosentinel\/dsh-developer/);
+    assert.match(files.overlay, /@deepseek-ai\/dsh-host-directory-picker-browse/);
+    assert.match(files.overlay, /openBrowser: false/);
+    assert.equal(files.overlay.includes("pwsh-sandbox"), platform === "win32");
+    // Parsed back with the boot dialect: an entry list for the profile, and the
+    // development-only rows the overlay adds.
+    const rows = parseProfile(files.seeds["cordis.patch.yml"]);
+    assert.deepEqual(rows.at(-1).insert.map((row) => row.id),
+      ["geosentinel-platform", "geosentinel-research", "geosentinel-workbench", "better-sidebar", "dream-skin"]);
+    assert.equal(parseProfile(files.overlay).find((row) => row.id === "directory-picker").disabled, true);
+    // The settings file must stay byte-compatible with the homes already on disk.
+    assert.equal(files.seeds["settings.yaml"], "ui-theme:\n  preference: dark\n  fontSize: 16\n");
+    assert.equal(parseProfile(files.seeds["settings.yaml"])["ui-theme"].preference, "dark");
+  }
+  // 0.1.5 does not link `yaml` at the root: the worker must not require it, and the
+  // emitter it uses instead resolves through the release dialect module.
+  const worker = readFileSync(new URL("../development/worker.mjs", import.meta.url), "utf8");
+  assert.equal(/require\("yaml"\)/.test(worker), false);
+  assert.match(worker, /developmentFiles/);
 });
