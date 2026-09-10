@@ -9,7 +9,17 @@ import { nativeEvent } from "../plugins/platform/native-events.mjs";
 import { sidebarPolicy, createSidebarHandler, createSidebarFileHandler, createSidebarBundleHandler } from "../plugins/platform/sidebar-adapter.mjs";
 import { dreamSkinTheme } from "../plugins/workbench/skin-theme.mjs";
 
-test("managed Dream Skin uses real midnight tokens with accessible contrast", async () => {
+test("managed Dream Skin uses real midnight tokens with accessible contrast", async (t) => {
+  // The theme folds in the administrator's stored appearance, so the assertion is
+  // pinned to an empty home instead of whatever this machine happens to have
+  // deployed (running with GEO_DSH_HOME pointing at a live home used to fail here).
+  const previousHome = process.env.GEO_DSH_HOME;
+  const root = await mkdtemp(path.join(tmpdir(), "geo-theme-"));
+  process.env.GEO_DSH_HOME = root;
+  t.after(async () => {
+    if (previousHome === undefined) delete process.env.GEO_DSH_HOME; else process.env.GEO_DSH_HOME = previousHome;
+    await rm(root, { recursive: true, force: true });
+  });
   const theme = await dreamSkinTheme();
   assert.equal(theme.id, "geosentinel-midnight");
   assert.equal(theme.colorScheme, "dark");

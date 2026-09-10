@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { startupOptions, inspectEndpoint } from "../scripts/startup-check.mjs";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -16,7 +16,18 @@ test("trusted product bootstrap is inherited without re-reading product .env as 
   mkdirSync(profile, { recursive: true });
   writeFileSync(path.join(root, ".env"), "DEEPSEEK_BASE_URL=https://example.invalid\n");
   const require = createRequire(new URL("../node_modules/@deepseek-ai/dsh/lib/bin.js", import.meta.url));
-  const module = pathToFileURL(require.resolve("@deepseek-ai/dsh-app-boot")).href;
+  // From the 0.1.5 line the boot package is no longer linked under `@deepseek-ai/dsh`,
+  // so a top-level resolve can fail while the package is present in the pnpm store.
+  let module;
+  try { module = pathToFileURL(require.resolve("@deepseek-ai/dsh-app-boot")).href; }
+  catch {
+    const store = new URL("../node_modules/.pnpm/", import.meta.url);
+    const entry = readdirSync(store, { withFileTypes: true })
+      .filter((candidate) => candidate.isDirectory() && candidate.name.startsWith("@deepseek-ai+dsh-app-boot@"))
+      .map((candidate) => candidate.name).sort()[0];
+    assert.ok(entry, "依赖树缺少 @deepseek-ai/dsh-app-boot");
+    module = new URL(`${entry}/node_modules/@deepseek-ai/dsh-app-boot/lib/index.js`, store).href;
+  }
   const code = `import {loadLayeredEnv} from ${JSON.stringify(module)};loadLayeredEnv('dsh');`;
   const options = { encoding: "utf8", windowsHide: true, env: { ...process.env, DSH_HOME: home, DEEPSEEK_BASE_URL: "https://example.invalid" } };
   assert.notEqual(spawnSync(process.execPath, ["--input-type=module", "-e", code], { ...options, cwd: root }).status, 0);
