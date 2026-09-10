@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import geojsonvt from "geojson-vt";
 import { feature } from "topojson-client";
 import { unwrapWorld } from "../../monitoring/basemap.mjs";
+import { nativeHandler } from "./native-host.mjs";
 import { appearanceStamp, dreamSkinTheme } from "./skin-theme.mjs";
 
 // Product web surface on the DSH 0.1.5 line.
@@ -67,6 +68,45 @@ export function apply(ctx) {
       kind: "prefix",
       path: "/geo/vendor",
       handler: vendorHandler(),
+    }),
+  );
+
+  // The product shell. 0.1.5 serves its own single-user shell at `/` behind DSH's
+  // own token auth, which cannot be handed to ordinary users without breaking the
+  // platform's per-account isolation, so the product keeps serving its own gated
+  // shell here (as the 0.1.2 line did). `/` is redirected onto it for anyone who
+  // lands on the host root; the platform API is what actually enforces accounts.
+  const serveShell = nativeHandler();
+  ctx.effect(() =>
+    ctx.webServer.register({
+      kind: "prefix",
+      path: "/geo/native",
+      handler: async (req, res) => {
+        const pathname = new URL(req.url, "http://localhost").pathname;
+        if (pathname === "/geo/native") {
+          res.writeHead(302, { location: "/geo/native/", "cache-control": "no-store" });
+          res.end();
+          return;
+        }
+        try {
+          if (!(await serveShell(req, res, pathname))) { res.writeHead(404); res.end(); }
+        } catch (error) {
+          console.error("GeoSentinel: 工作台资源服务失败：" + error.message);
+          if (!res.headersSent) res.writeHead(500);
+          res.end();
+        }
+      },
+    }),
+  );
+  ctx.effect(() =>
+    ctx.webServer.register({
+      kind: "exact",
+      path: "/",
+      handler: (req, res) => {
+        if (!["GET", "HEAD"].includes(req.method)) { res.writeHead(405, { allow: "GET, HEAD" }); res.end(); return; }
+        res.writeHead(302, { location: "/geo/native/", "cache-control": "no-store", "referrer-policy": "no-referrer" });
+        res.end();
+      },
     }),
   );
 
