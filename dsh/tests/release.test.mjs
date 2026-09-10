@@ -59,12 +59,16 @@ test("product publication refuses personal authority, credentials and unsafe pro
     for (const tool of tools) assert.ok(declared.has(tool), `${role} 的 ${tool} 未在平台白名单中声明`);
     assert.ok(tools.includes("write") && tools.includes("edit"), `${role} 缺少受限的 write/edit`);
   }
-  // The 0.1.5 line delegates through the native subagent tools, so the supervisor
-  // must keep them and a specialist must never receive one.
-  for (const tool of ["subagent", "send_message", "list_agents", "interrupt_agent"])
+  // The 0.1.5 line delegates through the role-pinned delegation tools (each carries the
+  // child's persona and tool table), so the supervisor keeps those and the control tools,
+  // and a specialist never receives any of them. The generic `subagent` spawner stays out
+  // on purpose: it cannot pin a role, so the child would keep the supervisor's surface.
+  for (const tool of ["delegate_data", "delegate_analysis", "delegate_event", "send_message", "list_agents", "interrupt_agent"])
     assert.ok(declared.has(tool), `平台白名单缺少 ${tool}`);
+  for (const tool of ["subagent", "subagent_fork"])
+    assert.equal(declared.has(tool), false, `${tool} 会派生无角色组合的子代理，不应在白名单里`);
   for (const [role, tools] of Object.entries(shipped.roleTools))
-    for (const tool of ["subagent", "send_message", "list_agents", "interrupt_agent"])
+    for (const tool of ["subagent", "subagent_fork", "send_message", "list_agents", "interrupt_agent"])
       assert.ok(!tools.includes(tool), `${role} 不应持有委派工具 ${tool}`);
 });
 test("snapshot, explicit publish, stale draft rejection and rollback preserve the active version", async (t) => {

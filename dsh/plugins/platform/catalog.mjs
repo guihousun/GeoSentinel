@@ -5,12 +5,17 @@ import { loadSkills } from "./skills.mjs";
 // guard and the agent restriction read these lists; the admin-mode capability
 // panel renders them so the administrator sees exactly what a release exposes.
 export const TEAM_TOOLS = [
-  // Native delegation on DSH 0.1.5 (tool-subagent / tool-subagent-control rows).
-  // The three specialists are spawned through these, and a specialist never
-  // receives a delegation tool of its own, so it cannot hand work to another
-  // specialist. The staged plan itself is native plan mode (`plan-mode` row),
-  // not a product tool.
-  "subagent",
+  // One delegation tool per research role, mounted as product rows on the native
+  // `@deepseek-ai/dsh-tool-subagent` plugin (profile/cordis.patch.yml `geo-delegate-*`).
+  // Each row pins the child's persona and tool table, so a specialist is composed AT
+  // SPAWN: its very first request already carries its own tools. The generic `subagent`
+  // tool carries no persona/toolFilter, so a child spawned through it kept the
+  // supervisor's whole surface (measured: 74 tools where the role table has 21) — it is
+  // therefore NOT in this list, and neither is `subagent_fork`. The control tools stay:
+  // they address children that already exist and cannot create one.
+  "delegate_data",
+  "delegate_analysis",
+  "delegate_event",
   "send_message",
   "list_agents",
   "interrupt_agent",
