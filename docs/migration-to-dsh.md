@@ -62,7 +62,12 @@ git -C D:\GeoSentinel status -sb
 
 必须保留完整仓库。`dsh/` 引用根目录 `packages/ntl_toolkit/src` 和 `monitoring/sources.py`，不能单独搬运该子目录。
 
-### AgentTeams fork
+### AgentTeams fork（仅 0.1.2 线需要；0.1.5 线已退役）
+
+> **0.1.5 线不需要这一节。** 委派、方案审批与成员目录都改到 DSH 原生平面（agent 预设提供
+> `subagent` / `send_message` / `list_agents`，平台自己做方案审阅与角色绑定），仓库里的
+> `dsh/vendor/agentteams-*` 也已删除。下面保留的是 0.1.2 及更早版本的安装步骤，只有仍要部署
+> 旧线时才需要执行。新机器安装请看 [`new-machine-migration.md`](new-machine-migration.md)。
 
 ```powershell
 Set-Location D:\

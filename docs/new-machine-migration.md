@@ -31,7 +31,7 @@
 | 源码 | 整个仓库工作区（`dsh/`、`packages/`、`docs/`、`monitoring/`、旧 Python 平台…） | **必须** | 见 §3“工作区有未提交改动”的提醒 |
 | 配置 | `dsh/.env` | **必须** | 含密钥，走安全通道传；模板见 `dsh/.env.example` |
 | 凭据 | Earth Engine 凭据文件（Windows 常见位置 `%USERPROFILE%\.config\earthengine\credentials`） | **必须** | 只读挂载给固定 GEE 容器；不要放进仓库 |
-| 调度器 | 独立 AgentTeams fork（本机为 `D:\GeoSentinel-AgentTeams`） | **必须** | 或按 `dsh/vendor/agentteams-geosentinel.patch` 重建，见 §6 |
+| 调度器 | **不需要外部仓库**：0.1.5 原生预设提供委派工具，平台自带方案审阅与角色绑定 | 无 | 见 §6 |
 | 依赖 | `dsh/node_modules`、pnpm store | 不要带 | 用 `pnpm install --frozen-lockfile` 重建；离线机器需先暖 pnpm 缓存 |
 | 构建产物 | Docker 镜像 `geosentinel-gis:*` | 不要带（可选导出） | 4.06–4.24 GB/镜像，新机器 `docker build` 重建；也可 `docker save/load` |
 | 平台数据 | `GEO_DSH_HOME`（本机 `dsh\.runtime\upgrade-rc1-home`）：`geosentinel/`（账号·项目·工作区）、`sessions/`、`storages/`、`releases/`（已发布版本与状态） | 仅当要沿用账号/产物/已发布版本 | 只带源码则等于全新开始，账号与产物为空 |
@@ -152,25 +152,23 @@ pnpm install --frozen-lockfile
 
 ---
 
-## 6. 安装步骤 C：独立 AgentTeams fork
+## 6. 安装步骤 C：不需要外部调度器仓库
 
-产品依赖一个打过补丁的 DSH AgentTeams fork。默认期望它在仓库的兄弟目录，或用 `GEO_AGENT_TEAMS_DIR` 指定。
+**0.1.5 线不再使用 AgentTeams fork，也不需要任何仓库外的调度器目录。** 之前那套（clone
+`NanmiCoder/dsh-agent-teams`、应用 `dsh/vendor/agentteams-geosentinel.patch`、`pnpm build`）
+随 0.1.2 线一起退役，补丁与许可文件也已从仓库删除（历史仍在 git）。
 
-```powershell
-cd D:\
-git clone --branch v0.1.15 https://github.com/NanmiCoder/dsh-agent-teams.git GeoSentinel-AgentTeams
-cd GeoSentinel-AgentTeams
-git switch -c codex/geosentinel-orchestrator
-git apply --check ..\GeoSentinel-DSH\dsh\vendor\agentteams-geosentinel.patch
-git apply         ..\GeoSentinel-DSH\dsh\vendor\agentteams-geosentinel.patch
-pnpm install --frozen-lockfile
-pnpm build
-node --test scripts/geosentinel-policy.test.mjs
-```
+替代关系（都在 DSH 原生平面上）：
 
-- 已经应用过补丁的目录不要重复 `git apply`。上游 MIT 许可与变更来源保留在 `dsh/vendor/`。
-- 直接复制旧机器的 fork 目录也可以，但在新机器上必须重跑 `pnpm install --frozen-lockfile && pnpm build`。
-- fork 的基线版本与补丁差异记录在 `dsh/vendor/agentteams-source.json`。
+| 旧做法 | 现在 |
+| --- | --- |
+| fork 提供 `agent_teams_*` 工具与成员/任务表 | 原生预设（`agent-presets`，`default: standard`）提供 `subagent` / `send_message` / `list_agents` / `interrupt_agent` |
+| fork 暂存方案、等用户批准 | 原生 `plan-mode`（可选）或平台自己的 `ask_user_question` 审阅流程 |
+| fork 按 `roleTools` 收窄成员工具 | 平台按子代理目录里的角色名绑定 `agent_sessions.role`，并对该子会话 `restrict` 到 `product.json` 的角色表 |
+| `GEO_AGENT_TEAMS_DIR` 环境变量 | 不再需要（保留在旧 `.env` 里也无害） |
+
+因此这一步**无需任何操作**，直接进入下一步。验收要点：主管能用 `subagent` 派出专家，
+且专家在成员列表里带角色名（详见 §13）。
 
 ---
 
@@ -367,7 +365,7 @@ GEO_DSH_HOME/
 
 **完整复盘（沿用账号与已发布版本）**：停机后复制 `GEO_DSH_HOME` 与 `GEO_MONITOR_DIR`；
 
-**全新开始（只看代码与能力）**：只带源码 + `.env` + 凭据 + fork，其余由首次启动生成。
+**全新开始（只看代码与能力）**：只带源码 + `.env` + 凭据 + 共享数据库，其余由首次启动生成。
 
 复制 SQLite 的注意事项：最好停机复制；若必须热复制，把 `platform.sqlite`、`platform.sqlite-wal`、
 `platform.sqlite-shm` 一起带走，或先让 SQLite 做一次 checkpoint（正常关停即可）。复制后按新机器的实际路径
@@ -506,7 +504,7 @@ node scripts/monitor.mjs --translate-cache --once   # 仅重跑中文整理缓�
 
 - [ ] A 基础环境：Node 24.x、pnpm 10.33.0、Docker（Linux 容器）可用
 - [ ] B `dsh` 目录 `pnpm install --frozen-lockfile` 成功
-- [ ] C AgentTeams fork 就位并通过 `geosentinel-policy.test.mjs`
+- [ ] C 无需外部调度器仓库；确认主管能用 `subagent` 派出专家并在成员列表看到角色名
 - [ ] D `dsh/.env` 填写完成，`node scripts/check-env.mjs` 通过
 - [ ] E `docker build -t geosentinel-gis:0.1 docker` 成功，`smoke-worker-timeout.mjs` 通过
 - [ ] F 管理员初始化成功，首次启动生成初始快照并能打开工作台
@@ -532,7 +530,7 @@ node scripts/monitor.mjs --translate-cache --once   # 仅重跑中文整理缓�
 | 阶段 | 做什么 | 时间（本机量级） | 完成标志 |
 | --- | --- | --- | --- |
 | 1 | §4–§5 环境与依赖 | 20–40 分钟 | `node --version`、`pnpm install --frozen-lockfile` 通过 |
-| 2 | §6–§8 fork、`.env`、GIS 镜像 | 40–90 分钟（镜像构建最慢） | `check-env.mjs` 通过、`smoke-worker-timeout.mjs` 通过 |
+| 2 | §6–§8 调度器说明、`.env`、GIS 镜像 | 20–70 分钟（镜像构建最慢） | `check-env.mjs` 通过、`smoke-worker-timeout.mjs` 通过 |
 | 3 | §9 管理员 + 首次启动 | 15–40 分钟（首次生成快照慢） | 浏览器能登录、能建项目对话 |
 | 4 | §10 + §13 普通账号走通一轮研究 | 30–60 分钟 | 出现方案 → 确认 → 产物可下载；`pnpm test` 全绿 |
 | 5 | §13 桌面验收 + 基准若干例 | 1–2 小时 | 截图/`eval` 证据留档；基准报告落盘 |

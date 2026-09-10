@@ -1,7 +1,0 @@
-{
-  "upstream": "https://github.com/NanmiCoder/dsh-agent-teams.git",
-  "tag": "v0.1.15",
-  "commit": "da2e2e49242c6ecd7e801a74dba0c8268a0a2f81",
-  "license": "MIT",
-  "patch": "agentteams-geosentinel.patch"
-}

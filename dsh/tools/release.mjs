@@ -45,11 +45,10 @@ if (existsSync(envFile)) process.loadEnvFile(envFile);
 
 const home = path.resolve(process.env.GEO_DSH_HOME || path.join(root, ".runtime/home"));
 const directory = process.env.GEO_RELEASE_DIR || path.join(home, "releases");
-const fork = process.env.GEO_AGENT_TEAMS_DIR || path.resolve(source, "../GeoSentinel-AgentTeams");
 const dataDir = process.env.GEO_DATA_DIR || path.join(home, "geosentinel");
 const actor = process.env.GEO_RELEASE_ACTOR || "release-cli";
 const PREVIEW_PORT = 8513;
-const manager = new ReleaseManager(source, directory, fork);
+const manager = new ReleaseManager(source, directory);
 
 // This CLI is usually run from inside a development worker shell, where the
 // GEO_ADMIN_DEV_* variables are inherited. Passing them through would boot the

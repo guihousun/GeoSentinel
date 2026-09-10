@@ -72,16 +72,8 @@ check(
   listing.status === 0 && versions.size > 100 && !mismatches.size,
   { packages: versions.size, mismatches: [...mismatches] },
 );
-const fork = path.resolve(
-  process.env.GEO_AGENT_TEAMS_DIR ??
-    path.join(root, "../../GeoSentinel-AgentTeams"),
-);
-let built = false;
-try {
-  await access(path.join(fork, "lib/index.js"));
-  built = true;
-} catch {}
-check("AgentTeams fork build", built, fork);
+// The AgentTeams fork is gone in the 0.1.5 line: delegation, the plan gate and the
+// member catalog are native, so there is no external checkout left to verify.
 check(
   "Model credential configured",
   process.env.DEEPSEEK_API_KEY || process.env.DeepSeek_API_KEY,
