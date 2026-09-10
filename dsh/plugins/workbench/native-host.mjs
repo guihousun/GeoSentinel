@@ -7,15 +7,35 @@ import { dreamSkinTheme, appearanceStamp } from "./skin-theme.mjs";
 
 // Resolve from the running Web bundle, never from unrelated top-level links.
 const requireWeb = createRequire(import.meta.resolve("@deepseek-ai/dsh-web-app"));
+const baseline = new Set(["react", "react/jsx-runtime", "react-dom", "react-dom/client",
+  "@deepseek-ai/cordis", "@deepseek-ai/dsh-client-store",
+  "@deepseek-ai/dsh-client-ui-slots", "@deepseek-ai/dsh-client-ui-primitives"]);
 export const nativePlugins = [
   "dsh-client-modules", "dsh-client-locale", "dsh-client-ui-theme",
   "dsh-client-ui-layout", "dsh-client-ui-renderer", "dsh-client-ui-session",
   "dsh-client-ui-conversation", "dsh-client-ui-chat", "dsh-client-ui-tool",
   "dsh-client-ui-user-questions", "dsh-client-ui-subagent", "dsh-client-ui-input-trigger",
+  // 0.1.5 surfaces the product reuses instead of re-implementing: the deliverables
+  // panel, the resources/files surface and "open in app".
+  //
+  // NOT included yet: `dsh-client-ui-plan` (and `ui-commands`, which exists only to
+  // satisfy it). Both wait for the client-side `remote.commands` service, which the
+  // host does not expose in this composition, so adding them makes the whole client
+  // bundle fail to activate ("web boot: 2 entries did not activate") and the product
+  // shell renders nothing. Prerequisite: expose the host `commands` service to the
+  // client, then the native plan panel can replace our own plan surface.
+  "dsh-client-ui-deliverables", "dsh-client-resources",
+  "dsh-client-ui-open-in-app",
 ].map((name) => "@deepseek-ai/" + name);
-const baseline = new Set(["react", "react/jsx-runtime", "react-dom", "react-dom/client",
-  "@deepseek-ai/cordis", "@deepseek-ai/dsh-client-store",
-  "@deepseek-ai/dsh-client-ui-slots", "@deepseek-ai/dsh-client-ui-primitives"]);
+// Surfaces that only exist from the 0.1.5 line on. They are optional so the shell
+// still builds against an older installed client (the product upgrades its pins
+// separately); the bundle then simply lacks those panels.
+export const optionalPlugins = new Set([
+  "@deepseek-ai/dsh-client-ui-deliverables",
+  "@deepseek-ai/dsh-client-resources",
+  "@deepseek-ai/dsh-client-ui-open-in-app",
+]);
+const missingModule = (error) => error?.code === "MODULE_NOT_FOUND" || error?.code === "ERR_MODULE_NOT_FOUND" || /Cannot find (module|package)/.test(error?.message ?? "");
 
 export async function nativeAssets() {
   const version = requireWeb("@deepseek-ai/dsh-web-app/package.json").version;
@@ -46,7 +66,16 @@ export async function nativeAssets() {
     for (const dependency of bundleImports(source))
       await collect(dependency, createRequire(manifestPath));
   }
-  for (const name of nativePlugins) await collect(name);
+  // Core surfaces are mandatory; the 0.1.5-only ones are skipped (with a note)
+  // when the installed client predates them, so the same shell code serves both.
+  const collected = new Set();
+  for (const name of nativePlugins) {
+    try { await collect(name); collected.add(name); }
+    catch (error) {
+      if (!optionalPlugins.has(name) || !missingModule(error)) throw error;
+      console.warn(`GeoSentinel: 外壳跳过未安装的原生界面包 ${name}`);
+    }
+  }
   // API helpers are library-only: their unrestricted transport plugins never activate.
   await collect("@deepseek-ai/dsh-api-session-controller");
   await collect("dsh-better-sidebar", createRequire(import.meta.url));
@@ -60,7 +89,7 @@ export async function nativeAssets() {
   // Third-party client halves that mount as plugins in the product UI: the
   // visualisation renderer and the upload dock.
   const thirdParty = ["@changfenhuang/dsh-genui", "dsh-file-upload"];
-  const entries = [...nativePlugins, ...thirdParty, id].map((name) => ({
+  const entries = [...collected, ...thirdParty, id].map((name) => ({
     id: name, url: "/geo/native/bundle.js", rev: version,
     immediately: name === "@deepseek-ai/dsh-client-modules",
   }));
@@ -80,7 +109,10 @@ export async function nativeAssets() {
   html = html.replace('<html lang="en">', '<html lang="zh-CN">')
     .replace("<head>", `<head><base href="/geo/native/">${injections}<link rel="stylesheet" href="/geo/native/custom.css"><link rel="stylesheet" href="/geo/vendor/leaflet.css"><script src="/geo/vendor/leaflet.js"></script>`)
     .replace("<title>DeepSeek Harness</title>", "<title>地缘环境智能计算平台</title>")
-    .replace("<body>", '<body style="--dsh-content-font-size:16px">');
+    .replace("<body>", '<body style="--dsh-content-font-size:16px">')
+    // The native client rewrites document.title after boot, so the product name is
+    // restored whenever it is replaced.
+    .replace("</head>", `<script>(function(){var t=document.querySelector("title");if(!t)return;var n="地缘环境智能计算平台";var f=function(){if(document.title!==n)document.title=n};new MutationObserver(f).observe(t,{childList:true});f()})()</script></head>`);
   const theme = await dreamSkinTheme();
   const bundle = [...sources.values()].join("\n") + `\nwindow.__ModuleLoader__.load({id:"@geosentinel/dsh-theme",factory:()=>(${JSON.stringify(theme)})});`;
   return { dist, html, bundle, version };

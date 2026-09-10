@@ -88,6 +88,27 @@ test("research shell follows the administrator development appearance and falls 
 // The pinned-native-distribution test is gone with the re-hosting layer: on the
 // 0.1.5 line the native server serves the client, and the product only adds its
 // basemap assets and appearance (see tests/workbench-routes.test.mjs).
+test("the product shell bundles the 0.1.5 surfaces it reuses", async () => {
+  const { createRequire } = await import("node:module");
+  const { nativeAssets } = await import("../plugins/workbench/native-host.mjs");
+  const requireWeb = createRequire(import.meta.resolve("@deepseek-ai/dsh-web-app"));
+  const installed = (name) => { try { requireWeb.resolve(name + "/package.json"); return true; } catch { return false; } };
+  const assets = await nativeAssets();
+  // Core surfaces must always be in the bundle; the 0.1.5-only ones are asserted
+  // only when the installed client actually ships them (the product's pins are
+  // upgraded separately from this code).
+  for (const name of ["@deepseek-ai/dsh-client-modules", "@deepseek-ai/dsh-client-ui-chat"])
+    assert.ok(assets.bundle.includes(name), `外壳未包含核心包 ${name}`);
+  for (const name of ["@deepseek-ai/dsh-client-ui-deliverables",
+    "@deepseek-ai/dsh-client-resources", "@deepseek-ai/dsh-client-ui-open-in-app"])
+    if (installed(name)) assert.ok(assets.bundle.includes(name), `外壳未包含 ${name}`);
+  // The plan panel is deliberately excluded: it waits for the client-side
+  // `remote.commands` service this composition does not expose, and bundling it
+  // makes the whole client bundle fail to activate.
+  assert.ok(!assets.bundle.includes("@deepseek-ai/dsh-client-ui-plan"), "方案面板需要先暴露 remote.commands");
+  assert.match(assets.html, /地缘环境智能计算平台/);
+  assert.match(assets.html, /MutationObserver/, "产品标题需要在原生客户端改写后恢复");
+});
 
 test("sidebar adapter enforces identity and project ownership; privileged upstream APIs stay denied", async (t) => {
   const root = await mkdtemp(path.join(tmpdir(), "geo-sidebar-"));
