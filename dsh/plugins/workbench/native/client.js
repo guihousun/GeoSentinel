@@ -185,11 +185,26 @@ window.__ModuleLoader__.load({
           }).catch((error) => { if (!controller.signal.aborted) set({ error: error.message }); })
           .finally(() => { if (record.question === request) { record.question = null; void load(record.sessionId); } });
       }
+      // 0.1.5 replaced the layout service face: `closeDetails` is gone and the right
+      // pane is `closeRightbar` (the 0.1.5 service exposes selectPanel / closeRightbar
+      // / openRightbar / toggleSidebar / beginNavigation). Every optional layout call
+      // goes through here, so a renamed or absent native method can never break
+      // opening a session again: the acceptance run failed exactly this way —
+      // "ctx.get(...)?.closeDetails is not a function" left the project dialog stuck
+      // and the new chat unopened.
+      function layoutCall(name, ...args) {
+        const layout = ctx.get("layout");
+        if (!layout) return;
+        const method = typeof layout[name] === "function" ? name
+          : name === "closeDetails" && typeof layout.closeRightbar === "function" ? "closeRightbar" : undefined;
+        if (method === undefined) return;
+        try { layout[method](...args); } catch (error) { console.warn(`layout.${method} failed:`, error); }
+      }
       function open(id) {
         if (!list.getSnapshot().byId[id]) throw new Error("对话不存在。");
         binding(id); list.set({ ...list.getSnapshot(), current: id, currentAddress: addresses.get(id) });
         set({ view: "research", activeProject: list.getSnapshot().byId[id].projectId, team: null, scheduling: null, queueError: null, pendingQuestion: null, files: [] });
-        remember(rootFor(id)); ctx.get("layout")?.closeDetails();
+        remember(rootFor(id)); layoutCall("closeDetails");
         stream?.close(); clearInterval(poll); clearTimeout(refreshTimer);
         stream = new EventSource(`/geo/api/chats/${rootFor(id)}/events`);
         stream.onmessage = () => { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => load(id), 120); };
@@ -343,7 +358,7 @@ window.__ModuleLoader__.load({
         try {
           const result = await api("/admin/development/start", "POST");
           set({ view: "development", panel: null, error: "", developmentUrl: result.url + "?embedded=1" });
-          ctx.get("layout")?.closeDetails();
+          layoutCall("closeDetails");
           if (developmentReady && pendingDevelopmentCommand) { const next = pendingDevelopmentCommand; pendingDevelopmentCommand = null; sendDevelopment(next); }
         } catch (error) {
           if ([401, 403].includes(error.status)) set({ panel: "development", developmentTarget: "development" });
@@ -387,7 +402,7 @@ window.__ModuleLoader__.load({
       function Sidebar({ collapsed }) {
         const s = useState(), l = useList();
         return h("aside", { className: "geo-native-sidebar" },
-          h("div", { className: "geo-native-toolbar" }, !collapsed && h("strong", null, "地缘环境智能计算平台"), button("收起或展开侧栏", icons.IconPanelLeftOutline16, () => ctx.get("layout").toggleSidebar(), { iconOnly: true })),
+          h("div", { className: "geo-native-toolbar" }, !collapsed && h("strong", null, "地缘环境智能计算平台"), button("收起或展开侧栏", icons.IconPanelLeftOutline16, () => layoutCall("toggleSidebar"), { iconOnly: true })),
           s.user && !collapsed && h(React.Fragment, null,
             s.previewMode && h("strong", { role: "status" }, "用户版预览"),
             s.releaseUpdate && button("新版已发布，刷新页面", icons.IconRefreshOutline16, () => location.reload()),
@@ -409,7 +424,7 @@ window.__ModuleLoader__.load({
       function openResearchTab(kind) {
         const service = ctx.get("betterSidebar");
         if (!list.getSnapshot().current || !service) { set({ panel: kind }); return; }
-        ctx.get("layout").closeDetails();
+        layoutCall("closeDetails");
         service.openTab({ type: `geosentinel:${kind}`, url: location.origin + (kind === "monitor" ? "/geo/api/monitor/events" : "/geo/api/projects") });
       }
       function Plan() {

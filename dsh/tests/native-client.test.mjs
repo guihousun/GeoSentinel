@@ -12,8 +12,11 @@ test("native client restores remembered history and keeps project/file ownership
     stores.push(result); return result;
   };
   const projects = [{ id: "p1", title: "First" }, { id: "p2", title: "Second" }];
+  // The layout face differs between lines: 0.1.2 exposes `closeDetails`, 0.1.5 exposes
+  // `closeRightbar`/`selectPanel`. Every overlay call goes through one guarded helper.
+  let layoutFace = { closeDetails() {} };
   const ctx = { provide: (key, value) => { services[key] = value; ctx[key] = value; },
-    get: (key) => key === "layout" ? { closeDetails() {} } : services[key],
+    get: (key) => key === "layout" ? layoutFace : services[key],
     plugin: () => ({ dispose() {} }), inject() {}, on() {}, slots: { provideRoot() {}, inject(name, register) { register(); }, register(config, component) { slots.set(config.id ?? config.name, { config, component }); } } };
   const responses = {
     "/auth/status": { user: { id: "u1", username: "alice" } },
@@ -142,4 +145,18 @@ test("native client restores remembered history and keeps project/file ownership
   for (const [name, args, pattern] of [["archiveSession", ["c9"], /归档/], ["pickDirectory", [], /目录/],
     ["listDirectory", ["D:\\"], /目录/], ["createDirectory", ["D:\\", "x"], /目录/]])
     await assert.rejects(services.uiWorkspace[name](...args), pattern, name);
+  // 0.1.5 dropped `layout.closeDetails`: opening a session must use the new face
+  // (`closeRightbar`) instead of throwing inside open(), which used to leave the
+  // project dialog stuck and the chat unopened.
+  let closed = 0;
+  layoutFace = { selectPanel() {}, closeRightbar() { closed++; }, toggleSidebar() {} };
+  services.sessions.open("c1");
+  for (let i = 0; i < 4; i++) await new Promise(setImmediate);
+  assert.equal(closed, 1);
+  assert.equal(services.sessions.list.getSnapshot().current, "c1");
+  // An unrecognised layout face must not break the same path either.
+  layoutFace = {};
+  services.sessions.open("c2");
+  for (let i = 0; i < 4; i++) await new Promise(setImmediate);
+  assert.equal(services.sessions.list.getSnapshot().current, "c2");
 });
