@@ -12,10 +12,15 @@ OPERATIONS = {
 
 def scoped_path(value, output=False):
     if not isinstance(value, str) or "\\" in value or ":" in value:
-        raise ValueError("Use inputs/, previous/ or outputs/ relative paths")
+        raise ValueError("Use inputs/, previous/, outputs/ or share/ relative paths")
     parts = Path(value).parts
-    if not parts or ".." in parts or parts[0] not in ({"outputs"} if output else {"inputs", "previous", "outputs"}):
+    # `share/` is the administrator's shared data library: readable input only,
+    # mounted read-only, never accepted as an output target.
+    readable = {"inputs", "previous", "outputs", "share"}
+    if not parts or ".." in parts or parts[0] not in ({"outputs"} if output else readable):
         raise ValueError("Workspace-relative path required")
+    if output and parts[0] != "outputs":
+        raise ValueError("Outputs must be written under outputs/")
     # Agent-visible outputs refer to completed earlier jobs, not the new output mount.
     if not output and parts[0] == "outputs":
         parts = ("previous", *parts[1:])

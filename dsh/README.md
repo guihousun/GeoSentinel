@@ -129,6 +129,35 @@ geosentinel
 
 当前研究工具：`geo_list_files`、`geo_read_evidence`、`geo_write_report`、`geo_download_gee`、`geo_inspect_raster`、`geo_execute_python`。未知数据集/波段不能靠模型猜测；首次选择新数据源仍须提供或查明来源元数据。
 
+### 共享数据（只读）
+
+管理员可以在 `.env` 里挂一个**共享数据库**：公开用例数据、已下载的全球矢量边界与影像、各国 GDP、参考书与数据包（例如《缅甸地理》）。这类数据往往远大于上传限制（单文件 16 MiB、单项目 512 MiB），而且是全体账号共用，不属于某个项目。
+
+```ini
+GEO_SHARE_DIR=E:/DSH/share                      # 一个根目录，按 share/<子路径> 访问
+GEO_SHARE_DIRS="缅甸地理=E:/DSH/缅甸地理;GDP=E:/DSH/gdp"   # 多个命名根，按 share/<名称>/<子路径> 访问
+```
+
+- **同一批数据的三种入口**：宿主侧 `read`/`glob`/`grep`/`read_document` 用 `share/<…>`；左栏「文件」里有只读分组「共享数据（只读）」；分析容器里只读挂载在同一相对路径 `/workspace/share/<…>`，注册的 GIS 工具与模型生成的 Python 都能直接读，**不需要复制进项目资料**。
+- **只读是硬约束**：宿主围栏只允许把模型写入落在对话自己的 `outputs/`，容器里的共享目录也以 `readonly` 挂载，因此产品无法修改共享数据。
+- **容器的文件系统仍是只读根**。ESRI 个人地理数据库（`.mdb`）由 GDAL 的 PGeo 驱动读取，需要 MDB Tools ODBC 驱动；镜像已内置该驱动，并在启动时把注册表复制进可写的 `/tmp` 再指向它（`ODBCSYSINI`）。实测在该约束下可直接打开《缅甸地理》交通库：`pic1_road` 368,131 条线要素、`pic2_railway`、`pic3_airport`、国界/省邦界/区县界。
+- 配置在启动时读取一次，改完需要重启实例（正式实例：`.\scripts\restart.ps1 -Port 8511`）。目录不存在时启动日志会明确报出该根，不会静默生效。
+
+### 外部地理服务（远程 MCP，无本地安装）
+
+产品 profile 挂了两台**远程** MCP 服务（`transport: streamable-http`）：**不安装任何依赖、不启动任何本地进程**，只是从产品进程发出站 HTTPS——与已有的 `web_search`/`web_fetch` 同一类调用。它们的工具以 `mcp__<服务器>__<工具>` 注册，因此同样受发布允许列表、角色表和平台守卫管辖。
+
+| 服务器 | 工具（已放行） | 用途 |
+| --- | --- | --- |
+| NASA CMR（`mcp__cmr__*`，公开、无密钥） | `get_collections`、`get_granules`、`get_variables`、`get_keywords`、`get_citations`、`get_services`、`get_tools` | 官方数据集/颗粒/变量/引用目录：满足“不猜数据集与波段、先查明来源元数据”的规矩 |
+| 高德 LBS（`mcp__amap__*`，需 `AMAP_API_KEY`） | `maps_geo`、`maps_regeocode`、`maps_text_search`、`maps_around_search`、`maps_search_detail`、`maps_distance`、`maps_direction_driving`/`_walking`/`_transit_integrated` | 地址↔坐标、POI、距离与路径规划 |
+
+- 密钥只放管理员 `.env`（`AMAP_API_KEY=…`），由 profile 里的 `!!js` 表达式在加载时注入，**不进发布快照**；未配置时该服务器的工具不会出现，harness 照常启动（`failOnStartupError: false`）。
+- **结果是外部来源**：可以引用，但必须写明服务名、查询内容与检索时间，且**不得当作平台观测**；`maps_schema_*` 这类只用于唤起高德客户端的工具刻意不放行。
+- 角色分配：数据助手拿 CMR 目录查询 + 逆地理，分析助手拿地址解析/距离/路径规划，事件助手拿地理编码与周边检索。管理员可在「普通模式能力管理」里**不发版**逐项关闭。
+- 想再挂别的服务器：在 `dsh/profile/cordis.patch.yml` 的 insert 区加一行 `@deepseek-ai/dsh-mcp-client`（只用远程 `streamable-http`；本客户端不支持 SSE，也刻意不使用需要 `npx`/`pip` 本地安装的 stdio 服务器），再把工具名加进 `plugins/platform/catalog.mjs` 与角色表。
+- **数据目录**：`node dsh/tools/catalog-share.mjs --write --image geosentinel-gis:0.1` 从真实文件生成 `CATALOG.md`（相对路径、类型、大小、矢量字段/要素数/坐标系、表格工作表与列名、影像像元与波段、`.mdb` 图层清单）与机器可读的 `catalog.json`，写进每个共享根。随发布冻结的技能 `shared-data-library` 会让智能体**先读这份目录**，不再逐个文件试探；`geo_list_files` 也会直接返回 `share.catalogs` 路径。
+
 原生入口已接入 DSH 的 `ask_user_question`、`UserQuestionService` 和原生问题/方案审阅组件。主智能体可暂停等待用户选择、自由回答或取消；子智能体不能直接向用户提问。方案整理完成后显示原生审阅卡，确认前仍不可执行；“去聊天里说”恢复输入框，修改后需要重新审阅。平台通过带登录校验的 `/geo/api/chats/:id/questions` 传输请求与答案，不启用原版个人主机 Remote API。回答绑定用户、对话、唯一请求 ID；方案确认额外绑定团队与版本。普通问题的回答不能绕过方案审批。刷新可恢复当前进程中的待答问题；服务重启后旧请求 ID 失效，待确认方案可重新生成审阅请求，执行中普通提问不跨进程恢复。
 
 ## 存储与运行边界

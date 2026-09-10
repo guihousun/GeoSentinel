@@ -61,11 +61,12 @@ const safeSegment = (value) => String(value ?? "").replace(/[/\\\0]/g, " ").repl
 const virtualRoot = (chat) => `/工作区/${safeSegment(chat.title) || chat.project_id}`;
 
 /** The friendly view roots for one chat: user uploads, produced files, raw jobs. */
-async function viewFor(user, chat, store) {
+async function viewFor(user, chat, store, share) {
   return workspaceView({
     chatRoot: store.chatRoot(user, chat.id),
     inputsRoot: path.join(store.chatRoot(user, chat.id), "inputs"),
     projectInputsRoot: path.join(store.projectRoot(user, chat.project_id), "inputs"),
+    share,
   });
 }
 
@@ -74,7 +75,7 @@ async function viewFor(user, chat, store) {
  * (上传的文件/分析结果/过程记录) are the only vocabulary the user sees; the
  * chat inputs/outputs layout stays an implementation detail.
  */
-async function resolveFriendly(user, chat, store, value) {
+async function resolveFriendly(user, chat, store, share, value) {
   const root = virtualRoot(chat);
   const raw = String(value ?? "");
   if (!raw || raw.includes("..") || raw.includes("\\") || raw.includes("\0"))
@@ -84,18 +85,19 @@ async function resolveFriendly(user, chat, store, value) {
   const relative = virtual === root ? "" : virtual.slice(root.length + 1);
   if (relative === "memory" || relative.startsWith("memory/"))
     throw new PlatformError(403, "该目录不开放浏览");
-  const view = await viewFor(user, chat, store);
+  const view = await viewFor(user, chat, store, share);
   const real = resolveViewPath(view, root, virtual);
   if (!real) throw new PlatformError(404, "文件不存在");
   return real;
 }
 
 /** Authenticated, ownership-checked real path for one explorer leaf. */
-async function resolveExplorerFile(user, chat, store, value) {
-  const real = await resolveFriendly(user, chat, store, value);
+async function resolveExplorerFile(user, chat, store, share, value) {
+  const real = await resolveFriendly(user, chat, store, share, value);
   const allowed = [
     store.chatRoot(user, chat.id),
     path.join(store.projectRoot(user, chat.project_id), "inputs"),
+    ...share.map((entry) => entry.root),
   ];
   const canonical = real.split(path.sep).join("/");
   if (!allowed.some((base) => canonical.startsWith(base.split(path.sep).join("/") + "/") || canonical === base.split(path.sep).join("/")))
@@ -117,7 +119,7 @@ async function readPreview(file, size) {
   } finally { await handle.close(); }
 }
 
-export function createSidebarHandler({ store, hosts }) {
+export function createSidebarHandler({ store, hosts, share = [] }) {
   return async (req, res) => {
     let status = 200, result;
     try {
@@ -137,7 +139,7 @@ export function createSidebarHandler({ store, hosts }) {
         result = { sessionId: body.sessionId, cwd: virtualRoot(chat), root: virtualRoot(chat), parent: null };
       } else if (method === "fs.tree") {
         const chat = sidebarChat(user, body.sessionId, store);
-        const view = await viewFor(user, chat, store);
+        const view = await viewFor(user, chat, store, share);
         const root = virtualRoot(chat);
         const requested = String(body.path ?? "");
         if (requested.includes("..") || requested.includes("\\") || requested.includes("\0"))
@@ -152,13 +154,13 @@ export function createSidebarHandler({ store, hosts }) {
         result = { entries };
       } else if (method === "fs.read") {
         const chat = sidebarChat(user, body.sessionId, store);
-        const file = await resolveExplorerFile(user, chat, store, body.path);
+        const file = await resolveExplorerFile(user, chat, store, share, body.path);
         const info = await stat(file).catch(() => null);
         if (!info?.isFile()) throw new PlatformError(404, "文件不存在");
         result = await readPreview(file, info.size);
       } else if (method === "fs.search") {
         const chat = sidebarChat(user, body.sessionId, store);
-        const view = await viewFor(user, chat, store);
+        const view = await viewFor(user, chat, store, share);
         result = searchView(view, virtualRoot(chat), String(body.query ?? "")).slice(0, SEARCH_LIMIT);
       } else if (method === "subagents.live") {
         // The 任务管理 tab renders member activity from the native session
@@ -175,14 +177,14 @@ export function createSidebarHandler({ store, hosts }) {
 }
 
 /** `/sidebar/file` — raw bytes for the explorer's open and download actions. */
-export function createSidebarFileHandler({ store, hosts }) {
+export function createSidebarFileHandler({ store, hosts, share = [] }) {
   return async (req, res) => {
     try {
       if (req.method !== "GET" && req.method !== "HEAD") throw new PlatformError(405, "请求方式不支持");
       const user = sidebarIdentity(req, store, hosts);
       const url = new URL(req.url, "http://localhost");
       const chat = sidebarChat(user, url.searchParams.get("sessionId"), store);
-      const file = await resolveExplorerFile(user, chat, store, url.searchParams.get("path"));
+      const file = await resolveExplorerFile(user, chat, store, share, url.searchParams.get("path"));
       const info = await stat(file).catch(() => null);
       if (!info?.isFile()) throw new PlatformError(404, "文件不存在");
       // A shapefile is only usable with its companions, so downloading a .shp
@@ -248,9 +250,9 @@ export function createSidebarBundleHandler({ store, hosts }) {
   };
 }
 
-export function registerSidebarAdapter(ctx, { store, hosts }) {
-  ctx.effect(() => ctx.webServer.register({ kind: "prefix", path: "/sidebar/api", handler: createSidebarHandler({ store, hosts }) }));
-  ctx.effect(() => ctx.webServer.register({ kind: "exact", path: "/sidebar/file", handler: createSidebarFileHandler({ store, hosts }) }));
+export function registerSidebarAdapter(ctx, { store, hosts, share = [] }) {
+  ctx.effect(() => ctx.webServer.register({ kind: "prefix", path: "/sidebar/api", handler: createSidebarHandler({ store, hosts, share }) }));
+  ctx.effect(() => ctx.webServer.register({ kind: "exact", path: "/sidebar/file", handler: createSidebarFileHandler({ store, hosts, share }) }));
   ctx.effect(() => ctx.webServer.register({ kind: "prefix", path: "/sidebar/bundle", handler: createSidebarBundleHandler({ store, hosts }) }));
   const sockets = new WebSocketServer({ noServer: true });
   for (const endpoint of ["agent-terminals", "agent-opens"]) ctx.effect(() => ctx.webServer.registerUpgrade({

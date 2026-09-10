@@ -1,10 +1,38 @@
 """Fixed entrypoints. Networked acquisition never executes model-authored code."""
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
 import signal
+
+# GDAL's PGeo driver registers the MDB Tools ODBC driver the first time it opens
+# an ESRI Personal Geodatabase, which needs a writable ODBC configuration
+# directory: with the sandbox's read-only root filesystem the registration
+# itself fails ("Unable to install MDB driver for ODBC … Unable to find
+# component name"). Copy the baked registration into the writable tmpfs and
+# point unixODBC at it, so `.mdb` data stays readable without giving the
+# container a writable root.
+ODBC_TEMPLATE = "/opt/geosentinel/odbcinst.ini"
+ODBC_DIR = "/tmp/odbc"
+
+
+def prepare_odbc():
+    try:
+        os.makedirs(ODBC_DIR, exist_ok=True)
+        target = Path(ODBC_DIR, "odbcinst.ini")
+        if Path(ODBC_TEMPLATE).is_file() and not target.is_file():
+            shutil.copyfile(ODBC_TEMPLATE, target)
+        if target.is_file():
+            os.environ["ODBCSYSINI"] = ODBC_DIR
+    except OSError:
+        # Reading `.mdb` will fail later with GDAL's own message; nothing else
+        # in the sandbox depends on this.
+        pass
+
+
+prepare_odbc()
 
 
 def safe_file(root, relative):

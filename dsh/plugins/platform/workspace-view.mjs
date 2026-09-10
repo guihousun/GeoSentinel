@@ -1,6 +1,7 @@
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { isShapefileSidecar } from "./shapefile.mjs";
+import { SHARE_LABEL, listShare, shareChildren } from "./share.mjs";
 
 // The workspace on disk stays `inputs/` + `outputs/<作业ID>/` because the tools,
 // the artifact routes and the container mounts are built on it (and the storage
@@ -9,6 +10,7 @@ import { isShapefileSidecar } from "./shapefile.mjs";
 //
 //   上传的文件/     what the user handed in (project inputs, chat inputs, uploads)
 //   分析结果/       the produced files, grouped by kind, job folders hidden
+//   共享数据（只读）/ administrator-curated libraries outside the account data
 //   过程记录/       the raw per-job folders, kept for traceability
 //
 // Every virtual path resolves back to a real, ownership-checked file.
@@ -16,6 +18,7 @@ import { isShapefileSidecar } from "./shapefile.mjs";
 export const VIEW = Object.freeze({
   uploads: "上传的文件",
   results: "分析结果",
+  share: SHARE_LABEL,
   history: "过程记录",
 });
 
@@ -95,7 +98,7 @@ async function listFiles(directory, prefix = "", budget = { remaining: MAX_SCANN
  * `roots` are absolute, ownership-checked directories:
  * `{ chatRoot, inputsRoot, projectInputsRoot }`.
  */
-export async function workspaceView({ chatRoot, inputsRoot, projectInputsRoot }) {
+export async function workspaceView({ chatRoot, inputsRoot, projectInputsRoot, share = [] }) {
   const outputsRoot = path.join(chatRoot, "outputs");
   const uploads = [];
   const usedUploads = new Set();
@@ -146,7 +149,12 @@ export async function workspaceView({ chatRoot, inputsRoot, projectInputsRoot })
     list.sort((left, right) => left.display.localeCompare(right.display, "zh-Hans"));
   jobs.sort((left, right) => right.name.localeCompare(left.name, "zh-Hans"));
 
-  return { outputsRoot, uploads, grouped, jobs };
+  // Shared data library (public use-case data, boundaries, imagery, GDP, books).
+  // Read-only, and listed with its own budget so a large library cannot slow the
+  // whole explorer down.
+  const shareFiles = share.length ? (await listShare(share).catch(() => ({ files: [] }))).files : [];
+
+  return { outputsRoot, uploads, grouped, jobs, shareFiles };
 }
 
 /**
@@ -162,7 +170,8 @@ export function viewEntries(view, virtualRoot, virtualPath) {
   const dir = (name) => ({ name, path: `${base}/${name}`, isDir: true });
   const file = (name, real, size) => ({ name, path: `${base}/${name}`, isDir: false, real, size });
 
-  if (!relative) return [dir(VIEW.uploads), dir(VIEW.results), dir(VIEW.history)];
+  if (!relative) return [dir(VIEW.uploads), dir(VIEW.results),
+    ...(view.shareFiles?.length ? [dir(VIEW.share)] : []), dir(VIEW.history)];
   if (parts[0] === VIEW.uploads && parts.length === 1)
     return view.uploads.map((entry) => file(entry.name, entry.real, entry.size));
   if (parts[0] === VIEW.results && parts.length === 1)
@@ -176,6 +185,13 @@ export function viewEntries(view, virtualRoot, virtualPath) {
     const job = view.jobs.find((item) => item.name === parts[1]);
     if (!job) return [];
     return job.files.map((entry) => file(entry.relative, entry.real, entry.size));
+  }
+  if (parts[0] === VIEW.share) {
+    const children = shareChildren(view.shareFiles ?? [], parts.slice(1).join("/"));
+    return [
+      ...children.directories.map((child) => dir(child.name)),
+      ...children.files.map((entry) => file(entry.name, entry.real, entry.size)),
+    ];
   }
   return [];
 }
@@ -196,7 +212,10 @@ export function searchView(view, virtualRoot, needle) {
   if (!query) return [];
   const matches = [];
   const walk = (virtualPath, depth) => {
-    if (depth > 3 || matches.length >= 200) return;
+    // Reference libraries nest deeper than the workspace view (library → 章节 →
+    // 数据 → file), so they get a larger, still bounded, budget.
+    const limit = virtualPath.includes(VIEW.share) ? 8 : 3;
+    if (depth > limit || matches.length >= 200) return;
     for (const entry of viewEntries(view, virtualRoot, virtualPath)) {
       if (entry.isDir) {
         walk(entry.path, depth + 1);

@@ -4,9 +4,17 @@ import { fileURLToPath } from "node:url";
 import { DockerRunner } from "./docker.mjs";
 import { listEvidenceFiles, readEvidence, writeEvidence, writeReport } from "./evidence.mjs";
 import { GIS_TOOLS, GIS_TOOL_NAMES } from "./gis-tools.mjs";
+import { SHARE_PREFIX, listShare, parseShareDirs } from "../platform/share.mjs";
 
 export const name = "geosentinel-research";
 export const inject = ["tools", "geosentinelPlatform"];
+
+// Administrator-curated shared data (`GEO_SHARE_DIR` / `GEO_SHARE_DIRS`), read
+// from the same environment the platform fence uses. It is listed here so an
+// agent can find the material, read it on the host as `share/<相对路径>`, and
+// analyse it inside the container at `/workspace/share/<相对路径>`.
+const SHARE_LIBRARIES = parseShareDirs();
+const SHARE_LIST_LIMIT = 80;
 
 // A produced artifact gets a ready-to-use inline URL so the model can render it
 // in its answer with ordinary Markdown (`![图](url)`), and tables can be shown
@@ -17,7 +25,17 @@ const ARTIFACT_KINDS = new Map([
   [".csv", "table"], [".md", "text"], [".txt", "text"], [".json", "data"],
 ]);
 
-function withArtifacts(value, identity) {
+/**
+ * Attach the conversation-renderable artifact list to one tool result.
+ *
+ * Every job-relative path that matches ARTIFACT_PATH becomes an entry; allowlisted
+ * media types additionally carry `inline: true` and a same-origin `url` with
+ * `inline=1`, which is the ONLY form the chat may embed as an image or table.
+ * Exported so the producer side of that contract is unit-tested: a figure that
+ * never reaches this list cannot be shown in the conversation, no matter what the
+ * answer text says.
+ */
+export function withArtifacts(value, identity) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   const paths = new Set();
   const collect = (candidate) => {
@@ -80,7 +98,7 @@ export function apply(ctx) {
     );
   add(
     "geo_list_files",
-    "列出本对话可用的资料与产物：用户上传目录 uploads/（本对话会话工作区内的 .dsh-uploads/）、项目资料目录 inputs/ 与本对话输出目录 outputs/。路径都限定在本研究任务内。inputsRoot 是项目资料目录的绝对路径，读取项目资料（read_document/read）时用它拼接文件名——相对路径按对话工作区解析，读不到项目资料。",
+    "列出本对话可用的资料与产物：用户上传目录 uploads/（本对话会话工作区内的 .dsh-uploads/）、项目资料目录 inputs/、本对话输出目录 outputs/，以及管理员配置的共享数据库 share/（公开用例数据、已下载的全球边界与影像、GDP、参考资料等）。路径都限定在本研究任务内。inputsRoot 是项目资料目录的绝对路径，读取项目资料（read_document/read）时用它拼接文件名——相对路径按对话工作区解析，读不到项目资料。共享数据用 `share/<相对路径>` 交给 read/read_document（只读，不能写入）；同一批数据在分析容器里只读挂载在 `/workspace/share/<相对路径>`，可以直接用于计算，不必复制进项目资料。",
     {},
     async (_a, _e, id) => {
       const inputsRoot = path.join(
@@ -89,11 +107,25 @@ export function apply(ctx) {
       );
       const uploadRoot = path.join(id.root, ".dsh-uploads", id.chatId);
       const uploads = await listEvidenceFiles(uploadRoot).catch(() => []);
+      const listed = SHARE_LIBRARIES.length
+        ? await listShare(SHARE_LIBRARIES).catch(() => ({ files: [], truncated: false }))
+        : { files: [], truncated: false };
+      // Point at the generated catalog: reading one document beats opening every
+      // file to find out what the library holds.
+      const catalogs = listed.files
+        .filter((file) => file.name === "CATALOG.md")
+        .map((file) => `${SHARE_PREFIX}/${file.relative}`);
+      const share = {
+        files: listed.files.slice(0, SHARE_LIST_LIMIT).map((file) => ({ path: `${SHARE_PREFIX}/${file.relative}`, size: file.size })),
+        truncated: listed.truncated || listed.files.length > SHARE_LIST_LIMIT,
+        ...(catalogs.length ? { catalogs, hint: "先 read 这些 CATALOG.md：里面列出共享数据的类型、字段与解析方式" } : {}),
+      };
       return {
         uploads: uploads.map((name) => `.dsh-uploads/${id.chatId}/${name}`),
         inputs: await listEvidenceFiles(inputsRoot),
         outputs: await listEvidenceFiles(path.join(id.root, "outputs")),
         inputsRoot,
+        ...(SHARE_LIBRARIES.length ? { share } : {}),
       };
     },
   );
@@ -211,7 +243,7 @@ export function apply(ctx) {
   );
   add(
     "geo_execute_python",
-    "在无网络 Docker 中执行有界的 Python 地理空间分析。输入从 inputs/ 读取、上游结果从 previous/ 读取，产物写入 outputs/。不能联网、不能安装依赖、不能使用凭据。请自行校验科学假设与产物。",
+    "在无网络 Docker 中执行有界的 Python 地理空间分析。输入从 inputs/ 读取、上游结果从 previous/ 读取、管理员共享数据从 share/ 只读读取（容器内即 /workspace/share/），产物写入 outputs/。不能联网、不能安装依赖、不能使用凭据。请自行校验科学假设与产物。",
     {
       code: { type: "string", required: true },
     },

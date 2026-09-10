@@ -199,7 +199,7 @@ notepad .env
 | `GEO_RESEARCH_CONCURRENCY` / `GEO_USER_RESEARCH_CONCURRENCY` | 研究与每账号并发上限 |
 | `GEO_DOCKER_CONCURRENCY` / `GEO_USER_DOCKER_CONCURRENCY` / `GEO_DOCKER_MEMORY_MIB` | 容器并发与单容器内存（3072/4096） |
 | `GEO_MIN_FREE_DISK_MIB` | 磁盘余量保护（默认 1024） |
-| `AMAP_API_KEY` | 可选：中文地名解析；用六位 adcode 下载时不需要 |
+| `AMAP_API_KEY` | 可选：高德开放平台密钥，供外部地理服务 MCP（地址↔坐标、POI、距离、路径规划）使用；不配置则这些工具不出现 |
 | `GEO_SHARE_DIR` | 共享数据库的单一根目录；按 `share/<子路径>` 访问，只读 |
 | `GEO_SHARE_DIRS` | 共享数据库的多个命名根（`名称=路径`，`;` 分隔）；按 `share/<名称>/<子路径>` 访问，只读 |
 | `GEO_ADMIN_HOME` / `GEO_ADMIN_PWSH_PATH` | 可选：本机管理员入口 home 与 pwsh 路径 |
@@ -520,6 +520,8 @@ node scripts/monitor.mjs --translate-cache --once   # 仅重跑中文整理缓�
 - [ ] N 记录本次安装的实际版本号、镜像 ID、发布 ID，便于下次对比
 - [ ] O 外观：把 `BG1.jpg` 重新导入「管理员设置 → 外观」，确认背景图生效（§12 外观与背景图）
 - [ ] P 共享数据：`GEO_SHARE_DIR` / `GEO_SHARE_DIRS` 指向存在的目录，左栏「文件」出现只读分组「共享数据（只读）」，并且容器内 `ogrinfo /workspace/share/<…>` 能打开数据
+- [ ] Q 生成数据目录：`node dsh/tools/catalog-share.mjs --write --image geosentinel-gis:0.1` 在每个共享根写出 `CATALOG.md` + `catalog.json`（智能体读这一份就知道有什么数据、字段与解析方式）
+- [ ] R 外部地理服务：`.env` 配置 `AMAP_API_KEY` 后重启实例，确认智能体工具表里出现 `mcp__cmr__*`（无需密钥）与 `mcp__amap__*`；未配置密钥时 CMR 仍应可用
 
 ---
 

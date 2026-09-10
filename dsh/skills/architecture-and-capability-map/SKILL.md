@@ -22,7 +22,11 @@ description: Use before planning or routing any GeoSentinel task. Gives the prod
 
 GIS 与统计：`geo_inspect_vector`、`geo_validate_geodata`、`geo_clip_raster`、`geo_reproject_raster`、`geo_mosaic_rasters`、`geo_composite_ntl_rasters`、`geo_calculate_ntl_metrics_for_raster`、`geo_calculate_zonal_statistics`、`geo_analyze_ntl_trend`、`geo_detect_ntl_anomaly`、`geo_filter_points_by_polygon`、`geo_buffer_points_aeqd`、`geo_spatial_join_points_to_admin`、`geo_dissolve_intersections`。
 
-协作与阅读：`agent_teams_*`（团队与任务调度）、`ask_user_question`（仅主管）、`skill`（加载技能）、`read`/`glob`/`grep`（只读，限本对话工作区、项目资料与技能目录）、`write`/`edit`（只写本对话 `outputs/`）。
+协作与阅读：`agent_teams_*`（团队与任务调度）、`ask_user_question`（仅主管）、`skill`（加载技能）、`read`/`glob`/`grep`（只读，限本对话工作区、项目资料、共享数据与技能目录）、`write`/`edit`（只写本对话 `outputs/`）。
+
+外部地理服务（远程 MCP，结果是**外部来源**，见 `external-geo-services` 技能）：
+`mcp__amap__*`（地址↔坐标、POI、距离与路径规划，服务端持有密钥）、`mcp__cmr__*`（NASA 官方数据集/颗粒/变量/引用目录）。
+它们不替代平台观测：观测数值、统计与空间处理仍用 `geo_*` 与沙箱。
 
 每个角色的可用工具由平台角色配置限定。某个工具不在你的清单里时，不要尝试绕过或改写调用，改由主管指派合适角色。
 

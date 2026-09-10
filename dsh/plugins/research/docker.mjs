@@ -6,6 +6,20 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { RuntimeLedger } from "../platform/runtime.mjs";
 import { WorkspaceFiles } from "../platform/files.mjs";
 import { PlatformError } from "../platform/store.mjs";
+import { parseShareDirs, shareMountTarget } from "../platform/share.mjs";
+
+/** Administrator-curated shared data (`GEO_SHARE_DIRS`), read-only everywhere. */
+const SHARE_LIBRARIES = parseShareDirs();
+
+/** `--mount` entries that expose the shared data roots inside the sandbox. */
+export function shareMounts(entries = SHARE_LIBRARIES, mountOne = defaultShareMount) {
+  return entries.flatMap((entry) => mountOne(entry.root, shareMountTarget(entry)));
+}
+
+function defaultShareMount(source, target) {
+  if (source.includes(",")) throw new Error("Docker bind paths cannot contain commas");
+  return ["--mount", `type=bind,source=${source},target=${target},readonly`];
+}
 
 export function dockerMemoryMiB(value = process.env.GEO_DOCKER_MEMORY_MIB ?? 3072) {
   const memory = Number(value);
@@ -257,6 +271,13 @@ export class DockerRunner {
           "/workspace/inputs",
         ),
         ...mount(path.join(identity.root, "outputs"), "/workspace/previous"),
+        // Administrator-curated shared data, read-only inside the sandbox: the
+        // same roots an agent reads on the host as `share/<名称>/…` are visible
+        // here as `/workspace/share/<名称>/…`, so large geodata can be analysed
+        // without copying it into the project inputs. Read-only is deliberate —
+        // the container can never modify shared data, and it never gets a host
+        // path back.
+        ...shareMounts(SHARE_LIBRARIES),
       ];
       if (requiresGee || request.kind === "gis") args.push(...mount(realpathSync(this.toolkitRoot), "/opt/ntl-toolkit"), "-e", "PYTHONPATH=/opt/ntl-toolkit");
       if (requiresGee) {
