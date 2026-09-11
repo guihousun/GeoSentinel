@@ -77,3 +77,22 @@ test("插件说明与实际插件集合一致，不留下未挂载的孤儿目�
   for (const plugin of await readdir(path.join(root, "plugins"), { withFileTypes: true }).then((entries) => entries.filter((entry) => entry.isDirectory())))
     assert.ok(documentation.includes(`@geosentinel/dsh-${plugin.name}`), `plugins/README.md 必须写出 ${plugin.name} 的包名`);
 });
+
+// A release validates a container image it builds itself (`geosentinel-gis:release-<id>`)
+// and exports that digest to the instance it starts (`release/runtime.mjs`). Until
+// 2026-09-12 the research plugin ignored the export and fell back to the generic
+// `geosentinel-gis:0.1` tag, so container-side code in a validated candidate never
+// reached the jobs that measured it — a clip job's traceback still showed the pre-fix
+// `gis_dispatch.py` layout. The link is a one-line assignment with no cover of its own,
+// so it is pinned here.
+test("研究插件使用发布实例导出的容器镜像摘要，而不是通用标签", async () => {
+  const research = await read("plugins/research/index.mjs");
+  assert.match(research, /image:\s*process\.env\.GEO_GIS_IMAGE/, "plugins/research/index.mjs 必须把 GEO_GIS_IMAGE 交给 DockerRunner");
+  const runtime = await read("release/runtime.mjs");
+  assert.match(runtime, /GEO_GIS_IMAGE:\s*validation\.image/, "release/runtime.mjs 必须把候选验证的镜像摘要导出给实例");
+  // The generic tag is still the documented fallback outside a release instance
+  // (a development shell), which is why the plugin must pass `undefined` through
+  // instead of duplicating the tag.
+  const docker = await read("plugins/research/docker.mjs");
+  assert.match(docker, /image\s*=\s*"geosentinel-gis:0\.1"/, "通用镜像标签只能作为 DockerRunner 的默认值保留一处");
+});

@@ -106,7 +106,7 @@ test("the claim-evidence chain requires real sources, recorded contradictions an
   await assert.rejects(() => writeEvidence(paths, {
     filename: "x.json", topic: "t", limitations: ["l"],
     claims: [claim({ evidence: [{ kind: "dataset", stance: "supporting", source: "../../etc/passwd" }] })],
-  }), /inputs\/ 或 outputs\//);
+  }), /inputs\/<文件>/);
   await assert.rejects(() => writeEvidence(paths, {
     filename: "x.json", topic: "t", limitations: ["l"],
     claims: [claim({ evidence: [{ kind: "web", stance: "supporting", source: "https://example.org/a" }] })],
@@ -172,4 +172,62 @@ test("reports require existing scoped sources and cannot overwrite arbitrary pat
       }),
     /引用/,
   );
+});
+
+// The shared data library is a first-class source: an analysis that used a shared
+// dataset (a global boundary file, a yearly NTL raster) must be able to cite it
+// instead of copying it or citing a URL it never opened. Measured 2026-09-12 on
+// benchmark B01: the report and evidence tools rejected `share/…` with a message that
+// did not say which forms were accepted, and the case lost the platform's own zonal
+// statistics tool while the agent re-derived the numbers by hand.
+test("reports and evidence chains can cite the read-only shared library", async (t) => {
+  const root = await mkdtemp(path.join(tmpdir(), "geo-share-source-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const share = path.join(root, "library", "全球基础数据");
+  await mkdir(path.join(share, "NPP-VIIRS-LIKE-NTL"), { recursive: true });
+  await writeFile(path.join(share, "NPP-VIIRS-LIKE-NTL", "LongNTL_2020.tif"), "raster");
+  const previous = process.env.GEO_SHARE_DIRS;
+  process.env.GEO_SHARE_DIRS = `全球基础数据=${share}`;
+  t.after(() => { if (previous === undefined) delete process.env.GEO_SHARE_DIRS; else process.env.GEO_SHARE_DIRS = previous; });
+
+  const projectRoot = path.join(root, "project"), chatRoot = path.join(root, "chat");
+  await mkdir(projectRoot, { recursive: true });
+  await mkdir(path.join(chatRoot, "outputs"), { recursive: true });
+  const paths = { projectRoot, chatRoot };
+  const source = "share/全球基础数据/NPP-VIIRS-LIKE-NTL/LongNTL_2020.tif";
+
+  const report = await writeReport(paths, {
+    filename: "共享数据核查.md",
+    content: "以共享库年度栅格核算。",
+    source_paths: [source],
+  });
+  assert.deepEqual(report.source_paths, [source]);
+
+  const artifact = await writeEvidence(paths, {
+    filename: "共享数据核查.json",
+    topic: "共享数据引用",
+    limitations: ["单一年度"],
+    claims: [{
+      text: "2020 年栅格取自共享库",
+      type: "factual",
+      confidence: "high",
+      evidence: [{ kind: "dataset", stance: "supporting", source, note: "共享库年度产品" }],
+    }],
+  });
+  assert.deepEqual(artifact.sources, [source]);
+
+  // A shared file that is not there, an unknown root, and the library's own
+  // read-only rule all fail with a message that names the offending value.
+  for (const bad of [
+    "share/全球基础数据/NPP-VIIRS-LIKE-NTL/缺.tif",
+    "share/不存在的数据/x.tif",
+  ]) {
+    await assert.rejects(() => writeEvidence(paths, {
+      filename: "x.json", topic: "t", limitations: ["l"],
+      claims: [{
+        text: "t", type: "factual", confidence: "high",
+        evidence: [{ kind: "dataset", stance: "supporting", source: bad }],
+      }],
+    }), (error) => error.status === 400 && error.message.includes(bad));
+  }
 });

@@ -49,7 +49,7 @@ function invoke(args, options = {}) {
       if (watchdog) clearInterval(watchdog);
       code === 0
         ? resolve(output)
-        : reject(new Error(`Docker exited ${code}: ${output.slice(-3000)}`));
+        : reject(new Error(exitExplanation(code, options) + output.slice(-3000)));
     };
     child.on("error", (error) => { if (settled) return; settled = true; clearTimeout(timeout); if (watchdog) clearInterval(watchdog); reject(error); });
     child.on("close", (code) => finish(code ?? 1));
@@ -114,6 +114,25 @@ export function containerState(text) {
   if (!match) return null;
   return { running: match[1].toLowerCase() === "true", exitCode: Number(match[2]) };
 }
+/**
+ * Explain a container exit that produced no log of its own.
+ *
+ * A container killed for exceeding its memory limit (SIGKILL → 137) or its job
+ * timeout (SIGTERM → 143) leaves an EMPTY log, so the old message was literally
+ * "Docker exited 137: " — an agent could not tell "your data is too big for the
+ * sandbox" from "the tool is broken", and the whole turn went to guessing (measured
+ * 2026-09-12, benchmark C08: a full-window zonal statistics job was OOM-killed).
+ * Exported so the wording is unit-tested without a live daemon.
+ */
+export function exitExplanation(code, { memoryMiB, timeoutSeconds } = {}) {
+  const memory = memoryMiB ?? dockerMemoryMiB();
+  if (code === 137)
+    return `容器被强制终止（退出码 137）：通常是本次作业超过容器内存上限 ${memory} MiB，被系统 OOM 杀掉了。请先裁剪到较小范围、减少一次处理的栅格数或改成分块处理；确需更大内存时由管理员调整 GEO_DOCKER_MEMORY_MIB。`;
+  if (code === 143)
+    return `容器被终止（退出码 143）：通常是本次作业超过单次时限${timeoutSeconds ? ` ${timeoutSeconds} 秒` : ""}。请缩小范围或分批提交。`;
+  return `Docker exited ${code}: `;
+}
+
 const mount = (source, target, readonly = true) => {
   if (source.includes(","))
     throw new Error("Docker bind paths cannot contain commas");
@@ -416,6 +435,8 @@ export class DockerRunner {
         await invoke(["start", "--attach", container], {
           attach: true,
           watch: container,
+          memoryMiB: this.memoryMiB,
+          timeoutSeconds: Math.round(this.timeoutMs / 1000),
           onOutput: (chunk) => {
             log = (log + chunk).slice(-64000);
           },

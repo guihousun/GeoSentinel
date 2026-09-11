@@ -23,6 +23,7 @@ description: Use whenever a task should read or analyse material from the shared
 
 注册的 `geo_*` 工具只接受容器内相对路径，共享数据写成 `share/<相对路径>`
 （与 `inputs/`、`previous/`、`outputs/` 同一套规则）；**输出只能写 `outputs/`**。
+`geo_inspect_raster` 同样接受 `share/<根名>/<文件>`；只有不带前缀的裸文件名才由它的 `source` 参数决定根。
 
 ## 按类型怎么处理
 
@@ -30,7 +31,7 @@ description: Use whenever a task should read or analyse material from the shared
 | --- | --- | --- |
 | `.xlsx` / `.csv` | `read_document`（宿主侧）或容器内 `pandas.read_excel/read_csv` | 表注/脚注往往是口径定义，先看列名与单位 |
 | `.shp` / `.geojson` / `.gpkg` | 容器内 `ogrinfo -so`、`ogr2ogr`，或 `ogr2ogr -f GPKG` 转换后用 geopandas | 平台注册工具要求数据在容器可见路径下；`.prj` 决定坐标系 |
-| `.tif` / `.tiff` | 容器内 `gdalinfo` / `rasterio`；栅格要放进 `inputs/` 才能用 `geo_inspect_raster` | 书里插图常是**无地理参考的图片**（如 1677×955、LZW），只能当对照，不能当观测 |
+| `.tif` / `.tiff` | 容器内 `gdalinfo` / `rasterio`；`geo_inspect_raster` 直接收 `share/<相对路径>`（`source` 只对裸文件名生效） | 书里插图常是**无地理参考的图片**（如 1677×955、LZW），只能当对照，不能当观测 |
 | `.mdb`（ESRI 个人地理数据库） | **必须先转换**：`ogr2ogr -f GPKG out.gpkg "<mdb>" <图层名> [-spat 西 南 东 北]`，再用 geopandas/注册工具 | geopandas/pyogrio 自带 GDAL **不含 PGeo**，直接读会报 `not recognized as being in a supported file format`；系统 GDAL（`ogrinfo`/`ogr2ogr`）可以读 |
 | `.rar` / `.zip` | 宿主侧解压后再放入 `inputs/` 或共享根目录 | 容器内没有解压工具 |
 | 扫描版 `.pdf` | 需要 OCR；页号与印刷页常有固定偏移，引用数字前必须核对原页 | OCR 的数字与专名会有错，不能直接当结论 |
@@ -41,6 +42,8 @@ description: Use whenever a task should read or analyse material from the shared
 - **只读**：产品侧无法修改共享数据。宿主围栏只允许把模型写入落在对话自己的 `outputs/`，容器挂载是 `readonly`。
 - **引用要落到共享数据本身**：报告/证据里写清 `share/<相对路径>`（容器内路径写成 `/workspace/share/…`），
   并说明数据的年份、口径与限制；共享数据不等于平台观测，也不等于已核实结论。
+  `geo_write_report` 的 `source_paths` 与 `geo_write_evidence` 的 `evidence[].source` 都接受
+  `share/<根名>/<文件>`（只校验文件真实存在，只读引用，不会把共享库复制进项目）。
 - **容器不挂载账号数据目录**，只挂 `inputs/ outputs/ previous/ share/`；需要长期保留的中间产物放 `outputs/`。
 - 目录不会自动更新：管理员新增或调整共享数据后重新运行 `node dsh/tools/catalog-share.mjs --write`。若 `CATALOG.md`
   与目录内容不一致，以 `geo_list_files` / `ls` 的实际结果为准，并如实说明。

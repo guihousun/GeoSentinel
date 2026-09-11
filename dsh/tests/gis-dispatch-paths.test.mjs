@@ -36,16 +36,19 @@ for label, value, output in [
     ("inputs", "inputs/a.tif", False),
     ("share", "share/全球基础数据/x.tif", False),
     ("write", "outputs/out.tif", True),
+    ("bare_output", "clipped.tif", True),
+    ("share_output", "share/全球基础数据/x.tif", True),
 ]:
     try:
         out[label] = scoped_path(value, output=output, root=root).replace("\\\\", "/")
     except ValueError as error:
         out[label] = "error: " + str(error)[:100]
-try:
-    scoped_path("bad/path.tif", root=root)
-    out["rejected"] = "accepted"
-except ValueError as error:
-    out["rejected"] = str(error)
+for label, value in [("rejected", "bad/path.tif"), ("parent", "inputs/../share/x.tif"), ("absolute", "/workspace/inputs/a.tif")]:
+    try:
+        scoped_path(value, root=root)
+        out[label] = "accepted"
+    except ValueError as error:
+        out[label] = str(error)
 print(json.dumps(out, ensure_ascii=False))`;
   // PYTHONIOENCODING: without it the child writes its message in the machine's locale
   // encoding (cp936 here) and the captured text is mojibake, which would make the
@@ -61,8 +64,19 @@ print(json.dumps(out, ensure_ascii=False))`;
   assert.match(seen.inputs, /^inputs\/a\.tif$/);
   assert.match(seen.share, /^share\/.+x\.tif$/);
   assert.match(seen.write, /^outputs\/out\.tif$/);
+  // A bare file name as an OUTPUT can only mean this job's outputs directory, so it is
+  // accepted instead of costing the agent its turn (B01 lost a clip job to this on
+  // 2026-09-12); the shared library stays read-only and is still refused as an output.
+  assert.match(seen.bare_output, /^outputs\/clipped\.tif$/);
+  assert.match(seen.share_output, /^error:/);
   // An unknown root is refused WITH the accepted forms named (the old message did not
   // say what to write instead, so agents retried the same wrong path).
   assert.match(seen.rejected, /inputs\//);
   assert.match(seen.rejected, /outputs\/<作业ID>/);
+  // Every refusal names the offending value and the accepted forms — the old bare
+  // "Workspace-relative path required" left the agent guessing.
+  for (const key of ["rejected", "parent", "absolute"]) {
+    assert.match(seen[key], /的|收到/, `${key} 的错误信息应说明原因与可用形式`);
+    assert.ok(seen[key].includes("share/"), `${key} 的错误信息应列出 share/ 形式`);
+  }
 });

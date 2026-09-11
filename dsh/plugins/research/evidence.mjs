@@ -2,6 +2,7 @@ import { open, readdir, mkdir, writeFile, lstat } from "node:fs/promises";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { PlatformError, workspacePath } from "../platform/store.mjs";
+import { parseShareDirs, shareTarget } from "../platform/share.mjs";
 
 // Claim–Evidence chain: the framework's reliability core. A claim is only as
 // good as the traceable evidence behind it, and contradicting evidence must be
@@ -33,24 +34,59 @@ function oneOf(value, field, allowed, fallback) {
   return value;
 }
 
-/** Resolve one evidence source: a real workspace file, or an http(s) URL. */
+/**
+ * Resolve one agent-supplied source path to a real file, or reject it with a message
+ * that names both the offending value and the accepted forms.
+ *
+ * `share/<名称>/…` is the administrator's read-only library: it is citable but never
+ * writable, and it is resolved through the configured roots instead of the chat
+ * workspace.
+ */
+export async function resolveArtifactSource({ projectRoot, chatRoot }, value, { field = "来源" } = {}) {
+  if (typeof value !== "string" || !value.trim())
+    throw new PlatformError(400, `${field} 必须是非空文本`);
+  const source = value.trim();
+  if (/^share\//.test(source)) {
+    // The administrator's read-only shared library: an analysis built on a shared
+    // dataset (boundaries, population, yearly NTL) must be able to cite it, and the
+    // container reads the same path as `/workspace/share/<名称>/…`. Read live, so a
+    // root configured after startup is honoured.
+    const libraries = parseShareDirs();
+    const target = libraries.length ? shareTarget(libraries, source) : null;
+    if (!target)
+      throw new PlatformError(
+        400,
+        `${field} 指向的共享数据路径不可用：${source}（形如 share/<根名>/<文件>；当前${libraries.length ? "没有匹配的共享根" : "未配置共享数据"}）`,
+      );
+    const info = await lstat(target).catch(() => null);
+    if (!info) throw new PlatformError(400, `${field} 指向的共享文件不存在：${source}`);
+    if (!info.isFile()) throw new PlatformError(400, `${field} 指向的不是文件：${source}`);
+    return { kind: "file", value: source };
+  }
+  const match = /^(inputs|outputs)\/(.+)$/.exec(source);
+  if (!match)
+    throw new PlatformError(
+      400,
+      `${field} 必须是 inputs/<文件>、outputs/<文件> 或 share/<根名>/<文件> 之一，或 http(s) 链接（收到 ${JSON.stringify(source)}）`,
+    );
+  const root = path.join(match[1] === "inputs" ? projectRoot : chatRoot, match[1]);
+  // `workspacePath` keeps its own refusal (traversal, absolute paths) — swallowing it
+  // into "file not found" would hide a boundary violation behind a missing file.
+  const target = workspacePath(root, match[2]);
+  const info = await lstat(target).catch(() => null);
+  if (!info) throw new PlatformError(400, `${field} 指向的文件不存在：${source}`);
+  if (!info.isFile()) throw new PlatformError(400, `${field} 指向的不是文件：${source}`);
+  return { kind: "file", value: source };
+}
+
+/** Resolve one evidence source: a real workspace/shared file, or an http(s) URL. */
 async function resolveSource({ projectRoot, chatRoot }, source, field) {
   const value = text(source, field, 500);
   if (/^https?:\/\//i.test(value)) {
     if (value.length > 500) throw new PlatformError(413, `${field} URL 过长`);
     return { kind: "url", value };
   }
-  const match = /^(inputs|outputs)\/(.+)$/.exec(value);
-  if (!match) throw new PlatformError(400, `${field} 必须是 inputs/ 或 outputs/ 下的文件，或 http(s) 链接`);
-  const root = path.join(match[1] === "inputs" ? projectRoot : chatRoot, match[1]);
-  let info;
-  try {
-    info = await lstat(workspacePath(root, match[2]));
-  } catch {
-    throw new PlatformError(400, `${field} 指向的文件不存在：${value}`);
-  }
-  if (!info.isFile()) throw new PlatformError(400, `${field} 指向的不是文件：${value}`);
-  return { kind: "file", value };
+  return resolveArtifactSource({ projectRoot, chatRoot }, value, { field });
 }
 
 /**
@@ -280,16 +316,8 @@ export async function writeReport(
     source_paths.length > 20
   )
     throw new PlatformError(400, "报告须引用 1 至 20 个当前项目文件");
-  for (const source of source_paths) {
-    if (typeof source !== "string" || !/^(inputs|outputs)\//.test(source))
-      throw new PlatformError(400, "来源须为 inputs/ 或 outputs/ 文件");
-    const prefix = source.split("/")[0],
-      root = path.join(prefix === "inputs" ? projectRoot : chatRoot, prefix);
-    const info = await lstat(
-      workspacePath(root, source.slice(prefix.length + 1)),
-    );
-    if (!info.isFile()) throw new PlatformError(400, "来源不是文件");
-  }
+  for (const source of source_paths)
+    await resolveArtifactSource({ projectRoot, chatRoot }, source, { field: "报告来源" });
   const id = randomUUID(),
     directory = path.join(chatRoot, "outputs", id);
   await mkdir(directory);

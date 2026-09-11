@@ -72,6 +72,13 @@ export function apply(ctx) {
     ),
     geeCredentials: process.env.GEO_GEE_CREDENTIALS,
     geeProject: process.env.GEE_DEFAULT_PROJECT_ID,
+    // A release instance exports the digest of the image its own candidate built and
+    // validated (`release/runtime.mjs`). Without this the runner silently used the
+    // generic `geosentinel-gis:0.1` tag, so container-side code in a validated
+    // candidate never reached the jobs that measured it (2026-09-12: a clip job's
+    // traceback still showed the pre-fix `gis_dispatch.py` layout while the frozen
+    // candidate's image already had the fix).
+    image: process.env.GEO_GIS_IMAGE,
   });
   ctx.provide("geosentinelResearch", runner);
   void runner.ensureRecovered().catch((error) => console.error("Docker recovery pending:", error.message));
@@ -151,7 +158,7 @@ export function apply(ctx) {
   );
   add(
     "geo_write_report",
-    "保存有界的 Markdown 研究报告，引用真实存在的 inputs/ 或 outputs/ 文件。报告要写明事实性限制，并区分测试样例与真实证据。本工具不执行代码，也不修改其他产物。",
+    "保存有界的 Markdown 研究报告，引用真实存在的 inputs/、outputs/ 或 share/<根名>/ 文件。报告要写明事实性限制，并区分测试样例与真实证据。本工具不执行代码，也不修改其他产物。",
     {
       filename: { type: "string", required: true },
       content: { type: "string", required: true },
@@ -172,7 +179,7 @@ export function apply(ctx) {
   );
   add(
     "geo_write_evidence",
-    "保存结构化证据链（断言—证据矩阵）到本对话 outputs/：每条断言必须引用至少一个真实存在的 inputs/ 或 outputs/ 文件，或一个带检索时间的 http(s) 链接；只有反向或中性证据的断言必须标 confidence=low；必须写明限制与不确定性。用于研究结论的可追溯与反驳记录，不执行代码、不修改其他产物。",
+    "保存结构化证据链（断言—证据矩阵）到本对话 outputs/：每条断言必须引用至少一个真实存在的 inputs/ 文件、outputs/ 文件、share/<根名>/ 共享数据文件，或一个带检索时间的 http(s) 链接；只有反向或中性证据的断言必须标 confidence=low；必须写明限制与不确定性。用于研究结论的可追溯与反驳记录，不执行代码、不修改其他产物。",
     {
       filename: { type: "string", required: true },
       topic: { type: "string", required: true },
@@ -223,23 +230,13 @@ export function apply(ctx) {
   );
   add(
     "geo_inspect_raster",
-    "在隔离的地理计算容器中检查栅格，并统计有限有效像元的分布特征。",
+    "在隔离的地理计算容器中检查栅格，并统计有限有效像元的分布特征。路径写法与其它 GIS 工具一致：inputs/<文件>、share/<根名>/<文件>（管理员共享数据，只读）、outputs/<作业ID>/<文件>（更早作业的产物）；source 只决定不带前缀的裸文件名落在哪个根，显式前缀优先。",
     {
       path: { type: "string", required: true },
-      source: { type: "string", enum: ["inputs", "outputs"], required: true },
+      source: { type: "string", enum: ["inputs", "outputs", "share"], required: true },
     },
     (args, exec, id) =>
-      runner.run(
-        id,
-        {
-          kind: "inspect",
-          ...args,
-          path: args.path.startsWith(args.source + "/")
-            ? args.path.slice(args.source.length + 1)
-            : args.path,
-        },
-        { signal: exec.signal },
-      ),
+      runner.run(id, { kind: "inspect", ...args }, { signal: exec.signal }),
   );
   add(
     "geo_execute_python",

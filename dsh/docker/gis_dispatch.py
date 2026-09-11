@@ -25,18 +25,30 @@ def scoped_path(value, output=False, root="/workspace"):
     `root` is injectable so the accepted forms can be unit-tested outside Linux
     (`Path("/workspace")` is drive-relative on Windows and cannot be compared).
     """
+    forms = "inputs/<文件>、previous/<作业ID>/<文件>、outputs/<文件>（更早作业写成 outputs/<作业ID>/<文件>）、share/<根名>/<文件>"
     if not isinstance(value, str) or "\\" in value or ":" in value:
-        raise ValueError("Use inputs/, previous/, outputs/ or share/ relative paths")
+        raise ValueError(
+            f"路径必须是容器内的相对路径（收到 {value!r}）：可用形式 {forms}；"
+            "Windows 反斜杠、盘符和绝对路径都不接受。"
+        )
     parts = Path(value).parts
     # `share/` is the administrator's shared data library: readable input only,
     # mounted read-only, never accepted as an output target.
     readable = {"inputs", "previous", "outputs", "share"}
     if not parts or ".." in parts:
-        raise ValueError("Workspace-relative path required")
+        raise ValueError(
+            f"路径不能为空、不能含 '..'（收到 {value!r}）：可用形式 {forms}。"
+        )
     if parts[0] not in ({"outputs"} if output else readable):
         if not output and JOB_DIR.match(parts[0]):
             # A bare job directory means the earlier job's artifacts.
             parts = ("previous", *parts)
+        elif output and "/" not in value and "\\" not in value:
+            # A bare file name as an output can only mean this job's outputs
+            # directory, so accept it instead of failing a call the agent cannot
+            # disambiguate (measured 2026-09-12: a clip job lost its whole turn to
+            # "Workspace-relative path required" over `shanghai_ntl_2020_clip.tif`).
+            parts = ("outputs", *parts)
         else:
             accepted = "outputs/" if output else "inputs/, outputs/<作业ID>/, previous/ 或 share/"
             raise ValueError(

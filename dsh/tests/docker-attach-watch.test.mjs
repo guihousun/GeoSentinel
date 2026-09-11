@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { containerState, containerProcesses } from "../plugins/research/docker.mjs";
+import { containerState, containerProcesses, exitExplanation } from "../plugins/research/docker.mjs";
 
 // The attached `docker start --attach` child is the only completion signal the runner
 // used to have, and Docker Desktop occasionally loses it: a boundary job's container
@@ -34,4 +34,25 @@ test("docker top parsing detects a container with no processes", () => {
   assert.equal(containerProcesses(listing), 1);
   // Two rows plus a header, with CRLF line endings as Docker returns them on Windows.
   assert.equal(containerProcesses("UID PID\n10001 1\r\n10001 2\r\n"), 2);
+});
+
+// A container killed for exceeding its memory limit or its job timeout writes NO log,
+// so the old message was literally "Docker exited 137: " — measured on benchmark C08
+// (2026-09-12), where the agent could not tell "this raster is too big for the sandbox"
+// from "the tool is broken" and spent the turn guessing. The explanation must name the
+// cause AND the way out, and every other exit code must keep its original shape.
+test("a log-less container exit is explained instead of printed as a bare code", () => {
+  const memory = exitExplanation(137, { memoryMiB: 3072 });
+  assert.match(memory, /137/);
+  assert.match(memory, /3072 MiB/);
+  assert.match(memory, /OOM/);
+  assert.match(memory, /裁剪|分块|GEO_DOCKER_MEMORY_MIB/);
+
+  const timeout = exitExplanation(143, { timeoutSeconds: 1800 });
+  assert.match(timeout, /143/);
+  assert.match(timeout, /1800 秒/);
+
+  // A normal failure keeps the code and its log — the log is what a reader needs.
+  assert.equal(exitExplanation(1, {}), "Docker exited 1: ");
+  assert.equal(exitExplanation(2, { memoryMiB: 4096 }), "Docker exited 2: ");
 });

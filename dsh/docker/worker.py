@@ -35,19 +35,32 @@ def prepare_odbc():
 prepare_odbc()
 
 
-def safe_file(root, relative):
-    if not isinstance(relative, str) or not relative or Path(relative).is_absolute():
-        raise ValueError("A workspace-relative file is required")
-    target = (Path(root) / relative).resolve()
-    target.relative_to(Path(root).resolve())
-    return target
+# Containment is enforced by `gis_dispatch.scoped_path` for every job kind, so the
+# worker no longer keeps a second, weaker path check of its own.
+#
+# Accepted explicit path prefixes inside the sandbox. A path that carries one of
+# these is resolved by `gis_dispatch.scoped_path` (which also understands a bare job
+# directory); anything else keeps its legacy meaning as a file under `source`.
+PATH_PREFIXES = ("inputs/", "outputs/", "previous/", "share/")
 
 
 def inspect_raster(request):
     import rasterio
     import numpy as np
-    root = "/workspace/inputs" if request["source"] == "inputs" else "/workspace/previous"
-    target = safe_file(root, request["path"])
+    from gis_dispatch import JOB_DIR, scoped_path
+    source = request.get("source") or "inputs"
+    relative = request["path"]
+    if not isinstance(relative, str) or not relative:
+        raise ValueError("A workspace-relative file is required")
+    # `share/` is the administrator's read-only data library and was previously
+    # joined onto `inputs/` regardless of the path written by the agent, so a shared
+    # raster came back as "No such file or directory" for a path the agent never
+    # wrote (measured 2026-09-12, benchmark B01). Resolve every explicit prefix —
+    # and a bare earlier-job directory — with the same policy the GIS tools use.
+    if not relative.startswith(PATH_PREFIXES) and not JOB_DIR.match(relative):
+        # `source` is the legacy way to say where a bare file name lives.
+        relative = {"outputs": "outputs/", "share": "share/"}.get(source or "inputs", "inputs/") + relative
+    target = Path("/workspace", scoped_path(relative))
     with rasterio.open(target) as src:
         # Windowed accumulation avoids loading country-scale rasters into memory.
         count, total, low, high = 0, 0.0, float("inf"), float("-inf")
