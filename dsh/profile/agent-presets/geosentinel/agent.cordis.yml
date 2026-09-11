@@ -9,9 +9,10 @@
 # supervisor's whole surface and can spawn a grandchild no role restriction
 # covers. Presets have no include/override mechanism, so the only way to change
 # a row is to own the file. Deviations from the shipped composition are exactly
-# three, each marked DISABLED in place with its reason: no host shell, no vendor
-# fan-out orchestration, and a platform-facing persona line instead of the
-# coding-agent one. Everything else is the vendor's composition unchanged.
+# four, each marked in place with its reason: no host shell, no vendor fan-out
+# orchestration, no 0.1.5-only inert row, and a platform-facing persona line
+# instead of the coding-agent one. Everything else is the vendor's composition
+# unchanged.
 #
 # This file is an AGENT-PLANE composition. The roster mounts it ONCE under a
 # standing scope; every session naming it joins by scope parentage, so the
@@ -322,5 +323,13 @@
     fetch: true
     searchTimeoutMs: 60000
 
+# DISABLED: `@deepseek-ai/dsh-tool-present` exists only on the 0.1.5 line, and the product
+# never exposes it anyway (it is outside the platform allowlist, so `tools.restrict` drops it
+# from every agent's list — measured: absent from the supervisor's 57 tools). Its package name
+# resolves against the INSTALLED harness, so on the 0.1.2 install this row is unresolvable and
+# the roster marks the whole preset broken (`row "present" names a plugin that cannot be
+# resolved`), which would take the product's default composition with it whenever the product
+# is run from source on that line. One inert row is not worth that failure mode.
 - id: present
   name: '@deepseek-ai/dsh-tool-present'
+  disabled: true

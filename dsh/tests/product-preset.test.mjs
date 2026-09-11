@@ -15,6 +15,10 @@ const ROLE_OF_TOOL = Object.fromEntries(Object.entries(ROLE_DELEGATION).map(([ro
 // Rows the vendor composition enables (or leaves inert) that this product must not
 // expose, each carrying its reason in the file itself.
 const MUST_STAY_DISABLED = ["tool-bash", "tool-pwsh", "workflow-worker-thread", "tool-workflow", "tool-ralph"];
+// A row whose plugin package exists only on one line. `present` is inert for the product
+// (outside the allowlist), but its unresolved name makes the roster report the whole preset
+// broken on an install that lacks it, so it stays off.
+const DISABLED_FOR_PACKAGING = ["present"];
 const NEVER_ENABLED_TOOL_NAMES = ["subagent", "subagent_fork", "subagent_codex", "subagent_claude_code"];
 
 // The product owns its agent preset because agents join their PARENT's preset: a
@@ -84,6 +88,16 @@ test("the product preset disables host shell and vendor fan-out orchestration", 
   for (const row of enabled(rows)) {
     assert.ok(row.name !== "@deepseek-ai/dsh-tool-bash" && row.name !== "@deepseek-ai/dsh-tool-pwsh",
       `${row.id} 不得启用宿主机 shell`);
+  }
+});
+
+test("the product preset stays resolvable on an install that lacks one line's packages", async () => {
+  const rows = flatten(parseProfile(await readFile(PRESET, "utf8")));
+  for (const id of DISABLED_FOR_PACKAGING) {
+    const row = rows.find((candidate) => candidate.id === id);
+    assert.ok(row, `preset 缺少 ${id} 行`);
+    assert.equal(row.disabled, true,
+      `${id} 只存在于一条内核线，启用后另一条线上会把整个 preset 判为 broken`);
   }
 });
 
