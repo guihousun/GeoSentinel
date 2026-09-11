@@ -1,16 +1,16 @@
-# 地缘环境智能计算基准（30 例）
+# 地缘环境智能计算基准（31 例）
 
 ## 来源与范围
 
 工作区内没有 NTL-GPT 的 200 例原始集（`evaluations/` 只有 9 例回归清单，位于
 `.ntl-gpt/skills/ntl-regression-evaluation/references/regression-checklist.json`）。
 本基准以该清单中与地缘环境智能计算相关的题型为种子（GEE 路由、数据集选型、
-首夜/时区、失败语义、文件管理、服务端统计），再补充平台典型场景，共 30 例：
+首夜/时区、失败语义、文件管理、服务端统计），再补充平台典型场景，共 31 例：
 
 | 档位 | 例数 | 考查重点 |
 | --- | --- | --- |
 | 基础 | 10 | 单步/两步；工具、产物、关键词明确 |
-| 进阶 | 10 | 多步或多角色；真实获取 + 统计 + 证据链 |
+| 进阶 | 11 | 多步或多角色；真实获取 + 统计 + 证据链（A11 为共享边界库取用与来源声明） |
 | 挑战 | 10 | 口径、时区、归因、无数据、来源冲突；重点看是否如实报告限制 |
 
 每例在 `cases.json` 中声明 `expect.tools / artifacts / keywords / forbidden`，
@@ -82,7 +82,7 @@ node dsh/benchmark/run.mjs --base http://127.0.0.1:8513 --preview-token <token> 
 - 默认准入（每账号 2 个研究对话、2 个 Docker 作业）才是产品策略，已有单测覆盖（`tests/admission.test.mjs`）；
   放宽只用于跑批，不要写进正式 `.env`。
 - 其他有效手段：给 Docker Desktop 更多 CPU/内存；不要重跑已通过的用例（报告按 id 合并、后写覆盖，`--only` 只跑缺的）；
-  日常回归只跑 6–8 例 smoke 子集（三档各取 2–3 例），完整 30 例留给正式验收；GEE 走可用代理。
+  日常回归只跑 6–8 例 smoke 子集（三档各取 2–3 例），完整 31 例留给正式验收；GEE 走可用代理。
 - **不要**用 `--timeout` 压缩预算换速度，也不要用更小模型或改写提示词：前者把长用例截断成假失败，后者换了被测对象。
 
 ## 输出
@@ -108,6 +108,12 @@ node dsh/benchmark/run.mjs --base http://127.0.0.1:8513 --preview-token <token> 
   队列等待不计入单例预算，避免把平台资源策略误判为失败。
 - Windows 上 Docker Desktop 的绑定挂载偶尔返回 `EIO`。执行器把它记为环境错误；
   产品侧已对容器启动失败与错误信封各做一次带退避的重试。
+- **容器"中间态"会空耗预算**：Docker Desktop 有两种收尾故障——(a) 容器已停但宿主没收到
+  `docker start --attach` 的 close 事件；(b) `docker inspect` 仍报 `Running=true` 却没有
+  任何进程（`docker top` 为空、`docker exec` 答 "cannot exec in a stopped state"）。
+  两者都会让作业一直 `running` 直到 30 分钟超时（2026-09-12 实测 13–24 分钟）。
+  产品侧现已同时看 `inspect` 与 `docker top` 判定结束；跑批时若仍遇到，可用
+  `node dsh/.runtime/watch-limbo.mjs <预览home>` 观察"无进程 → 收口"的间隔。
 - 预览实例的 home 目录曾放在发布目录内部，深路径会让容器写入持续 `EIO`；
   现已改为发布目录旁的独立 `previews/` 短路径。用旧布局跑出的失败不能当作
   平台能力结论。
