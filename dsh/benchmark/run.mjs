@@ -140,12 +140,14 @@ async function runCase(item, projectId) {
   const queuedSince = Date.now();
   let activeStart = 0;
   const tools = new Set();
+  const callNames = new Map();
   const errors = new Set();
   const unanswered = new Set();
   const answered = new Set();
   const answerAttempts = new Map();
   let unblocks = 0;
   let text = "", approvals = 0, idle = 0, lastLength = -1, planSeen = false;
+  let turns = 0, steps = 0;
   // A staged plan ends its turn before the approved execution begins, so an
   // idle poll right after approval must not be read as completion.
   let lastSeq = 0, lastAssistantSeq = 0, approvedSeq = -1, scannedSeq = -1;
@@ -165,8 +167,19 @@ async function runCase(item, projectId) {
       // Each poll returns the whole history: only events newer than the last scan
       // may be recorded, or one tool error would be counted on every poll.
       if (typeof event.seq === "number" && event.seq <= scannedSeq) continue;
-      if (event.type === "tool/call" && event.data?.name) tools.add(event.data.name);
-      if (event.type === "tool/result" && event.data?.message?.content?.[0]?.isError) errors.add("tool-error");
+      if (event.type === "tool/call" && event.data?.name) {
+        tools.add(event.data.name);
+        // native-history replaces a failing tool's message with a fixed sentence, so
+        // the failing tool can only be named by correlating the result's callId with
+        // the call event that preceded it.
+        if (event.data.callId) callNames.set(event.data.callId, event.data.name);
+      }
+      if (event.type === "tool/result" && event.data?.message?.content?.[0]?.isError) {
+        const callId = event.data?.message?.source?.callId;
+        errors.add("tool-error:" + (callNames.get(callId) ?? callId ?? "未知"));
+      }
+      if (event.type === "step/end") steps++;
+      if (event.type === "turn/end") turns++;
       if (event.type === "assistant/message") {
         if (typeof event.seq === "number") lastAssistantSeq = Math.max(lastAssistantSeq, event.seq);
         const parts = (event.data?.message?.content ?? []).filter((part) => part.type === "text").map((part) => part.text);
@@ -229,7 +242,7 @@ async function runCase(item, projectId) {
         // recorded user decision, not a fabricated method answer.
         if (unblocks < maxUnblocks) {
           unblocks++;
-          errors.add("unblock-prompt:" + unblocks);
+          errors.add("unblock-prompt:" + unblocks + "@seq" + lastSeq);
           await call(`/chats/${chatId}/prompt`, "POST", { text: UNBLOCK_PROMPT }).catch((error) => errors.add("unblock:" + error.message));
           idle = 0;
           continue;
@@ -246,6 +259,9 @@ async function runCase(item, projectId) {
   // too; the supervisor's own session alone would under-report the platform.
   const delegated = await collectSubagentTools(chatId);
   return { chatId, tools: [...new Set([...tools, ...delegated.tools])].sort(), ownTools: [...tools].sort(), subagents: delegated.members,
+    // Turns/steps and the seq of each nudge let a reader separate "the model stopped
+    // early and a real user would have said continue" from "the case hit its budget".
+    turns, steps,
     // Machine-readable counterparts of the two budget errors: a reader must be able
     // to tell "ran out of budget" from "finished and missed a check" without parsing
     // the error strings (summarize.mjs renders them as 预算用尽 / 排队超时).
