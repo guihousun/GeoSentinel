@@ -370,6 +370,28 @@
       "timeoutMinutes": 30
     },
     {
+      "id": "A11",
+      "tier": "进阶",
+      "title": "共享边界库取用与来源声明",
+      "prompt": "共享数据目录里已经放好了全球各国各等级行政边界（先看共享数据的 CATALOG.md）。请只用共享数据里的文件，不要再下载边界：取缅甸（Myanmar）的一级行政区（ADM1）边界，统计要素数量与总面积，输出一个 CSV 和一段 Markdown 说明；说明里必须写出你用的是哪个共享文件路径，以及该数据记录的许可与代表年份。",
+      "expect": {
+        "tools": [
+          "geo_execute_python"
+        ],
+        "keywords": [
+          "geoBoundaries",
+          "许可|License|署名",
+          "ADM1|一级行政区"
+        ],
+        "forbidden": [
+          "官方权威界线",
+          "无法读取共享"
+        ]
+      },
+      "timeoutMinutes": 30,
+      "clarify": "first"
+    },
+    {
       "id": "C01",
       "tier": "挑战",
       "title": "超大范围下载失败语义",

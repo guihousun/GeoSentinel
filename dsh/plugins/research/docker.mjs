@@ -59,6 +59,14 @@ function invoke(args, options = {}) {
     // the case's 30-minute budget (the attach stream never even produced the log
     // file, which is written only after this promise settles). Ask the daemon for the
     // container's real state and finish as soon as it is no longer running.
+    //
+    // A second shape of the same stall: the daemon can report `Running=true` with a
+    // PID while the container has NO processes left (`docker top` empty, `docker exec`
+    // answers "cannot exec in a stopped state"). That happened to a failed GIS job on
+    // 2026-09-12 — the worker had already raised and exited, so `State.Running` alone
+    // would have waited the full timeout. Two consecutive empty process listings mean
+    // the work is over, whatever the state field says.
+    let emptySamples = 0;
     let watchdog = options.watch
       ? setInterval(async () => {
           if (settled) return;
@@ -68,10 +76,32 @@ function invoke(args, options = {}) {
           if (state && !state.running) {
             child.kill();
             finish(state.exitCode);
+            return;
+          }
+          if (state?.running) {
+            const processes = containerProcesses(
+              await invoke(["top", options.watch], { timeoutMs: 15000 }).catch(() => ""),
+            );
+            emptySamples = processes === 0 ? emptySamples + 1 : 0;
+            if (emptySamples >= 2) {
+              child.kill();
+              finish(state.exitCode);
+            }
           }
         }, options.pollMs ?? 5000)
       : null;
   });
+}
+
+/**
+ * Count the processes `docker top` reports (0 rows = nothing running inside).
+ * Exported for the watchdog's unit test; a header-only answer is the limbo state the
+ * daemon leaves behind when it never reaped a finished container.
+ */
+export function containerProcesses(text) {
+  return String(text ?? "")
+    .split(/\r?\n/)
+    .filter((line) => line.trim() && !/^\s*UID\s+PID/.test(line)).length;
 }
 
 /**

@@ -32,12 +32,13 @@ class _KnownVectorFailure(Exception):
         self.error = error
 
 
-def _fail(code: str, message: str, *, details: dict[str, Any] | None = None) -> None:
+def _fail(code: str, message: str, *, details: dict[str, Any] | None = None, suggestion: str | None = None) -> None:
     raise _KnownVectorFailure(
         ToolError(
             code=code,
             message=message,
             details=details or {},
+            suggestion=suggestion,
         )
     )
 
@@ -70,14 +71,31 @@ def _resolve_output_path(path: str | Path) -> Path:
     return reserve_output_path(requested)
 
 
-def _require_columns(frame: pd.DataFrame, columns: list[str]) -> None:
-    for column in columns:
-        if column not in frame.columns:
-            _fail(
-                "COLUMN_NOT_FOUND",
-                f"Required column '{column}' was not found.",
-                details={"column": column},
-            )
+def _require_columns(frame: pd.DataFrame, columns: list[str], parameters: list[str] | None = None) -> None:
+    """Refuse a frame that lacks a required column, and say how to fix it.
+
+    The bare "Required column 'iso3' was not found" cost real time in the 2026-09-12
+    benchmark: the platform's own shared boundary library (geoBoundaries) names its ISO
+    column `shapeISO`, and `spatial_join_points_to_admin` defaults to `iso3`, so the
+    agent had no way to see WHICH parameter to set or which names the layer does carry.
+    Naming both turns a dead end into one edit.
+    """
+    for index, column in enumerate(columns):
+        if column in frame.columns:
+            continue
+        available = [str(name) for name in list(frame.columns)[:20]]
+        parameter = parameters[index] if parameters and index < len(parameters) else None
+        listed = "、".join(available) if available else "(无字段)"
+        if parameter:
+            suggestion = f"该图层没有 {column!r} 字段：用参数 {parameter} 指定它实际使用的字段名。可用字段：{listed}"
+        else:
+            suggestion = f"确认输入图层包含 {column!r} 字段。可用字段：{listed}"
+        _fail(
+            "COLUMN_NOT_FOUND",
+            f"Required column '{column}' was not found.",
+            details={"column": column, "parameter": parameter, "available": available},
+            suggestion=suggestion,
+        )
 
 
 def _parse_radius_km(raw_value: Any) -> float:
@@ -150,7 +168,7 @@ def _read_points(path: str | Path, lon_col: str, lat_col: str) -> gpd.GeoDataFra
         return points
 
     frame = pd.read_csv(input_path, encoding="utf-8-sig")
-    _require_columns(frame, [lon_col, lat_col])
+    _require_columns(frame, [lon_col, lat_col], ["lon_col", "lat_col"])
     frame = frame.copy()
     frame[lon_col] = pd.to_numeric(frame[lon_col], errors="coerce")
     frame[lat_col] = pd.to_numeric(frame[lat_col], errors="coerce")
@@ -291,7 +309,7 @@ def spatial_join_points_to_admin(
         points = _read_points(points_path, lon_col, lat_col)
         points_crs = points.crs
         admin = _read_vector(admin_path)
-        _require_columns(admin, [admin_name_col, admin_iso_col])
+        _require_columns(admin, [admin_name_col, admin_iso_col], ["admin_name_col", "admin_iso_col"])
         keep = ["geometry", admin_name_col, admin_iso_col]
         projected_points = points if points.crs == admin.crs else points.to_crs(admin.crs)
         joined = gpd.sjoin(

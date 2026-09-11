@@ -299,7 +299,43 @@ def test_missing_required_columns_returns_column_not_found(
     assert result.status == "failed"
     assert result.error is not None
     assert result.error.code == "COLUMN_NOT_FOUND"
-    assert result.error.details == {"column": "lon"}
+    # The failure must name the parameter to change and the columns the layer does
+    # carry: the bare "Required column 'iso3' was not found" sent an agent in circles
+    # when the platform's own shared boundary library (geoBoundaries) names that column
+    # `shapeISO` (2026-09-12 benchmark).
+    assert result.error.details["column"] == "lon"
+    assert result.error.details["parameter"] == "lon_col"
+    assert "longitude" in result.error.details["available"]
+    assert result.error.suggestion and "lon_col" in result.error.suggestion
+    assert "longitude" in result.error.suggestion
+
+
+def test_join_reports_how_to_point_at_the_layers_iso_column(
+    point_features_geojson_path: Path,
+    admin_polygons_path: Path,
+    runtime_workspace: Path,
+) -> None:
+    """A geoBoundaries layer uses `shapeISO`, not the default `iso3`."""
+    import geopandas as gpd
+
+    frame = gpd.read_file(admin_polygons_path)
+    renamed = frame.rename(columns={"iso3": "shapeISO"})
+    alternative = runtime_workspace / "inputs" / "admin_shapeiso.geojson"
+    renamed.to_file(alternative, driver="GeoJSON")
+
+    result = spatial_join_points_to_admin(
+        point_features_geojson_path,
+        alternative,
+        Path("outputs") / "joined_shapeiso.geojson",
+    )
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert result.error.code == "COLUMN_NOT_FOUND"
+    assert result.error.details["parameter"] == "admin_iso_col"
+    assert "shapeISO" in result.error.details["available"]
+    assert "admin_iso_col" in (result.error.suggestion or "")
+    assert "shapeISO" in (result.error.suggestion or "")
 
 
 def test_invalid_radius_returns_invalid_parameter_and_no_partial_output(

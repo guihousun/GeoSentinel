@@ -127,6 +127,28 @@ B09 尤其说明问题：一个**纯定义题**（"ANTL 与 TNTL 分别是什么
   解析函数 `containerState` 单独导出并用单测固定（空输出/报错文本一律视为"未知"，绝不把垃圾输入
   当成"已结束"——那会把正在跑的作业误判为完成）。
 
+### D7 容器停在"守护进程未回收"的中间态，`State.Running` 判据失效（D6 的盲区）
+
+- 现场（修复版候选 `5b4651d9be7ede8e` 的预览上，A10 的 `gis spatial_join_points_to_admin`）：
+  worker 早已抛错（容器日志 `ValueError: {'code': 'COLUMN_NOT_FOUND', …}`），但
+  `docker inspect` 报 `Status=running Running=true pid=20313`、`docker top` **没有任何进程**、
+  `docker exec` 答 `cannot exec in a stopped state`、作业 12 分钟仍为 `running`。
+- 也就是说：容器其实已经没有进程，Docker 却没把它标记为 exited，于是 **D6 的 `State.Running` 看护
+  也判定不了结束**，只能等满 30 分钟超时（再次吃掉用例预算）。D6 那例是"容器已停但 host 没收到
+  close"，这一例是"容器既没进程也没被回收"——两种形态都会空耗预算。
+- **修法**：看护除 `inspect` 之外再取 `docker top`，**连续两次没有进程**即按当前退出码结算；
+  解析函数 `containerProcesses` 单独导出并单测（只有表头/空输出算 0，真实进程行必须 >0）。
+
+### D8 空间连接工具的错误不可执行：没说该改哪个参数、图层里有什么字段
+
+- 现场：`spatial_join_points_to_admin` 默认要求 `iso3`，而平台自己的共享边界库（geoBoundaries）
+  用的是 `shapeISO`；错误只有一句 `Required column 'iso3' was not found.`、`suggestion: None`，
+  agent 无从知道该设 `admin_iso_col` 还是换数据（A10 因此失败，并触发上面的 D7）。
+- **修法**：`vector.py` 的 `_fail` 支持 `suggestion`，`_require_columns` 明确写出**要改哪个参数**
+  以及**该图层实际有哪些字段**（`details` 同时带 `column`/`parameter`/`available`）；点表与行政区
+  两处调用点都带上参数名。新增单测固定"geoBoundaries 用 `shapeISO`"的场景，并把原先只断言
+  `details == {"column": "lon"}` 的旧用例更新到新契约。
+
 ## 4. 用例修正（基准维护，不是平台缺陷）
 
 - **C06 前提有误**：原题假设"北纬 25–26°、东经 122–124° 海域无数据"，实测该范围内有

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { containerState } from "../plugins/research/docker.mjs";
+import { containerState, containerProcesses } from "../plugins/research/docker.mjs";
 
 // The attached `docker start --attach` child is the only completion signal the runner
 // used to have, and Docker Desktop occasionally loses it: a boundary job's container
@@ -17,4 +17,21 @@ test("container state parsing drives the attach watchdog", () => {
   // live job short, which is worse than the stall this watchdog removes.
   for (const value of ["", "  ", "Error: No such object: geosentinel-x", "true", "running 0", "false -1", null, undefined])
     assert.equal(containerState(value), null, JSON.stringify(value));
+});
+
+// The second stall shape: the daemon says the container is running while nothing is
+// alive inside it (`docker top` returns a header only). The watchdog needs two
+// consecutive empty samples, so the counter must treat a header-only answer as 0 and a
+// real listing as >0.
+test("docker top parsing detects a container with no processes", () => {
+  assert.equal(containerProcesses("UID                 PID                 PPID                C                   STIME               TTY                 TIME                CMD\n"), 0);
+  assert.equal(containerProcesses(""), 0);
+  assert.equal(containerProcesses("  \n \n"), 0);
+  const listing = [
+    "UID                 PID                 PPID                C                   STIME               TTY                 TIME                CMD",
+    "10001               20313               20291               0                   19:03               ?                   00:00:00            python /opt/geosentinel/worker.py",
+  ].join("\n");
+  assert.equal(containerProcesses(listing), 1);
+  // Two rows plus a header, with CRLF line endings as Docker returns them on Windows.
+  assert.equal(containerProcesses("UID PID\n10001 1\r\n10001 2\r\n"), 2);
 });
