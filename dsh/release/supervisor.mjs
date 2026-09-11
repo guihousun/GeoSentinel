@@ -1,3 +1,4 @@
+import { launchCompatibleRelease } from "./compatible-runtime.mjs";
 import { releaseGate } from "./preflight.mjs";
 import { readFileSync } from "node:fs";
 import { atomicJson } from "./manager.mjs";
@@ -25,7 +26,7 @@ export async function runProduct(root, args) {
   }
   let child, stopping = false, switching = false;
   const start = async (id) => {
-    child = await launchRelease(manager, id, { home, args: options.args });
+    child = await launchCompatibleRelease(manager, id, { home, args: options.args });
     child.on("error", (error) => console.error("发布实例启动失败：", error.message));
     child.on("message", (message) => { if (message?.type === "geosentinel:release-ready") void changeVersion(); });
     child.on("exit", (code) => { if (!switching && !stopping) { console.error("正式服务退出：", code); process.exitCode = code || 1; } });

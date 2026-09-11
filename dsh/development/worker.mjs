@@ -1,3 +1,5 @@
+import { migrateBundleInserts } from "./bundle-compat.mjs";
+import { migrateUploadBundle, migrateLegacyTeams } from "./upload-compat.mjs";
 import { mkdirSync, writeFileSync, existsSync, lstatSync, symlinkSync, realpathSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -25,6 +27,9 @@ for (const [name, target] of [
   else symlinkSync(target, destination, process.platform === "win32" ? "junction" : "dir");
 }
 for (const [name, content] of Object.entries(seeds)) if (name !== "settings.yaml" && !existsSync(path.join(profile, name))) writeFileSync(path.join(profile, name), content, { flag: "wx" });
+migrateLegacyTeams(profile);
+migrateUploadBundle(profile, root);
+migrateBundleInserts(profile, root);
 const overlay = path.join(profile, "gateway.patch.yml");
 writeFileSync(overlay, overlayText);
 const env = { ...process.env, DSH_HOME: home };

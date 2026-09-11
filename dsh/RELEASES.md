@@ -84,3 +84,16 @@ node tools/release.mjs generate-preview --publish --by agent --authorization "�
 发布在写 pending 之前校验：同一候选的验收记录（最长1小时）、冻结文件与当前源码、构建成功、安装版本、控制器15秒内心跳及其版本兼容、旧版回滚快照可校验。控制器收到切换通知后再检查验收与授权。重新验收失败会作废旧验收证据。普通操作无法用 previewed 标记绕过门槛。
 
 使用旧发布控制器时会在停服前拒绝发布，提示维护升级；新代码不会自行替换正在运行的旧控制器。当前已有8511实例仍需单独维护发布后才能显示新按钮。计算机重启或源码编辑不会自动发布。升级控制器、停止正式服务仍遵循运维授权，不属于普通预览操作。
+
+
+### 正式重启入口
+
+```powershell
+pwsh -NoProfile -File "D:\GeoSentinel-DSH\dsh\scripts\restart.ps1" -Port 8511
+# 只预检，不停止进程
+pwsh -NoProfile -File "D:\GeoSentinel-DSH\dsh\scripts\restart.ps1" -Port 8511 -CheckOnly
+```
+
+默认端口8511。核对冻结版本和进程归属，停止本实例及其控制器，然后独立后台启动并检查健康状态中的版本ID。发布切换期间拒绝重启；重启会中断正在执行的任务，请等任务结束。历史与用户数据保留。兼容回滚逻辑位于release/compatible-runtime.mjs，只允许启动曾发布的旧版，并先验证其快照。
+
+.runtime仅保存日志与运行数据，不再存放日常运维所依赖的实现。旧restart-published.ps1只作为正式脚本的兼容转发入口。日志为.runtime/server.log和.runtime/server-error.log。

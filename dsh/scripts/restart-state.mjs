@@ -1,0 +1,14 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { ReleaseManager } from "../release/manager.mjs";
+const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const envFile = process.env.GEO_ENV_FILE || path.join(root, ".env");
+if (fs.existsSync(envFile)) process.loadEnvFile(envFile);
+const home = path.resolve(process.env.GEO_DSH_HOME || path.join(root, ".runtime/home"));
+const manager = new ReleaseManager(path.dirname(root), process.env.GEO_RELEASE_DIR || path.join(home, "releases"));
+const state = await manager.state();
+if (state.pending) throw new Error("发布切换中，请等待完成后重启");
+if (!state.active) throw new Error("尚无正式发布版本，请先完成首次部署");
+await manager.verify(state.active);
+console.log(JSON.stringify({ id: state.active, home, directory: path.resolve(manager.directory) }));

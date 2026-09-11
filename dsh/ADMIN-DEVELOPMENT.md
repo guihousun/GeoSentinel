@@ -76,3 +76,13 @@ GeoSentinel 的 platform、research、workbench 插件在开发进程内采用�
 - 研究发布会等待普通任务和已运行的管理员开发任务结束；开发完成后再发布，不把发布作为终止任务的手段。
 
 实现入口：`development/access.mjs`、`development/gateway.mjs`、`development/worker.mjs`、`plugins/developer/`。传输适配仅在管理员页面生效，不修改安装的上游 DSH 代码。
+
+
+### 开发入口就绪判定
+
+开发工作进程必须等 `sessionController`、`workspaceRegistry`、`fileUploads` 全部激活后才发送就绪消息；监听端口打开或通用插件加载完成不能代替会话能力就绪。避免首次进入时出现 `active Service "sessionController" is unavailable`。
+
+
+DSH 0.1.5 自带 `file-upload` 条目。第三方 `dsh-file-upload` 在管理员 profile 中改用 `geo-file-upload` 条目加载，不能同时直接启用其同名 bundle。开发启动器会备份并迁移此冲突配置，保留插件、原生上传和会话数据。
+
+旧 `@nanmicoder/dsh-agent-teams` bundle 不再挂入0.1.5管理员开发实例；启动器备份其配置后停用该旧bundle，保留安装文件与历史，使用DSH原生委派机制。

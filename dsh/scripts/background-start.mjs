@@ -1,0 +1,14 @@
+import fs from "node:fs";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const port = Number(process.argv[2] ?? 8511);
+if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid port");
+fs.mkdirSync(path.join(root, ".runtime"), { recursive: true });
+const out = fs.openSync(path.join(root, ".runtime/server.log"), "a");
+const err = fs.openSync(path.join(root, ".runtime/server-error.log"), "a");
+const child = spawn(process.execPath, [path.join(root, "scripts/start.mjs"), "--port", String(port), "--no-open"], { cwd: root, detached: true, windowsHide: true, stdio: ["ignore", out, err] });
+child.once("error", error => { console.error(error.message); process.exitCode = 1; });
+child.once("spawn", () => { child.unref(); console.log(`GeoSentinel launcher PID: ${child.pid}`); });
+fs.closeSync(out); fs.closeSync(err);

@@ -1,3 +1,4 @@
+import { announceDevelopmentReady } from "./readiness.mjs";
 import path from "node:path";
 import { readFileSync } from "node:fs";
 import { capabilityCatalog } from "../platform/catalog.mjs";
@@ -90,9 +91,7 @@ export function apply(ctx) {
   ctx.effect(() => ctx.webServer.register({ kind: "prefix", path: "/geo/api/development/capabilities", handler: capabilities }));
   ctx.inject(["systemPrompt"], (inner) => inner.systemPrompt.section({ name: "geosentinel:development", order: 100,
     text: () => `You are developing GeoSentinel through its administrator mode. Product source: ${process.env.GEO_ADMIN_DEV_SOURCE}. Reuse the native DSH UI and plugin APIs. Edit GeoSentinel product source and dsh/profile for user-facing changes, not installed upstream dependencies or frozen release snapshots. Native settings belong to this administrator's development home. Read dsh/ADMIN-DEVELOPMENT.md and dsh/RELEASES.md before publishing. Do not copy administrator credentials or host privileges into the ordinary-user profile. Product changes require explicit validated publication; never claim that a source edit is already deployed.` }));
-  const ready = () => process.send?.({ type: "geosentinel:development-ready", url: ctx.connection.authenticatedUrl(`http://127.0.0.1:${ctx.webServer.port}`) });
-  const settled = ctx.get("loader")?.await();
-  if (settled) settled.then(ready, () => {}); else ready();
+  announceDevelopmentReady(ctx, (message) => process.send?.(message));
   const status = setInterval(() => { if (process.connected) process.send({ type: "geosentinel:development-state", running: (ctx.get("agents")?.roots() ?? []).some((agent) => agent.status === "running") || Boolean(ctx.get("geosentinelResearch")?.running.size) }); }, 1000); status.unref();
   let ending = false;
   const stop = async () => {
