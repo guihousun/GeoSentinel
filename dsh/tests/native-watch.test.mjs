@@ -263,6 +263,17 @@ test("a re-titled chat does not stale the feed or the panel", async () => {
   const listed = await services["remote"].workspaceFiles.list("s1", "/");
   assert.equal(listed.ok, true, `改标题后 list 必须自愈（实际 ${JSON.stringify(listed)}）`);
   assert.ok(listings.some((path) => path === root), "list 必须用新根重新列目录");
+
+  // An address the panel already holds from before the rename is rebased onto the new root:
+  // the tail names the same entry inside this session's own view.
+  const stale = "/工作区/变更流/报告.md";
+  const read = await services["remote"].workspaceFiles.stat("s1", stale);
+  assert.equal(read.ok, true, `旧地址必须重定位而不是报“超出工作区”（实际 ${JSON.stringify(read)}）`);
+  assert.equal(read.value.absolutePath, `${root}/报告.md`);
+  // A path that is not of the workspace shape stays refused.
+  const refused = await services["remote"].workspaceFiles.stat("s1", "/etc/passwd");
+  assert.equal(refused.ok, false);
+  assert.match(refused.error.message, /路径无效|超出工作区/);
   controller.abort();
 });
 

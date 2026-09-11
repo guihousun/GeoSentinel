@@ -387,6 +387,19 @@ window.__ModuleLoader__.load({
         if (value.includes("\0") || value.includes("\\")) throw new Error("文件路径无效");
         return value;
       }
+      // An address issued before a chat was re-titled: `/工作区/<旧标题>/<tail…>`. The host builds
+      // the root as `/工作区/${safeSegment(title)}` — one segment, since the title is sanitised —
+      // so dropping that segment keeps the group/file tail that names the same entry inside the
+      // session's own view. Anything that is not of that shape (a path outside the view entirely)
+      // is still refused, and a tail that belongs to another session would merely be resolved
+      // inside THIS session by the ownership-checked host route.
+      function rebasedTail(value, root) {
+        const marker = root.slice(0, root.indexOf("/", 1) + 1);
+        if (marker.length < 2 || !value.startsWith(marker)) return undefined;
+        const rest = value.slice(marker.length);
+        const separator = rest.indexOf("/");
+        return separator < 0 ? undefined : rest.slice(separator + 1);
+      }
       async function virtualAddress(sessionId, target) {
         const value = assertSafe(typeof target === "string" ? target : "");
         const root = await workspaceRootOf(sessionId);
@@ -395,8 +408,10 @@ window.__ModuleLoader__.load({
         // one is resolved against it. Both are rebuilt from validated segments, so the
         // address the host receives can never point outside the view.
         if (value.startsWith("/")) {
-          if (value !== root && !value.startsWith(root + "/")) throw new Error("文件路径超出工作区");
-          return [root, ...normalizeSegments(value.slice(root.length))].join("/");
+          if (value === root || value.startsWith(root + "/")) return [root, ...normalizeSegments(value.slice(root.length))].join("/");
+          const tail = rebasedTail(value, root);
+          if (tail === undefined || tail === "") throw new Error("文件路径超出工作区");
+          return [root, ...normalizeSegments(tail)].join("/");
         }
         return [root, ...normalizeSegments(value)].join("/");
       }
