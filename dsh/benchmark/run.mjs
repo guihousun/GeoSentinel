@@ -18,6 +18,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { scoreCase } from "./score.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -270,25 +271,12 @@ async function runCase(item, projectId) {
 }
 
 function score(item, result) {
-  const expect = item.expect ?? {};
   // Keywords and forbidden terms are regular expressions: several cases accept
-  // synonyms, and a forbidden term must describe a *claim* ("证明了因果"),
-  // not the bare word — otherwise an honest disclaimer ("这不是因果证明")
-  // would be scored as a violation.
-  const matches = (pattern, text) => {
-    try {
-      return new RegExp(pattern, "s").test(text);
-    } catch {
-      return text.includes(pattern);
-    }
-  };
-  const checks = [];
-  for (const tool of expect.tools ?? []) checks.push({ name: "tool:" + tool, passed: result.tools.includes(tool) });
-  for (const extension of expect.artifacts ?? []) checks.push({ name: "artifact:" + extension, passed: result.files.some((file) => file.endsWith(extension)) });
-  for (const keyword of expect.keywords ?? []) checks.push({ name: "keyword:" + keyword, passed: matches(keyword, result.text) });
-  for (const keyword of expect.forbidden ?? []) checks.push({ name: "forbidden:" + keyword, passed: !matches(keyword, result.text) });
-  const passed = checks.filter((check) => check.passed).length;
-  return { checks, passed, total: checks.length, score: checks.length ? passed / checks.length : 1, pass: checks.length === 0 || passed === checks.length };
+  // synonyms, and a forbidden term must describe a *claim* ("证明了因果"), not the
+  // bare word — otherwise an honest disclaimer ("这不是因果证明") scores as a
+  // violation. `score.mjs` owns that rule (including the negation guard) so
+  // `rescore.mjs` can re-apply it to saved answers.
+  return scoreCase(item, result);
 }
 
 async function main() {
@@ -299,6 +287,10 @@ async function main() {
   if (user.admin) console.warn("警告：该账号是管理员，本次结果不能当作普通用户模式证据");
   const { project } = await call("/projects", "POST", { title: projectTitle });
   console.log(`基准：${cases.length} 例 · 并发 ${concurrency} · 账号 ${user.username}${user.admin ? "（管理员）" : "（普通用户）"} · 实例 ${base}`);
+  // Captured once: the report is rewritten after every case, so computing `started`
+  // inside the write made it mean "last write time" and every duration estimate based
+  // on it was wrong (found 2026-09-12 while dating a full sweep).
+  const startedAt = new Date().toISOString();
   const results = [];
   let cursor = 0;
   const worker = async () => {
@@ -314,7 +306,7 @@ async function main() {
       }
       results.push(record);
       console.log(`${record.pass ? "PASS" : "FAIL"} ${record.id} ${record.tier} ${record.passed}/${record.total} ${record.elapsedSeconds}s ${record.title}`);
-      await writeFile(outFile, JSON.stringify({ schema: "geosentinel.benchmark.report.v1", base, user: { username: user.username, admin: Boolean(user.admin) }, project: project.id, started: new Date().toISOString(), results }, null, 2));
+      await writeFile(outFile, JSON.stringify({ schema: "geosentinel.benchmark.report.v1", base, user: { username: user.username, admin: Boolean(user.admin) }, project: project.id, started: startedAt, updated: new Date().toISOString(), results }, null, 2));
     }
   };
   await Promise.all(Array.from({ length: concurrency }, worker));
