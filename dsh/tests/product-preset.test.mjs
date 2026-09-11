@@ -4,11 +4,14 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseProfile } from "../release/profile-schema.mjs";
+import { ROLE_DELEGATION } from "../plugins/platform/catalog.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const PRESET_DIR = path.join(root, "profile/agent-presets/geosentinel");
 const PRESET = path.join(PRESET_DIR, "agent.cordis.yml");
-const ROLE_OF_TOOL = { delegate_data: "数据助手", delegate_analysis: "分析助手", delegate_event: "事件助手" };
+// The role → tool mapping is stated once in the platform catalog; the preset, the release
+// guard and this test all read that table instead of restating it.
+const ROLE_OF_TOOL = Object.fromEntries(Object.entries(ROLE_DELEGATION).map(([role, tool]) => [tool, role]));
 // Rows the vendor composition enables (or leaves inert) that this product must not
 // expose, each carrying its reason in the file itself.
 const MUST_STAY_DISABLED = ["tool-bash", "tool-pwsh", "workflow-worker-thread", "tool-workflow", "tool-ralph"];

@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
-import { ReleaseManager, validateProduct, validateProfile, command } from "../release/manager.mjs";
-import { MAIN_TOOLS } from "../plugins/platform/catalog.mjs";
+import { ReleaseManager, validateProduct, validateProfile, validatePreset, command } from "../release/manager.mjs";
+import { MAIN_TOOLS, ROLE_DELEGATION } from "../plugins/platform/catalog.mjs";
+import { PRESET_FILES } from "../plugins/platform/agent-preset.mjs";
 
 const product = { schema: "geosentinel.product.v1", defaultModel: { provider: "deepseek-official", model: "deepseek-v4-flash" }, monitorEnabled: true };
 test("build commands do not inherit product credentials or runtime settings", async (t) => {
@@ -63,13 +64,26 @@ test("product publication refuses personal authority, credentials and unsafe pro
   // child's persona and tool table), so the supervisor keeps those and the control tools,
   // and a specialist never receives any of them. The generic `subagent` spawner stays out
   // on purpose: it cannot pin a role, so the child would keep the supervisor's surface.
-  for (const tool of ["delegate_data", "delegate_analysis", "delegate_event", "send_message", "list_agents", "interrupt_agent"])
+  for (const tool of [...Object.values(ROLE_DELEGATION), "send_message", "list_agents", "interrupt_agent"])
     assert.ok(declared.has(tool), `平台白名单缺少 ${tool}`);
   for (const tool of ["subagent", "subagent_fork"])
     assert.equal(declared.has(tool), false, `${tool} 会派生无角色组合的子代理，不应在白名单里`);
   for (const [role, tools] of Object.entries(shipped.roleTools))
     for (const tool of ["subagent", "subagent_fork", "send_message", "list_agents", "interrupt_agent"])
       assert.ok(!tools.includes(tool), `${role} 不应持有委派工具 ${tool}`);
+  // The freeze validates the exact preset the profile names as default. Each mutation below
+  // is a release that would ship a broken role boundary, so each must be refused.
+  const presetUrl = new URL("../profile/agent-presets/geosentinel/agent.cordis.yml", import.meta.url);
+  const presetText = await readFile(presetUrl, "utf8");
+  assert.ok(validatePreset(presetText, shipped).length > 0);
+  const shellRow = "- id: tool-bash\n  name: '@deepseek-ai/dsh-tool-bash'\n  disabled: true";
+  assert.ok(presetText.includes(shellRow), "preset 缺少保持关闭的 tool-bash 行");
+  assert.throws(() => validatePreset(presetText.replace(shellRow, shellRow.replace("\n  disabled: true", "")), shipped),
+    /宿主机 shell|必须保持关闭/);
+  assert.throws(() => validatePreset(presetText.replace("toolName: delegate_event", "toolName: subagent"), shipped),
+    /通用或外部 spawner|缺少启用的角色委派工具/);
+  assert.throws(() => validatePreset(presetText.replace("'geo_analyze_ntl_trend', ", ""), shipped),
+    /角色工具表与产品配置不一致/);
 });
 test("snapshot, explicit publish, stale draft rejection and rollback preserve the active version", async (t) => {
   const dir = await mkdtemp(path.join(tmpdir(), "geo-release-")), source = path.join(dir, "source"), fork = path.join(dir, "fork");
@@ -81,6 +95,13 @@ test("snapshot, explicit publish, stale draft rejection and rollback preserve th
   await writeFile(path.join(source, "dsh/skills/example-skill/SKILL.md"), "---\nname: example-skill\ndescription: fixture\n---\n\nbody\n");
   await writeFile(path.join(source, "dsh/profile/product.json"), JSON.stringify(product));
   await writeFile(path.join(source, "dsh/profile/cordis.patch.yml"), await readFile(new URL("../profile/cordis.patch.yml", import.meta.url)));
+  // The profile names the product's default agent preset, so the freeze has to find it: a
+  // release whose default preset is missing ships a supervisor that cannot delegate at all.
+  for (const name of PRESET_FILES) {
+    await mkdir(path.join(source, "dsh/profile/agent-presets/geosentinel"), { recursive: true });
+    await writeFile(path.join(source, "dsh/profile/agent-presets/geosentinel", name),
+      await readFile(new URL(`../profile/agent-presets/geosentinel/${name}`, import.meta.url)));
+  }
   await writeFile(path.join(source, "dsh/package.json"), JSON.stringify({ dependencies: {} }));
   await writeFile(path.join(source, "dsh/pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
   // The monitor collector mounts this adapter file by path at run time, so the

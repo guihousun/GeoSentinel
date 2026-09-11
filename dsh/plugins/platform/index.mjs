@@ -18,6 +18,7 @@ import { registerSidebarAdapter } from "./sidebar-adapter.mjs";
 import { QuestionTransport } from "./questions.mjs";
 import { readonlySubagents } from "./subagents.mjs";
 import { createRoleBinder } from "./role-binding.mjs";
+import { installProductPreset, presetSourceDir, presetTargetDir, describeInstall } from "./agent-preset.mjs";
 import { GIS_TOOL_NAMES } from "../research/gis-tools.mjs";
 import { releaseService } from "../../release/service.mjs";
 import { fileURLToPath } from "node:url";
@@ -97,6 +98,15 @@ export function apply(ctx, config = {}) {
   }
   if (share.length)
     console.log(`GeoSentinel: 共享数据已配置 ${share.length} 个只读根：${share.map((entry) => `${entry.name || "(默认根)"}=${entry.root}`).join("；")}`);
+  // The product's agent preset, delivered at boot into the preset roster's user root
+  // (`<dshHome>/.agent-presets`). The profile names it as the default, and a session
+  // whose default preset cannot be resolved loses its delegation tools, so the copy
+  // happens here — before the development short-circuit below, because the
+  // administrator plane mounts the same profile. See `agent-preset.mjs`.
+  void installProductPreset({ source: presetSourceDir(), target: presetTargetDir() }).then(
+    (result) => (result.status === "failed" || result.status === "foreign" ? console.error : console.log)(describeInstall(result)),
+    (error) => console.error(`GeoSentinel: 警告——产品 agent preset 交付失败：${error instanceof Error ? error.message : String(error)}`),
+  );
   // Ordinary-user capability policy: a narrowing layer the administrator edits
   // from the admin-mode workbench. Registered before the development-mode
   // short-circuit so both planes serve the same skill set, and polled cheaply

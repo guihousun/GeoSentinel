@@ -1,21 +1,31 @@
 import { GIS_TOOL_NAMES } from "../research/gis-tools.mjs";
 import { loadSkills } from "./skills.mjs";
 
+/**
+ * The role → delegation-tool mapping, stated once. Each value is the `toolName` of one
+ * product row mounted on the native `@deepseek-ai/dsh-tool-subagent` plugin, and that
+ * row is what pins the child's persona and tool table — so a specialist is composed AT
+ * SPAWN and its very first request already carries its own tools. The rows live in the
+ * product's own agent preset (`profile/agent-presets/geosentinel/agent.cordis.yml`,
+ * selected as the default by the profile and delivered into the preset roster's user
+ * root at boot); the release guard and the tests read THIS table rather than restating
+ * it. The generic `subagent` tool carries no persona/toolFilter, so a child spawned
+ * through it kept the supervisor's whole surface (measured: 74 tools where the role
+ * table has 21) — it is therefore not in `TEAM_TOOLS`, and neither is `subagent_fork`.
+ */
+export const ROLE_DELEGATION = {
+  数据助手: "delegate_data",
+  分析助手: "delegate_analysis",
+  事件助手: "delegate_event",
+};
+
 // The published capability ceiling of the ordinary-user product. The platform
 // guard and the agent restriction read these lists; the admin-mode capability
 // panel renders them so the administrator sees exactly what a release exposes.
 export const TEAM_TOOLS = [
-  // One delegation tool per research role, mounted as product rows on the native
-  // `@deepseek-ai/dsh-tool-subagent` plugin (profile/cordis.patch.yml `geo-delegate-*`).
-  // Each row pins the child's persona and tool table, so a specialist is composed AT
-  // SPAWN: its very first request already carries its own tools. The generic `subagent`
-  // tool carries no persona/toolFilter, so a child spawned through it kept the
-  // supervisor's whole surface (measured: 74 tools where the role table has 21) — it is
-  // therefore NOT in this list, and neither is `subagent_fork`. The control tools stay:
-  // they address children that already exist and cannot create one.
-  "delegate_data",
-  "delegate_analysis",
-  "delegate_event",
+  // One delegation tool per research role. The control tools stay: they address
+  // children that already exist and cannot create one.
+  ...Object.values(ROLE_DELEGATION),
   "send_message",
   "list_agents",
   "interrupt_agent",

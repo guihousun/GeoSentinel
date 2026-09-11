@@ -3,7 +3,7 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { validateAppearance } from "../development/product-draft.mjs";
-import { MAIN_TOOLS } from "../plugins/platform/catalog.mjs";
+import { MAIN_TOOLS, ROLE_DELEGATION } from "../plugins/platform/catalog.mjs";
 import { parseProfile } from "./profile-schema.mjs";
 
 const roots = ["dsh/plugins", "dsh/profile", "dsh/skills", "dsh/monitoring", "dsh/docker", "dsh/release", "dsh/development", "dsh/scripts", "dsh/cli", "dsh/tests", "packages/ntl_toolkit/src"];
@@ -65,6 +65,41 @@ export function validateProfile(text) {
   if (inserts.some((r) => requiredDisabled.includes(r.id))) throw new Error("禁止通过重复插件覆盖权限边界");
   return rows;
 }
+// The agent preset is the agent-plane half of the role boundary: it is what composes a
+// specialist, and the profile names it as the default every session mounts. A release
+// whose default preset is missing, unparsable, or quietly short of a role row would
+// ship a supervisor that cannot delegate — so the freeze validates the exact preset the
+// profile names, with the same invariants tests/product-preset.test.mjs asserts,
+// including that nothing re-opens host shell or vendor fan-out orchestration.
+export function validatePreset(text, product) {
+  const rows = parseProfile(text);
+  if (!Array.isArray(rows)) throw new Error("agent preset 格式无效");
+  const flat = rows.flatMap((row) => (Array.isArray(row?.config) ? row.config : [row]));
+  const enabled = flat.filter((row) => row?.disabled !== true);
+  const spawners = enabled.filter((row) => row.name === "@deepseek-ai/dsh-tool-subagent");
+  const byTool = new Map(spawners.map((row) => [row.config?.toolName, row]));
+  for (const [role, tool] of Object.entries(ROLE_DELEGATION)) {
+    const row = byTool.get(tool);
+    if (!row) throw new Error(`agent preset 缺少启用的角色委派工具：${tool}（${role}）`);
+    if (row.config?.provider !== "spawn" || row.config?.backgroundMode !== "continuable") throw new Error(`角色委派行配置不完整：${tool}`);
+    if (!String(row.config?.persona ?? "").includes(role)) throw new Error(`角色委派行 persona 未点明 ${role}：${tool}`);
+    const table = row.config?.toolFilter?.allow;
+    if (!Array.isArray(table) || table.length === 0) throw new Error(`角色委派行缺少工具表：${tool}`);
+    const expected = product?.roleTools?.[role];
+    if (expected !== undefined && [...table].sort().join(" ") !== [...expected].sort().join(" "))
+      throw new Error(`角色工具表与产品配置不一致：${role}`);
+  }
+  if (spawners.length !== Object.keys(ROLE_DELEGATION).length) throw new Error("agent preset 的委派工具数不等于角色数");
+  for (const row of enabled) {
+    if (["subagent", "subagent_fork", "subagent_codex", "subagent_claude_code"].includes(row.config?.toolName))
+      throw new Error("agent preset 启用了通用或外部 spawner：" + String(row.config?.toolName));
+    if (row.name === "@deepseek-ai/dsh-tool-bash" || row.name === "@deepseek-ai/dsh-tool-pwsh")
+      throw new Error("agent preset 启用了宿主机 shell：" + String(row.id));
+  }
+  for (const id of ["tool-bash", "tool-pwsh", "workflow-worker-thread", "tool-workflow", "tool-ralph"])
+    if (flat.find((row) => row?.id === id)?.disabled !== true) throw new Error("agent preset 必须保持关闭：" + id);
+  return rows;
+}
 async function filesUnder(root, prefix, output) {
   for (const entry of await readdir(path.join(root, prefix), { withFileTypes: true })) {
     if (["node_modules", "__pycache__", ".runtime", ".env", ".git", ".playwright-cli"].includes(entry.name)) continue;
@@ -85,8 +120,18 @@ export async function collectSource(root) {
   // The AgentTeams fork is no longer part of the product: the 0.1.5 line runs the
   // four-role flow on the native subagent plane (dsh/plugins/team), so nothing is
   // frozen from an external checkout any more.
-  validateProduct(JSON.parse(files["dsh/profile/product.json"]));
-  validateProfile(files["dsh/profile/cordis.patch.yml"].toString());
+  // The default agent preset must travel with the release: the profile names it by id, and
+  // a session whose default preset cannot be resolved loses its delegation tools.
+  const product = validateProduct(JSON.parse(files["dsh/profile/product.json"]));
+  const profileRows = validateProfile(files["dsh/profile/cordis.patch.yml"].toString());
+  const presetRow = profileRows.find((row) => row.id === "agent-presets");
+  const defaultPreset = presetRow?.config?.default;
+  if (typeof defaultPreset !== "string" || defaultPreset.length === 0) throw new Error("产品 profile 必须指定默认 agent preset");
+  if (presetRow.disabled === true) throw new Error("默认 agent preset 行不能禁用");
+  const presetDir = `dsh/profile/agent-presets/${defaultPreset}/`;
+  for (const name of ["agent.cordis.yml", "preset.yml"])
+    if (!files[presetDir + name]?.length) throw new Error("发布源缺少默认 agent preset 文件：" + presetDir + name);
+  validatePreset(files[presetDir + "agent.cordis.yml"].toString(), product);
   for (const [file, data] of Object.entries(files)) if (/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|(?:sk-[A-Za-z0-9]{24,}|gh[pousr]_[A-Za-z0-9]{25,})/.test(data.toString())) throw new Error("发布源疑似包含凭据：" + file);
   return files;
 }
