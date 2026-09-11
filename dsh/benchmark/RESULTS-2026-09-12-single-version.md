@@ -110,6 +110,23 @@ B09 尤其说明问题：一个**纯定义题**（"ANTL 与 TNTL 分别是什么
   被接受的形态**与正确写法。`scoped_path` 增加可注入 `root` 以便在非 Linux 上单测；
   新增 `dsh/tests/gis-dispatch-paths.test.mjs` 固定这五种输入与错误文案。
 
+### D6 作业已完成却因等待 attach 事件而空耗整个预算（A10 实测 15+ 分钟）
+
+- 现象：A10（点与行政区空间连接）的 `boundary-download`（provider `datav`）在 13.6 分钟后仍为
+  `running`，作业目录里**只有 manifest、没有 execution.log**。
+- 取证：`docker inspect` 显示容器 `Started=17:55:05`、**无 Finished**、`docker top` 无进程、
+  `docker exec` 报 `cannot exec in a stopped state`，而**产物已经齐全**
+  （`boundary.geojson` 148 KB、`result.json`、`boundary-source.json`），容器日志已打印
+  `{"status":"completed","operation":"boundary-download"}`。也就是说**活早就干完了**。
+- 机制：`docker.mjs` 只靠 `docker start --attach` 子进程的 `close` 事件判定结束
+  （`execution.log` 正是在该 promise 结算**之后**才写，故其缺失即证明事件从未到达），
+  Docker Desktop 偶尔会丢这个事件；此时只能等满 30 分钟超时，正好耗光 A10 的用例预算。
+  现场验证：手动 `docker rm -f` 该容器后，管线**数秒内恢复**（立刻出现三个新作业）。
+- **修法**：`--attach` 之外增加**容器状态看护**：每 5 秒 `docker inspect --format
+  '{{.State.Running}} {{.State.ExitCode}}'`，一旦容器不再运行即按该退出码结算并杀掉残留 CLI 子进程；
+  解析函数 `containerState` 单独导出并用单测固定（空输出/报错文本一律视为"未知"，绝不把垃圾输入
+  当成"已结束"——那会把正在跑的作业误判为完成）。
+
 ## 4. 用例修正（基准维护，不是平台缺陷）
 
 - **C06 前提有误**：原题假设"北纬 25–26°、东经 122–124° 海域无数据"，实测该范围内有

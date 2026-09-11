@@ -41,14 +41,48 @@ function invoke(args, options = {}) {
         output = (output + chunk.toString()).slice(-32000);
         options.onOutput?.(chunk.toString());
       });
-    child.on("error", (error) => { clearTimeout(timeout); reject(error); });
-    child.on("close", (code) => {
+    let settled = false;
+    const finish = (code) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timeout);
+      if (watchdog) clearInterval(watchdog);
       code === 0
         ? resolve(output)
         : reject(new Error(`Docker exited ${code}: ${output.slice(-3000)}`));
-    });
+    };
+    child.on("error", (error) => { if (settled) return; settled = true; clearTimeout(timeout); if (watchdog) clearInterval(watchdog); reject(error); });
+    child.on("close", (code) => finish(code ?? 1));
+    // `--attach` relies on this child closing, and Docker Desktop occasionally loses
+    // that event: on 2026-09-12 a boundary job had already stopped with a complete
+    // result on disk while the job stayed `running` for 13+ minutes and then burned
+    // the case's 30-minute budget (the attach stream never even produced the log
+    // file, which is written only after this promise settles). Ask the daemon for the
+    // container's real state and finish as soon as it is no longer running.
+    let watchdog = options.watch
+      ? setInterval(async () => {
+          if (settled) return;
+          const state = containerState(
+            await invoke(["inspect", "--format", "{{.State.Running}} {{.State.ExitCode}}", options.watch], { timeoutMs: 15000 }).catch(() => ""),
+          );
+          if (state && !state.running) {
+            child.kill();
+            finish(state.exitCode);
+          }
+        }, options.pollMs ?? 5000)
+      : null;
   });
+}
+
+/**
+ * Parse `docker inspect --format '{{.State.Running}} {{.State.ExitCode}}'` output.
+ * Exported so the watchdog's decision is unit-tested without a live daemon.
+ * @returns {{running: boolean, exitCode: number} | null} null for unusable output.
+ */
+export function containerState(text) {
+  const match = /^\s*(true|false)\s+(\d+)\s*$/i.exec(String(text ?? ""));
+  if (!match) return null;
+  return { running: match[1].toLowerCase() === "true", exitCode: Number(match[2]) };
 }
 const mount = (source, target, readonly = true) => {
   if (source.includes(","))
@@ -351,6 +385,7 @@ export class DockerRunner {
         log = "";
         await invoke(["start", "--attach", container], {
           attach: true,
+          watch: container,
           onOutput: (chunk) => {
             log = (log + chunk).slice(-64000);
           },
