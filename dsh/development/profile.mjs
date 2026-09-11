@@ -28,6 +28,13 @@ export function developmentFiles({ product, platform = process.platform, pwshPat
       { id: "agent-default-model", config: product.defaultModel },
       // Same native planes the product relies on: the session preset carries the
       // delegation tools, and plan mode is the staged-plan approval gate.
+      //
+      // Deliberately WITHOUT `config.default`: this plane keeps the bundle's own preset
+      // (`standard`), not the product's `geosentinel`. ADMIN-DEVELOPMENT.md documents host
+      // execution and the native coding surfaces as administrator capabilities, while the
+      // product preset closes the host shell and the vendor fan-out orchestration for
+      // research agents — the delivery plugin still installs `geosentinel` into this home's
+      // user root, it is simply not what the administrator's sessions mount.
       { id: "agent-presets", disabled: false },
       { id: "plan-mode", disabled: false },
       { id: "ui-agent-preset", disabled: true },
