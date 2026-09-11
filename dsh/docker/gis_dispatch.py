@@ -1,6 +1,15 @@
 """Fixed calls to the unchanged NTL-GPT toolkit; never dynamic model code."""
 import importlib
+import re
 from pathlib import Path
+
+# Every job the platform creates is named `<YYYYMMDD-HHMMSS>-<tool>-<hash>`, and its
+# artifacts land in the chat's `outputs/` tree. Agents routinely pass one of those
+# directories without the `outputs/` prefix (`20260911-180003-gee-235ce3/imagery.tif`),
+# which used to fail with the bare "Workspace-relative path required" — measured on
+# four jobs across two benchmark cases (2026-09-12). The shape is unambiguous, so it is
+# read as the earlier-job form (`previous/…`), exactly like an `outputs/…` argument.
+JOB_DIR = re.compile(r"^\d{8}-\d{6}-")
 
 OPERATIONS = {
     "inspect_vector": "vector", "validate_geodata": "raster", "clip_raster": "raster",
@@ -10,23 +19,38 @@ OPERATIONS = {
     "spatial_join_points_to_admin": "vector", "dissolve_intersections": "vector",
 }
 
-def scoped_path(value, output=False):
+def scoped_path(value, output=False, root="/workspace"):
+    """Resolve one agent-supplied path against the container's workspace roots.
+
+    `root` is injectable so the accepted forms can be unit-tested outside Linux
+    (`Path("/workspace")` is drive-relative on Windows and cannot be compared).
+    """
     if not isinstance(value, str) or "\\" in value or ":" in value:
         raise ValueError("Use inputs/, previous/, outputs/ or share/ relative paths")
     parts = Path(value).parts
     # `share/` is the administrator's shared data library: readable input only,
     # mounted read-only, never accepted as an output target.
     readable = {"inputs", "previous", "outputs", "share"}
-    if not parts or ".." in parts or parts[0] not in ({"outputs"} if output else readable):
+    if not parts or ".." in parts:
         raise ValueError("Workspace-relative path required")
+    if parts[0] not in ({"outputs"} if output else readable):
+        if not output and JOB_DIR.match(parts[0]):
+            # A bare job directory means the earlier job's artifacts.
+            parts = ("previous", *parts)
+        else:
+            accepted = "outputs/" if output else "inputs/, outputs/<作业ID>/, previous/ 或 share/"
+            raise ValueError(
+                f"路径必须以 {accepted} 开头（收到 {value!r}）：更早作业的产物写成 "
+                "outputs/<作业ID>/<文件>，本次作业的新产物写成 outputs/<文件>。"
+            )
     if output and parts[0] != "outputs":
         raise ValueError("Outputs must be written under outputs/")
     # Agent-visible outputs refer to completed earlier jobs, not the new output mount.
     if not output and parts[0] == "outputs":
         parts = ("previous", *parts[1:])
-    result = Path("/workspace", *parts).resolve()
-    result.relative_to(Path("/workspace", parts[0]).resolve())
-    return str(result.relative_to(Path("/workspace")))
+    result = Path(root, *parts).resolve()
+    result.relative_to(Path(root, parts[0]).resolve())
+    return str(result.relative_to(Path(root)))
 
 def run_gis(request):
     operation = request["operation"]
