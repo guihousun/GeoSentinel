@@ -6,7 +6,7 @@ import { createPlatformHandler } from "./http.mjs";
 import { publicEvent } from "./public-events.mjs";
 import { ResearchQueue } from "./admission.mjs";
 import { containedPath, containedWrite } from "./files.mjs";
-import { parseShareDirs, shareContained, shareTarget } from "./share.mjs";
+import { parseShareDirs, shareContained, shareTarget, ensureShareLinks } from "./share.mjs";
 import { createUploadProxy, createNativeUploadProxy } from "./uploads.mjs";
 import { allowedTools, policyPath, readPolicy, skillEnabled } from "./capability-policy.mjs";
 import { DOMAIN_TOOLS, DOCUMENT_TOOLS, FS_READ_TOOLS, FS_WRITE_TOOLS, MCP_TOOLS, PLAN_TOOLS, TEAM_TOOLS, VISUAL_TOOLS, WEB_TOOLS } from "./catalog.mjs";
@@ -98,6 +98,9 @@ export function apply(ctx, config = {}) {
   }
   if (share.length)
     console.log(`GeoSentinel: 共享数据已配置 ${share.length} 个只读根：${share.map((entry) => `${entry.name || "(默认根)"}=${entry.root}`).join("；")}`);
+  // Chat workspaces whose `share/<名称>` links are already materialised (see the
+  // alias note in share.mjs): the check is per workspace, so it runs once.
+  const shareLinked = new Set();
   // The product's agent preset, delivered at boot into the preset roster's user root
   // (`<dshHome>/.agent-presets`). The profile names it as the default, and a session
   // whose default preset cannot be resolved loses its delegation tools, so the copy
@@ -310,6 +313,13 @@ export function apply(ctx, config = {}) {
     };
     if (path.resolve(cwd) !== store.chatRoot(user, row.id))
       throw new PlatformError(403, "任务工作区不匹配");
+    // The documented `share/<名称>/…` read path only resolves if the roots are linked
+    // into this workspace; do it once per chat and report a failure instead of leaving
+    // agents with a path form that cannot open (see ensureShareLinks).
+    if (share.length && !shareLinked.has(cwd)) {
+      shareLinked.add(cwd);
+      for (const warning of ensureShareLinks(cwd, share)) console.error(`GeoSentinel: 共享数据别名创建失败：${warning}`);
+    }
     return { user, chatId: row.id, projectId: row.project_id, root: cwd };
   };
   ctx.effect(() =>

@@ -6,6 +6,7 @@ description: Use whenever reading inputs or writing outputs. Defines the per-cha
 # 工作区与产物契约
 
 - 输入读 `inputs/`（**项目级**：本对话里直接写 `inputs/<文件名>`）；新产物写 `outputs/<作业ID>/`。`geo_*` 工具的相对路径以本对话工作区为基准。
+- **宿主侧与容器内是两套路径**：`read`/`glob`/`grep`/`read_document`/报告与证据里的 `outputs/<作业ID>/…` 是宿主侧虚拟路径；在 `geo_execute_python` 的容器里，`/workspace/outputs` **只指向本次作业自己的目录**，更早作业要读 `previous/<作业ID>/…`（容器内同一份数据没有 `outputs/<作业ID>/` 这个路径）。照宿主路径在容器里读更早作业会得到 `FileNotFoundError`。
 - 每个研究对话有独立工作区；不能访问其他用户或其他项目的目录。`read`/`glob`/`grep`/`read_document` 只读，并被平台限制在本对话工作区、本项目 `inputs/` 与技能目录内。
 - `write`/`edit` 可写，但**只能写本对话的 `outputs/`**：上传文件、项目资料 `inputs/`、`memory/` 与技能库都不可写。需要自己生成脚本、中间表或备注时用它们，落在 `outputs/` 里。
 - 手写文件如果承载观测数值或统计结果，必须在文件内注明来源作业 ID（例如 `来源：作业 <jobId> / outputs/<file>`），结论里沿用同一来源；手写内容不算独立观测，也不能当成新证据。

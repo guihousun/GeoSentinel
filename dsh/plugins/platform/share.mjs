@@ -1,3 +1,4 @@
+import { existsSync, mkdirSync, symlinkSync } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { isShapefileSidecar } from "./shapefile.mjs";
@@ -186,4 +187,41 @@ export function shareChildren(files, relative = "") {
 /** Container mount target for one root: `/workspace/share` or `/workspace/share/<名称>`. */
 export function shareMountTarget(entry) {
   return entry.name ? path.posix.join(SHARE_MOUNT_ROOT, entry.name) : SHARE_MOUNT_ROOT;
+}
+
+/**
+ * Materialise the `share/<名称>` alias inside a chat workspace as a directory link.
+ *
+ * The platform documents one path form for shared data — `share/<名称>/<子路径>` for
+ * `read`/`read_document`, the same form under `/workspace/…` inside the analysis
+ * container — and `geo_list_files` hands agents exactly that form. But DSH resolves
+ * relative read paths against the session cwd (the chat workspace), so `grep`/`glob`
+ * answered `rg: share: IO error … (os error 3)` and `read` could not open the file
+ * either: the documented contract simply did not resolve (observed in three
+ * benchmark cases on 2026-09-11/12). Linking each configured root into the workspace
+ * makes the documented form true for every filesystem tool.
+ *
+ * The existing fences stay authoritative in both directions, because they canonicalise
+ * (follow links) before comparing: `containedPath` resolves a path through the link to
+ * the real root, which IS one of the allowed share roots, while `containedWrite` only
+ * ever accepts `<chat>/outputs`, so the link cannot become a write path into the
+ * administrator's library. An existing path is never replaced — a workspace that
+ * already has its own `share` entry is left exactly as the user left it — and failures
+ * (an unreachable network root, an unsupported filesystem) are reported, not ignored.
+ *
+ * @returns {string[]} one message per root that could not be linked.
+ */
+export function ensureShareLinks(chatRoot, entries, { link = symlinkSync, mkdir = mkdirSync, exists = existsSync } = {}) {
+  const warnings = [];
+  for (const entry of entries) {
+    const linkPath = entry.name ? path.join(chatRoot, SHARE_PREFIX, entry.name) : path.join(chatRoot, SHARE_PREFIX);
+    try {
+      if (exists(linkPath)) continue;
+      mkdir(path.dirname(linkPath), { recursive: true });
+      link(entry.root, linkPath, process.platform === "win32" ? "junction" : "dir");
+    } catch (error) {
+      warnings.push(`${entry.name || "(默认根)"} → ${error.message}`);
+    }
+  }
+  return warnings;
 }

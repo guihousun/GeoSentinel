@@ -180,6 +180,63 @@ def test_gee_initialization_failure_is_structured(monkeypatch: pytest.MonkeyPatc
     assert "EasyGEE" in result.error.suggestion
 
 
+def test_asset_type_mismatch_is_reported_as_such(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A pinned-but-wrong asset_type must be named in the suggestion.
+
+    GEE answers "Asset 'X' is not an Image" when the caller forced asset_type=Image on
+    a collection. The generic "inspect the AOI, date window and size limits" advice sent
+    agents back into the same wrong request (2026-09-11 benchmark: two GEE jobs, one
+    case, nothing gained) — the envelope has to point at the parameter that is wrong.
+    """
+    request = GeeDownloadRequest(
+        dataset_id="NOAA/VIIRS/DNB/ANNUAL_V22",
+        bands=["average_masked"],
+        bbox=(120.85, 30.67, 122.25, 31.88),
+        output=str(tmp_path / "imagery.tif"),
+        asset_type="Image",
+        scale=500,
+    )
+
+    def explode(_ee: object, _request: GeeDownloadRequest) -> object:
+        raise RuntimeError("Image.load: Asset 'NOAA/VIIRS/DNB/ANNUAL_V22' is not an Image.")
+
+    monkeypatch.setattr(gee_download, "_initialize_ee", lambda _project: object())
+    monkeypatch.setattr(gee_download, "_materialize_image", explode)
+
+    result = download_gee_raster(request)
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert result.error.code == "GEE_DOWNLOAD_FAILED"
+    assert "ImageCollection" in result.error.suggestion
+    assert "auto" in result.error.suggestion
+    assert "AOI" not in result.error.suggestion
+
+
+@pytest.mark.parametrize(
+    ("asset_type", "message", "expected"),
+    [
+        ("Image", "Image.load: Asset 'X' is not an Image.", "really an ImageCollection"),
+        ("ImageCollection", "Asset 'X' is not an ImageCollection.", "really an Image"),
+        ("auto", "Image.load: Asset 'X' is not an Image.", "pass asset_type='ImageCollection'"),
+        ("auto", "Asset 'X' is not an ImageCollection.", "pass asset_type='Image'"),
+        ("Image", "EEException: computation timed out", "Inspect the AOI"),
+        ("Image", "No images found for the requested dataset, dates, and AOI.", "No image matches"),
+    ],
+)
+def test_failure_suggestion_matches_the_cause(asset_type: str, message: str, expected: str, tmp_path: Path) -> None:
+    """Every branch keeps its own advice, and an unrelated failure keeps the old one."""
+    request = GeeDownloadRequest(
+        dataset_id="A/B",
+        bands=["b"],
+        bbox=(0.0, 0.0, 1.0, 1.0),
+        output=str(tmp_path / "out.tif"),
+        asset_type=asset_type,  # type: ignore[arg-type]
+    )
+
+    assert expected in gee_download._failure_suggestion(request, message)
+
+
 def test_legacy_band_is_normalized_into_multiband_request(tmp_path: Path) -> None:
     request = _valid_request(tmp_path)
 

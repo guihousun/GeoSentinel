@@ -1,10 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import {
   SHARE_MOUNT_ROOT,
+  ensureShareLinks,
   listShare,
   parseShareDirs,
   shareChildren,
@@ -12,6 +14,7 @@ import {
   shareMountTarget,
   shareTarget,
 } from "../plugins/platform/share.mjs";
+import { containedPath, containedWrite } from "../plugins/platform/files.mjs";
 import { shareMounts } from "../plugins/research/docker.mjs";
 import { workspaceView, viewEntries, VIEW } from "../plugins/platform/workspace-view.mjs";
 
@@ -47,6 +50,30 @@ test("shared data configuration accepts one root or several named roots", async 
   assert.deepEqual(parseShareDirs({}), []);
   assert.deepEqual(parseShareDirs({ GEO_SHARE_DIR: "   " }), []);
   void root;
+});
+
+test("the share alias is materialised in a chat workspace as a read-only link", async (t) => {
+  const { root, base } = await fixture(t);
+  const chat = path.join(root, "chat");
+  await mkdir(chat, { recursive: true });
+  const entries = parseShareDirs({ GEO_SHARE_DIRS: `缅甸地理=${path.join(base, "缅甸地理")}` });
+
+  assert.deepEqual(ensureShareLinks(chat, entries), [], "链接应当成功建立");
+  // Reading through the alias reaches the real file: this is what the documented
+  // `share/<名称>/…` form promises and what `grep`/`glob` need to resolve.
+  const aliased = path.join(chat, "share", "缅甸地理", "缅甸地理.pdf");
+  assert.equal(realpathSync(aliased), realpathSync(path.join(base, "缅甸地理", "缅甸地理.pdf")));
+  // …and the read fence accepts it, because it canonicalises the link to the root.
+  assert.equal(containedPath([chat, path.join(base, "缅甸地理")], aliased, chat), true);
+  // The write fence must NOT follow it into the administrator's library.
+  assert.equal(containedWrite(chat, path.join("share", "缅甸地理", "新增.txt")), false);
+  // Idempotent, and an existing path is never replaced.
+  assert.deepEqual(ensureShareLinks(chat, entries), []);
+  await rm(path.join(chat, "share"), { recursive: true, force: true });
+  await mkdir(path.join(chat, "share", "缅甸地理"), { recursive: true });
+  await writeFile(path.join(chat, "share", "缅甸地理", "用户自己的.txt"), "mine");
+  assert.deepEqual(ensureShareLinks(chat, entries), [], "已有同名目录时不得覆盖");
+  assert.equal(readFileSync(path.join(chat, "share", "缅甸地理", "用户自己的.txt"), "utf8"), "mine");
 });
 
 test("share aliases resolve inside a root and never escape it", async (t) => {

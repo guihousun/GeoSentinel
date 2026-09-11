@@ -246,6 +246,10 @@ async function runCase(item, projectId) {
   // too; the supervisor's own session alone would under-report the platform.
   const delegated = await collectSubagentTools(chatId);
   return { chatId, tools: [...new Set([...tools, ...delegated.tools])].sort(), ownTools: [...tools].sort(), subagents: delegated.members,
+    // Machine-readable counterparts of the two budget errors: a reader must be able
+    // to tell "ran out of budget" from "finished and missed a check" without parsing
+    // the error strings (summarize.mjs renders them as 预算用尽 / 排队超时).
+    budgetExhausted: errors.has("case-timeout"), queueStarved: errors.has("queue-timeout"),
     text, files: (files.files ?? []).map((file) => file.name), errors: [...errors], approvals, unanswered: [...unanswered], planSeen, approvedSeq, lastAssistantSeq, elapsedSeconds: Math.round((Date.now() - started) / 1000) };
 }
 

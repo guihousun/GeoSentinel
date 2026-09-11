@@ -243,7 +243,7 @@ export function apply(ctx) {
   );
   add(
     "geo_execute_python",
-    "在无网络 Docker 中执行有界的 Python 地理空间分析。输入从 inputs/ 读取、上游结果从 previous/ 读取、管理员共享数据从 share/ 只读读取（容器内即 /workspace/share/），产物写入 outputs/。不能联网、不能安装依赖、不能使用凭据。请自行校验科学假设与产物。",
+    "在无网络 Docker 中执行有界的 Python 地理空间分析。容器内的路径只有这四种：inputs/ 是项目资料、share/ 是管理员共享数据（只读，即 /workspace/share/）、previous/<作业ID>/… 是**更早作业**的产物（宿主侧 read/报告工具把它记作 outputs/<作业ID>/…，容器里没有这个路径）、本次产物写到 outputs/（容器内 /workspace/outputs 只指向本次作业自己的目录，看不到其它作业）。不能联网、不能安装依赖、不能使用凭据。请自行校验科学假设与产物。",
     {
       code: { type: "string", required: true },
     },
@@ -286,6 +286,6 @@ export function apply(ctx) {
     bbox: { type: "array", items: { type: "number" } }, expected_count: { type: "integer" },
   }, (args, exec, id) => runner.run(id, { kind: "boundary-download", parameters: args }, { signal: exec.signal }));
   for (const [operation, _module, parameters, description] of GIS_TOOLS)
-    add(`geo_${operation}`, `${description} 在无网络 Docker 中执行；输入用 inputs/ 或 outputs/<作业ID>/，新产物路径用 outputs/。`, parameters,
+    add(`geo_${operation}`, `${description} 在无网络 Docker 中执行；输入用 inputs/ 或 outputs/<作业ID>/（这是宿主侧读取路径：在随后的 geo_execute_python 容器里，同一个更早作业要写成 previous/<作业ID>/），新产物路径用 outputs/。`, parameters,
       (args, exec, id) => runner.run(id, { kind: "gis", operation, parameters: args }, { signal: exec.signal }));
 }

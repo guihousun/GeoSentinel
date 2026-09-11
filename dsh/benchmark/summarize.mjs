@@ -49,6 +49,15 @@ if (!files.length) {
     return { ...record, rescored: { passed, total: checks.length, pass: checks.length === 0 || passed === checks.length, failed: checks.filter((check) => !check.passed).map((check) => check.name) } };
   });
   const verdict = (record) => record.rescored ? record.rescored.pass : record.pass;
+  // Running out of the case's declared budget is not the same evidence as finishing
+  // and missing a check. RESULTS-2026-09-10 §3 left that distinction open ("应该区分
+  // '没做' 与 '来不及'"), and without it a budget cap reads as a capability gap.
+  const budgetNote = (record) => {
+    const errors = (record.errors ?? []).map(String);
+    if (errors.some((value) => value.startsWith("case-timeout"))) return "（预算用尽）";
+    if (errors.some((value) => value.startsWith("queue-timeout"))) return "（排队超时）";
+    return "";
+  };
   const tiers = new Map();
   const counts = (record) => record.rescored ? record.rescored.passed / record.rescored.total : record.score ?? 0;
   for (const record of records) {
@@ -65,7 +74,7 @@ if (!files.length) {
     for (const record of sorted) {
       const result = record.rescored;
       const dirs = new Set((record.files ?? []).map((file) => String(file).split("/")[0])).size;
-      console.log(`| ${record.id} ${record.title} | ${record.tier} | ${verdict(record) ? "PASS" : "FAIL"}${result && result.pass !== record.pass ? "（判定修正）" : ""} | ${result ? result.passed + "/" + result.total : record.passed + "/" + record.total} | ${record.elapsedSeconds}s | ${dirs} | ${(record.files ?? []).length} | ${record.approvals ?? 0} | ${result ? result.failed.join(", ") : ""} |`);
+      console.log(`| ${record.id} ${record.title} | ${record.tier} | ${verdict(record) ? "PASS" : "FAIL"}${result && result.pass !== record.pass ? "（判定修正）" : ""}${budgetNote(record)} | ${result ? result.passed + "/" + result.total : record.passed + "/" + record.total} | ${record.elapsedSeconds}s | ${dirs} | ${(record.files ?? []).length} | ${record.approvals ?? 0} | ${result ? result.failed.join(", ") : ""} |`);
     }
   } else {
     console.log(`合计 ${records.length} 例${suite ? "（判定按当前用例模式重新计算）" : ""}`);
@@ -73,8 +82,11 @@ if (!files.length) {
       console.log(`  ${tier}: ${value.pass}/${value.count} 全通过，平均得分 ${(value.score / value.count).toFixed(2)}`);
     console.log("\n逐例：");
     for (const record of sorted)
-      console.log(`  ${record.id} ${verdict(record) ? "PASS" : "FAIL"} ${record.rescored ? record.rescored.passed + "/" + record.rescored.total : record.passed + "/" + record.total} ${record.elapsedSeconds}s ${record.title}${record.rescored && !record.rescored.pass ? " · 未过：" + record.rescored.failed.join(", ") : ""}`);
+      console.log(`  ${record.id} ${verdict(record) ? "PASS" : "FAIL"}${budgetNote(record)} ${record.rescored ? record.rescored.passed + "/" + record.rescored.total : record.passed + "/" + record.total} ${record.elapsedSeconds}s ${record.title}${record.rescored && !record.rescored.pass ? " · 未过：" + record.rescored.failed.join(", ") : ""}`);
   }
   const failed = sorted.filter((record) => !verdict(record));
   console.log(`\n未通过 ${failed.length} 例：${failed.map((record) => record.id).join(", ") || "无"}`);
+  const exhausted = sorted.filter((record) => budgetNote(record));
+  if (exhausted.length)
+    console.log(`预算受限 ${exhausted.length} 例（${exhausted.map((record) => record.id).join(", ")}）：这些结果说明"来不及"，不等于"没做"，要下能力结论应先放宽预算重跑。`);
 }

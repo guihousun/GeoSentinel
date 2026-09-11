@@ -118,11 +118,8 @@ def download_gee_raster(
             },
         )
     except Exception as exc:  # noqa: BLE001 - preserve a structured MCP error
-        return _failed(
-            "GEE_DOWNLOAD_FAILED",
-            sanitize_download_text(str(exc) or type(exc).__name__),
-            "Inspect the AOI, date window, output path, and GEE request-size limits before retrying.",
-        )
+        message = sanitize_download_text(str(exc) or type(exc).__name__)
+        return _failed("GEE_DOWNLOAD_FAILED", message, _failure_suggestion(request, message))
 
 
 def _initialize_ee(project: str | None):
@@ -319,6 +316,42 @@ def _validate_geotiff(path: Path) -> None:
 def _report(progress: DownloadProgress | None, current: float, total: float, message: str) -> None:
     if progress is not None:
         progress(float(current), float(total), message)
+
+
+def _failure_suggestion(request: GeeDownloadRequest, message: str) -> str:
+    """Actionable next step for a failed download.
+
+    The previous single suggestion ("inspect the AOI, date window, output path and
+    request-size limits") was wrong for the most common failure of this tool: the
+    asset's real type does not match ``asset_type``. ImageCollection datasets — most
+    VIIRS night-lights products — then fail inside ``ee.Image(...)`` with "… is not an
+    Image", and an agent that follows the generic advice re-sends the same request
+    (observed in the 2026-09-11 benchmark: two GEE jobs burned on one such mismatch).
+    """
+    text = message.upper()
+    # "… is not an ImageCollection" CONTAINS "… is not an Image", so the longer
+    # spelling has to be tested first or the reverse mismatch is mislabelled.
+    if "IS NOT AN IMAGECOLLECTION" in text or "IS NOT AN IMAGE" in text:
+        actual = "Image" if "IS NOT AN IMAGECOLLECTION" in text else "ImageCollection"
+        extra = " supply start_date and end_date (plus a reducer) for the collection." if actual == "ImageCollection" else ""
+        if request.asset_type == "auto":
+            return f"The asset is really an {actual}: pass asset_type='{actual}' and retry.{extra}"
+        return (
+            f"asset_type was pinned to '{request.asset_type}' but the asset is really an {actual}: "
+            f"either drop the parameter (the default 'auto' detects the type) or pass '{actual}'.{extra}"
+        )
+    if "REQUIRE START_DATE AND END_DATE" in text:
+        return "ImageCollection downloads need start_date and end_date; give the full window for a yearly composite."
+    if "NORMALIZED_DIFFERENCE PRESETS REQUIRE AN IMAGECOLLECTION" in text:
+        return "This processing preset needs an ImageCollection: provide a date window, or use a preset without the normalized difference."
+    if "NO IMAGES FOUND" in text:
+        return "No image matches that dataset, date window and AOI: widen the dates or confirm the AOI is inside the product's coverage."
+    if "DID NOT CREATE A NON-EMPTY GEOTIFF" in text:
+        return "The export produced nothing: check that the bands exist for that asset and that the AOI/scale stay inside the request limits."
+    return (
+        "Inspect the AOI, date window, output path, and GEE request-size limits before retrying; "
+        "for an ImageCollection also supply start_date and end_date."
+    )
 
 
 def _failed(code: str, message: str, suggestion: str) -> ToolResult:
