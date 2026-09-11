@@ -25,29 +25,23 @@
 ## 环境
 
 - Node.js 24；pnpm 10.33.0。
-- DSH 与全部 DSH 内部依赖锁定为 `0.1.2-rc.1`（2026-09-08 npm `latest`；版本名称仍为 RC，不是无预发布后缀的正式版）。不跟随 `alpha` 通道，不要用 npm 重新生成依赖树。
-- AgentTeams 基线为 `v0.1.15`，已导出的独立 fork 差异见 [`vendor/agentteams-source.json`](vendor/agentteams-source.json)。
+- DSH 与全部 DSH 内部依赖锁定为 `0.1.5-rc.1`（2026-09-11 起；版本名称仍为 RC，不是无预发布后缀的正式版）。不跟随 `alpha` 通道，不要用 npm 重新生成依赖树。
+- 0.1.5 线**不需要任何仓库外的调度器目录**：委派、方案审批与成员目录都在 DSH 原生平面上，原 AgentTeams fork 与其 `dsh/vendor/` 补丁随 0.1.2 线一起退役（历史仍在 git；来龙去脉见 [新机器安装与完整复盘指南](../docs/new-machine-migration.md)）。
 - Docker Desktop/Linux Docker，至少预留 GIS 镜像空间及容器内存。无需修改 NTL-GPT-Stable 或主机 Python 环境。
 - DeepSeek API 凭据；已获授权的 GEE 项目与 Earth Engine 凭据文件。
 
-### 1. 准备独立 fork
-
-在 GeoSentinel 仓库旁建立兄弟目录，或通过 `GEO_AGENT_TEAMS_DIR` 指定其他位置：
+### 1. 一条命令安装（推荐）
 
 ```powershell
-git clone --branch v0.1.15 https://github.com/NanmiCoder/dsh-agent-teams.git GeoSentinel-AgentTeams
-cd GeoSentinel-AgentTeams
-git switch -c codex/geosentinel-orchestrator
-git apply --check ../GeoSentinel/dsh/vendor/agentteams-geosentinel.patch
-git apply ../GeoSentinel/dsh/vendor/agentteams-geosentinel.patch
-pnpm install --frozen-lockfile
-pnpm build
-node --test scripts/geosentinel-policy.test.mjs
+git clone <仓库地址> GeoSentinel; cd GeoSentinel
+node dsh/scripts/bootstrap.mjs          # 体检 → 装依赖 → 生成 .env → 建镜像 → 冻结点验 → 建管理员
+node dsh/scripts/bootstrap.mjs --check  # 只体检（JSON 输出，可在 CI 里当闸门）
 ```
 
-将命令中的 `GeoSentinel` 改为实际克隆目录名。已经应用补丁的工作目录不要重复应用。上游 MIT 许可及变更来源均保留在 `vendor/`。
+脚本幂等、可反复运行；缺凭据时会明确停下并列出要填的项，不会写入任何密钥。装完按它打印的
+`pnpm start --port 8511 --no-open` 启动，浏览器打开 `http://127.0.0.1:8511/`。
 
-### 2. 安装、配置和构建
+### 2. 手工步骤（等价，便于理解每一步在做什么）
 
 ```powershell
 cd <GeoSentinel仓库>\dsh
@@ -206,3 +200,16 @@ node scripts/check-env.mjs
 DSH 原生界面 + Better Sidebar 是本目录唯一的工作台入口。访问 `/` 或 `/geo/` 会转到 `/geo/native/`。旧自建工作台及其页面脚本、样式、专用资源路由已移除；不再使用 `GEO_NATIVE_UI_PREVIEW` 开关，旧配置中的该变量不会恢复旧页面。账号、项目、对话、文件及全球事件监测 API 保留。
 
 原生入口为 `/geo/native/`。它使用项目依赖 `dsh-dream-skin@8.30.1` 的 Midnight 深色配色，通过 DSH 原生 `theme.register` 接入。登录、对话、Better Sidebar、全球事件监测和资料面板共享主题变量；次要文字与控件边框增强对比度。不启用上游共享换肤 API、壁纸上传、任意主题包导入或主机配置入口。主题由项目统一管理，与用户账号和研究任务无关。升级皮肤包后须重新运行主题数据与对比度测试。
+
+
+### 正式重启入口
+
+```powershell
+pwsh -NoProfile -File "D:\GeoSentinel-DSH\dsh\scripts\restart.ps1" -Port 8511
+# 只预检，不停止进程
+pwsh -NoProfile -File "D:\GeoSentinel-DSH\dsh\scripts\restart.ps1" -Port 8511 -CheckOnly
+```
+
+默认端口8511。核对冻结版本和进程归属，停止本实例及其控制器，然后独立后台启动并检查健康状态中的版本ID。发布切换期间拒绝重启；重启会中断正在执行的任务，请等任务结束。历史与用户数据保留。兼容回滚逻辑位于release/compatible-runtime.mjs，只允许启动曾发布的旧版，并先验证其快照。
+
+.runtime仅保存日志与运行数据，不再存放日常运维所依赖的实现。旧restart-published.ps1只作为正式脚本的兼容转发入口。日志为.runtime/server.log和.runtime/server-error.log。

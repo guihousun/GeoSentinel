@@ -20,7 +20,36 @@
 - 全球事件监测：`dsh/MONITOR.md`
 - 已实现能力与限制：`dsh/IMPLEMENTATION.md`
 - 工具迁移进度：`dsh/TOOL-MIGRATION.md`
+- 插件契约与插件清单：`dsh/plugins/README.md`
 - 基线基准（30 例）：`dsh/benchmark/README.md`
+
+---
+
+## 最快路径：一条命令
+
+```powershell
+git clone https://github.com/guihousun/GeoSentinel.git GeoSentinel
+cd GeoSentinel
+node dsh/scripts/bootstrap.mjs            # 或 pnpm --dir dsh bootstrap
+```
+
+它按顺序做六件事，每一步都先检查、已完成的跳过，可以反复运行：
+
+1. **前置检查**：Node ≥ 24、pnpm 版本与 `packageManager` 一致、git、**Docker 引擎可用**。
+2. `pnpm install --frozen-lockfile`（依赖树只按 lockfile 重建，不用 npm 重新解析）。
+3. `.env`：不存在时从 `.env.example` 复制，然后**停下**并列出必填项（`DEEPSEEK_API_KEY`、
+   `GEE_DEFAULT_PROJECT_ID`、`GEO_GEE_CREDENTIALS`）——填完重跑即可。脚本不写任何密钥。
+4. 构建 GIS 镜像 `geosentinel-gis:0.1`（已存在则跳过）并执行 `tools/release.mjs prepare`
+   冻结并校验首个版本（隔离离线安装 + 语法 + 测试 + 镜像）。
+5. 跑 `scripts/check-env.mjs` 作为闸门（版本、镜像、凭据存在性，不打印密钥）。
+6. 账号库为空时创建首个管理员并**只显示一次**初始口令（也可先设 `GEO_BOOTSTRAP_PASSWORD`）。
+
+然后按脚本打印的命令启动：`pnpm --dir dsh start --port 8511 --no-open`，浏览器打开
+`http://127.0.0.1:8511/`。同一台机器上想只体检不改动：`node dsh/scripts/bootstrap.mjs --check`
+（JSON、非零退出码表示有阻塞项，可直接用在 CI 里）。可选加 `--with-share-data` 顺带拉取共享数据。
+
+**不需要外部调度器仓库**：0.1.5 线已把委派、方案审批与成员目录移到 DSH 原生平面（见 §6）。
+装完后 `node dsh/scripts/verify.mjs` 可再核对编码、模块语法、相对链接与“私密文件不会被提交”。
 
 ---
 

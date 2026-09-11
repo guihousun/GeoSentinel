@@ -70,7 +70,7 @@ if (has("help") || argv.length === 0 && false) {
 
   说明: 默认即"全球全时段全量"。断点续传、sha256 校验、逐条许可记录、失败自愈；
         已校验的文件不会重下，坏包另存 .corrupt-<ts> 后重下，绝不删除既有数据。`);
-  process.exit(0);
+  await stop(0);
 }
 
 const root = path.resolve(String(flag("root", "./share-data")));
@@ -82,6 +82,12 @@ const limit = Number(flag("limit", 0)) || 0;
 
 const mb = (bytes) => (bytes / 1048576).toFixed(1);
 const gb = (bytes) => (bytes / 1073741824).toFixed(2);
+// Exiting straight after console.log drops queued output when stdout is a pipe, so
+// the JSON reports this tool exists to produce would vanish in CI. Flush first.
+const stop = async (code) => {
+  await Promise.all([new Promise((resolve) => process.stdout.write("", resolve)), new Promise((resolve) => process.stderr.write("", resolve))]);
+  process.exit(code);
+};
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const UA = { "user-agent": "geosentinel-share-fetch" };
 
@@ -411,7 +417,7 @@ if (wanted("worldpop")) results.push(await fetchWorldPop());
 if (dryRun) {
   const total = results.reduce((sum, item) => sum + (item.estimatedBytes ?? 0), 0);
   console.log(JSON.stringify({ root, dryRun: true, results, estimatedTotal: `${gb(total)} GB` }, null, 2));
-  process.exit(0);
+  await stop(0);
 }
 
 const sources = [
@@ -426,4 +432,4 @@ const sources = [
 await writeFile(path.join(root, "SOURCES.md"), sources);
 
 console.log(JSON.stringify({ root, results, sources: path.join(root, "SOURCES.md") }, null, 2));
-process.exit(results.some((item) => item.failed) ? 1 : 0);
+await stop(results.some((item) => item.failed) ? 1 : 0);

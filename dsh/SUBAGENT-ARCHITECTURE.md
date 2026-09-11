@@ -61,5 +61,5 @@ UI 展示的“运行”是逻辑 Agent 活动状态，不代表每个子 Agent 
 
 - [DeepSeek Harness 官方仓库](https://github.com/deepseek-ai/deepseek-harness)：版本和快速迭代边界。
 - [原生 subagent 包](https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/subagent/subagent)：本地安装版本的公共类型定义已核对 `startContinuable`、父子消息、持久化目录和 catalog。
-- [AgentTeams 上游](https://github.com/NanmiCoder/dsh-agent-teams)：团队编排来源；本地 fork 的 GeoSentinel 改动另见 [可重建补丁](vendor/agentteams-geosentinel.patch)。
+- [AgentTeams 上游](https://github.com/NanmiCoder/dsh-agent-teams)：0.1.2 线的团队编排来源。0.1.5 线已改用 DSH 原生预设与原生 subagent 注册表，当年的可重建补丁随 `dsh/vendor/` 一起删除（需要时从 git 历史取回）。
 - 当前原生 UI 适配：[client.js](plugins/workbench/native/client.js)；权限边界：[sidebar-adapter.mjs](plugins/platform/sidebar-adapter.mjs)。
