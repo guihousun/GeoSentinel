@@ -2,7 +2,7 @@
   "schema": "geosentinel.product.v1",
   "defaultModel": {
     "provider": "deepseek-official",
-    "model": "deepseek-v4.1-flash-expires-on-0910"
+    "model": "deepseek-flash"
   },
   "monitorEnabled": true,
   "roleTools": {

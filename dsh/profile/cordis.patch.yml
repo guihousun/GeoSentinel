@@ -90,35 +90,27 @@
     sampleOverCapGlobResults: false
 - id: tool-skill
   disabled: false
-# Model catalog for the deployed DeepSeek route. The experimental v4.1 flash
-# model is the product default and is natively multimodal; the catalog must
-# list it, otherwise team member dispatch rejects the unknown id even though
-# the chat route accepts it.
+# Model catalog for the deployed DeepSeek route. Verified against the route itself
+# (`GET <base>/models` with the product key): it serves exactly `deepseek-flash` and
+# `deepseek-v4-pro`. The earlier default `deepseek-v4.1-flash-expires-on-0910` expired on
+# 2026-09-10, and `deepseek-v4-flash` / `deepseek-v4-flash-vision-exp` are gone as well, so
+# listing them made every NEW chat fail with an unknown model. `deepseek-flash` is natively
+# multimodal (a real image request answers 200), so the image fields stay. A model id is only
+# listed here after the route confirmed it.
 - id: llm-deepseek
   config:
     models:
-      - id: deepseek-v4.1-flash-expires-on-0910
-        name: DeepSeek-V4.1-Flash
+      - id: deepseek-flash
+        name: DeepSeek-Flash
         description: 平台默认；原生多模态，适合有来源的研究与团队协作。
         contextWindow: 1000000
         inputModalities: [text, image]
         imagePixelBudget: 640000
         imageMaxBytes: 1048576
-      - id: deepseek-v4-flash
-        name: DeepSeek-V4-Flash
-        description: 快速、经济，适合常规与并行任务。
-        contextWindow: 1000000
       - id: deepseek-v4-pro
         name: DeepSeek-V4-Pro
         description: 更强的推理与编码能力，适合复杂或高质量要求任务。
         contextWindow: 1000000
-      - id: deepseek-v4-flash-vision-exp
-        name: DeepSeek-V4-Flash-Vision-Exp
-        description: 原生多模态备选；默认模型不可用时的替代。
-        contextWindow: 1000000
-        inputModalities: [text, image]
-        imagePixelBudget: 640000
-        imageMaxBytes: 1048576
 # Web search/fetch for source verification. The upstream fetch provider already
 # refuses non-public destinations, so the remaining risk is prompt injection:
 # the persona and the platform's web section both treat page content as data.
