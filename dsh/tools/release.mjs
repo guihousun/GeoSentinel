@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { acceptPreview, checkEnvironment } from "../release/acceptance.mjs";
 /**
  * Operator release CLI — the same validated publication path the administrator
  * panel drives, run from a local shell instead of an authenticated browser
@@ -89,12 +90,15 @@ async function status() {
     active: state.active,
     candidate: state.candidate,
     pending: state.pending,
+    lastError: state.lastError,
     changes: state.changes,
     loadedRelease: process.env.GEO_RELEASE_ID ?? null,
   });
 }
 
 async function prepare() {
+  if (args.includes("--publish") && !flag("authorization", "").trim()) throw new Error("自动发布必须提供本次用户授权 --authorization");
+  await checkEnvironment(root);
   const by = flag("by", actor);
   console.error(`release: freezing ${source} and validating (offline install, syntax, tests, docker build)…`);
   const candidate = await manager.prepare(by);
@@ -127,22 +131,28 @@ async function preview() {
     child.kill();
     throw new Error("预览服务未通过健康检查");
   }
-  const current = await manager.state();
-  current.candidate.previewed = true;
-  await manager.save(current);
+  try { await acceptPreview(manager, id, password); } catch (error) { child.kill(); throw error; }
+  try { await manager.locked(async () => {
+    const current = await manager.state();
+    if (current.pending || current.candidate?.id !== id) throw new Error("验收期间候选发生变化，请重新生成预览");
+    current.candidate.acceptance = "passed";
+    current.candidate.previewed = true;
+    await manager.save(current);
+  }); } catch(error) { child.kill(); throw error; }
   audit("release.preview", id);
-  const hold = Number(flag("hold", "0"));
+  const hold = Number(flag("hold", command === "generate-preview" ? "600" : "0"));
   print({ id, url: `http://127.0.0.1:${PREVIEW_PORT}/geo/api/preview-login?token=${token}`,
     expires: new Date(expires).toISOString(), holdingSeconds: Number.isFinite(hold) ? hold : 0 });
+  if (command === "generate-preview" && args.includes("--publish")) { try { await publish(false, id); } catch(error) { child.kill(); throw error; } }
   if (Number.isFinite(hold) && hold > 0) await new Promise((resolve) => setTimeout(resolve, hold * 1000));
   child.kill();
 }
 
-async function publish(rollback) {
-  const id = flag("id");
+async function publish(rollback, selectedId) {
+  const id = selectedId ?? flag("id");
   if (!id) throw new Error("需要 --id <版本号>");
   const by = flag("by", actor);
-  const request = await manager.request(id, by, rollback);
+  const request = await manager.request(id, by, rollback, flag("authorization", ""));
   audit(rollback ? "release.rollback" : "release.publish", id);
   print({ requested: request, note: "运行中的 supervisor 会在平台空闲后切换版本；切换会重启正式实例。" });
 }
@@ -164,6 +174,7 @@ async function cancel() {
 try {
   if (command === "status") await status();
   else if (command === "prepare") await prepare();
+  else if (command === "generate-preview") { await prepare(); if (!process.exitCode) await preview(); }
   else if (command === "preview") await preview();
   else if (command === "publish") await publish(false);
   else if (command === "rollback") await publish(true);

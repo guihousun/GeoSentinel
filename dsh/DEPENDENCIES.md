@@ -5,7 +5,7 @@
 | 组件 | 读取到的版本 / 采用版本 | 处理 |
 | --- | --- | --- |
 | 个人 DSH | `0.1.1-rc.2` | 保持不动 |
-| GeoSentinel DSH | `0.1.2-rc.1` | 2026-09-08 npm `latest`，仍为候选版；全部 DSH 内部包精确锁定同版，不混用 alpha |
+| GeoSentinel DSH | `0.1.5-rc.1` | 2026-09-11 开发运行时升级目标；全部 DSH 内部包精确锁定同版，不混用 alpha 或 rc.2 |
 | AgentTeams | `0.1.15` | 独立 fork；保留其调度、DAG、暂存方案、取消、会话与归档机制 |
 | dsh-login | `0.1.0` | 旧 ApiProxy 接口与当前 sessionController 不匹配；不直接挂载，采用独立 platform 插件实现邀请、账号与归属校验 |
 | task-board | `0.3.17` | 声明的宿主要求与当前锁定基线不一致；本轮不加载，任务进度由同一 AgentTeams 数据投影到工作台 |

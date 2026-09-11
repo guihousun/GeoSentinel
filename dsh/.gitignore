@@ -6,3 +6,5 @@ node_modules/
 CV-HANDOFF.md
 !scripts/
 !scripts/**
+node_modules.bak-*/
+node_modules.failed-*/

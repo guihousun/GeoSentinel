@@ -34,7 +34,7 @@ const manifest = JSON.parse(
 );
 check(
   "DSH pin",
-  manifest.dependencies["@deepseek-ai/dsh"] === "0.1.2-rc.1",
+  manifest.dependencies["@deepseek-ai/dsh"] === "0.1.5-rc.1",
   manifest.dependencies["@deepseek-ai/dsh"],
 );
 const listing = spawnSync(

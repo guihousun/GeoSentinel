@@ -1,3 +1,6 @@
+import { releaseGate } from "./preflight.mjs";
+import { readFileSync } from "node:fs";
+import { atomicJson } from "./manager.mjs";
 import path from "node:path";
 import { ReleaseManager } from "./manager.mjs";
 import { launchRelease, healthy } from "./runtime.mjs";
@@ -10,6 +13,9 @@ export async function runProduct(root, args) {
   if (options.host !== "127.0.0.1") throw new Error("版本发布入口固定绑定 127.0.0.1；公网使用既有 HTTPS 代理");
   const home = path.resolve(process.env.GEO_DSH_HOME || path.join(root, ".runtime/home"));
   const manager = new ReleaseManager(path.dirname(root), process.env.GEO_RELEASE_DIR || path.join(home, "releases"));
+  const version = JSON.parse(readFileSync(path.join(root, "node_modules/@deepseek-ai/dsh-web-app/package.json"), "utf8")).version;
+  const heartbeat = () => atomicJson(path.join(manager.directory, "controller.json"), { protocol: 1, version, pid: process.pid, at: Date.now() }).catch(error => console.error("发布控制器状态写入失败", error.message));
+  await heartbeat(); const controllerTimer = setInterval(heartbeat, 3000); controllerTimer.unref();
   let state = await manager.state(), initializing = !state.active;
   if (!state.active) {
     console.log("首次建立正式发布快照，正在验证依赖、代码和计算镜像……");
@@ -48,6 +54,7 @@ export async function runProduct(root, args) {
       const pending = await manager.locked(async () => { const current = await manager.state(); if (!current.pending) return null; current.pending.phase = "switching"; await manager.save(current); return current.pending; });
       if (!pending) return;
       await manager.verify(pending.id);
+      if (!pending.rollback) await releaseGate(manager, pending.id, pending.authorization);
       await stop(child);
       await start(pending.id);
       if (!await healthy(options.port, pending.id)) throw new Error("新版健康检查未通过");

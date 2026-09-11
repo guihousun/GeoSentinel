@@ -1,3 +1,4 @@
+import { releaseGate } from "./preflight.mjs";
 import { readdir, readFile, writeFile, mkdir, rename, lstat, open, unlink } from "node:fs/promises";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -232,20 +233,22 @@ export class ReleaseManager {
   async activated(id, by = "bootstrap") {
     return this.locked(async () => {
     const state = await this.state();
+    const authorization = state.pending?.authorization ?? null;
     state.active = id; state.pending = null;
-    state.history.unshift({ id, by, at: Date.now(), status: "active" });
+    state.history.unshift({ id, by, at: Date.now(), status: "active", authorization });
     state.history = state.history.slice(0, 30);
     await this.save(state);
     });
   }
-  async request(id, user, rollback = false) {
+  async request(id, user, rollback = false, authorization = "") {
     return this.locked(async () => {
       const state = await this.state();
       if (state.pending) throw new Error("已有版本等待发布");
       if (rollback ? !state.history.some((h) => h.id === id && h.status === "active") : state.candidate?.id !== id || state.candidate?.status !== "validated" || !state.candidate?.previewed) throw new Error("请先验证并打开候选版本预览");
       const manifest = await this.verify(id);
       if (!rollback && sha(JSON.stringify(fileHashes(await collectSource(this.source, this.fork)))) !== sha(JSON.stringify(manifest.hashes))) throw new Error("开发源码在验证后发生变化，请重新生成版本");
-      state.pending = { id, by: user, at: Date.now(), rollback };
+      if (!rollback) await releaseGate(this, id, authorization);
+      state.pending = { id, by: user, at: Date.now(), rollback, authorization: rollback ? "operator rollback" : authorization.trim() };
       await this.save(state); return state.pending;
     });
   }

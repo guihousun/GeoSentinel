@@ -44,7 +44,9 @@ test("a successful upgrade keeps the new tree and the backup", async (t) => {
   // A working installer lays down the pinned version, then the check passes.
   const fakeInstall = path.join(root, "fake-install.mjs");
   await writeFile(fakeInstall, `import { mkdirSync, writeFileSync } from "node:fs";\nimport path from "node:path";\nconst manifest = path.join(process.cwd(), "node_modules", "@deepseek-ai", "dsh-web-app");\nmkdirSync(manifest, { recursive: true });\nwriteFileSync(path.join(manifest, "package.json"), JSON.stringify({ version: "0.1.5-rc.1" }));\nwriteFileSync(path.join(process.cwd(), "node_modules", "marker.txt"), "new tree");\n`);
-  const result = await upgrade(root, { GEO_UPGRADE_INSTALL: `"${process.execPath}" "${fakeInstall}"`, GEO_UPGRADE_CHECK: "exit 0" });
+  await mkdir(path.join(root, "scripts"));
+  await writeFile(path.join(root, "scripts/check-env.mjs"), "process.exit(0);\n");
+  const result = await upgrade(root, { GEO_UPGRADE_INSTALL: `"${process.execPath}" "${fakeInstall}"`, GEO_UPGRADE_CHECK: "" });
   assert.equal(result.code, 0, result.stdout);
   assert.match(result.stdout, /完成：@deepseek-ai\/dsh-web-app 0.1.5-rc\.1/);
   assert.equal(await readFile(path.join(root, "node_modules", "marker.txt"), "utf8"), "new tree");

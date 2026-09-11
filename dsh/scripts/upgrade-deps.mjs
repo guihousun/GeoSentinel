@@ -40,7 +40,7 @@ const failed = path.join(root, `node_modules.failed-${stamp}`);
 
 const say = (line) => console.log(line);
 const run = (command, args = [], { shell = false } = {}) => new Promise((resolve) => {
-  const child = spawn(command, args, { cwd: root, stdio: "inherit", shell: shell || process.platform === "win32" });
+  const child = spawn(command, args, { cwd: root, stdio: "inherit", shell });
   child.on("error", (error) => resolve({ code: 1, error }));
   child.on("exit", (code) => resolve({ code: code ?? 1 }));
 });
@@ -85,7 +85,9 @@ try {
   const install = await run(installCommand, [], { shell: true });
   if (install.code !== 0) throw new Error(`安装失败（退出码 ${install.code}）`);
   say(`[3/4] 校验…`);
-  const check = await run(checkCommand, [], { shell: true });
+  const check = process.env.GEO_UPGRADE_CHECK
+    ? await run(checkCommand, [], { shell: true })
+    : await run(process.execPath, ["scripts/check-env.mjs"]);
   if (check.code !== 0) throw new Error(`环境校验失败（退出码 ${check.code}）`);
   const now = installedVersion();
   if (pinned !== undefined && now !== pinned) throw new Error(`安装后的版本 ${now ?? "未知"} 与 pin ${pinned} 不一致`);

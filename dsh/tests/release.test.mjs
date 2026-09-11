@@ -102,7 +102,7 @@ test("snapshot, explicit publish, stale draft rejection and rollback preserve th
     await writeFile(path.join(source, "dsh/profile/agent-presets/geosentinel", name),
       await readFile(new URL(`../profile/agent-presets/geosentinel/${name}`, import.meta.url)));
   }
-  await writeFile(path.join(source, "dsh/package.json"), JSON.stringify({ dependencies: {} }));
+  await writeFile(path.join(source, "dsh/package.json"), JSON.stringify({ dependencies: { "@deepseek-ai/dsh": "0.1.5-rc.1" } }));
   await writeFile(path.join(source, "dsh/pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
   // The monitor collector mounts this adapter file by path at run time, so the
   // freeze carries it explicitly and refuses to validate without it.
@@ -112,7 +112,13 @@ test("snapshot, explicit publish, stale draft rejection and rollback preserve th
   await writeFile(path.join(source, "dsh/.env"), "DO_NOT_PUBLISH=private");
   await writeFile(path.join(source, "dsh/plugins/view.js"), "export const title='first';");
   const manager = new ReleaseManager(source, path.join(dir, "releases"), fork);
-  manager.build = async (id) => manager.verify(id);
+  manager.build = async (id) => {
+    await manager.verify(id);
+    const root = manager.releaseRoot(id);
+    await mkdir(path.join(root, "app/dsh/node_modules/@deepseek-ai/dsh-web-app"), { recursive: true });
+    await writeFile(path.join(root, "app/dsh/node_modules/@deepseek-ai/dsh-web-app/package.json"), JSON.stringify({ version: "0.1.5-rc.1" }));
+    await writeFile(path.join(root, "validation.json"), JSON.stringify({ passed: true }));
+  };
   const first = await manager.prepare("admin");
   assert.equal(first.status, "validated");
   assert.equal((await manager.state()).active, null);
@@ -121,7 +127,11 @@ test("snapshot, explicit publish, stale draft rejection and rollback preserve th
   assert.ok(Object.keys((await manager.verify(first.id)).hashes).includes("monitoring/sources.py"));
   await assert.rejects(manager.request(first.id, "admin"), /预览/);
   let state = await manager.state(); state.candidate.previewed = true; await manager.save(state);
-  await manager.request(first.id, "admin");
+  await assert.rejects(manager.request(first.id, "admin", false, "发布此版本"), /预览/);
+  await writeFile(path.join(manager.releaseRoot(first.id), "acceptance.json"), JSON.stringify({ id: first.id, passed: true, check: "preview-upload-v1", at: Date.now() }));
+  await writeFile(path.join(manager.directory, "controller.json"), JSON.stringify({ protocol: 1, version: "0.1.5-rc.1", at: Date.now() }));
+  await assert.rejects(manager.request(first.id, "admin"), /授权/);
+  await manager.request(first.id, "admin", false, "发布此版本");
   assert.equal((await manager.state()).active, null);
   await manager.activated(first.id);
   const original = await readFile(path.join(manager.releaseRoot(first.id), "app/dsh/plugins/view.js"), "utf8");
