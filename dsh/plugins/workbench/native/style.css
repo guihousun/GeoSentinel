@@ -239,12 +239,3 @@ body:has(.geo-product-wallpaper) {isolation:isolate;}
 .geo-monitor-keys p {margin:0;font-size:12.5px;line-height:1.6;color:var(--geo-muted);}
 .geo-monitor-detail-title {margin:0;font-size:13.5px;font-weight:600;color:var(--geo-text);}
 @media (max-width:1080px) {.geo-native-monitor.fullscreen .geo-monitor-body {grid-template-columns:minmax(0,1fr) 320px;}}
-
-/* The product's research tabs. 0.1.5's native sidebar replaced the third-party better-sidebar
-   plugin that used to host these three panels as tabs, so the strip lives in the product's own
-   region of that sidebar (`sidebar.workspaces`, rendered by the overlay) and each tab opens its
-   panel in the main area. Compact chips in a two-column grid: the sidebar is narrow, and the
-   labels are long. */
-.geo-native-tabs {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;}
-.geo-native-tabs button {min-height:32px;justify-content:flex-start;font-size:13px;padding:6px 8px;}
-.geo-native-tabs button.selected {background:var(--dsw-alias-interactive-bg-hover);font-weight:600;}

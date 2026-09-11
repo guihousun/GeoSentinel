@@ -759,31 +759,13 @@ window.__ModuleLoader__.load({
       // trading it away. `wide` is the native sidebar's own collapsed signal: in the
       // rail the native toggle stays and the hero picker still covers selection, which
       // is the same behaviour the product's own collapsed sidebar had.
-      // The product's research tabs. Before 0.1.5 these three panels were tabs of the
-      // third-party `dsh-better-sidebar`; the native sidebar replaced that plugin (its slot
-      // shell is what `ui-chat` waits for), so the strip now lives inside the product's own
-      // region of that sidebar (`sidebar.workspaces`), and selecting a tab opens its panel in
-      // the main area — the same shape the old tabs had.
-      const RESEARCH_TABS = [
-        { id: "projects", title: "项目", icon: icons.IconFolderOpenOutline16 },
-        { id: "monitor", title: "全球事件监测", icon: icons.IconGlobeOutline14 },
-        { id: "briefs", title: "监测简报", icon: icons.IconListPenOutline16 },
-        { id: "spatial", title: "空间数据", icon: icons.IconDataOutline16 },
-      ];
       function ProjectTree({ wide = true }) {
         const s = useState(), l = useList();
         if (!s.user || !wide) return null;
-        const panels = ["monitor", "briefs", "spatial"];
-        const activeTab = panels.includes(s.panel) ? s.panel : "projects";
         return h("div", { className: "geo-native-tree" },
           s.previewMode && h("strong", { role: "status" }, "用户版预览"),
           s.releaseUpdate && button("新版已发布，刷新页面", icons.IconRefreshOutline16, () => location.reload()),
           s.user.admin && h("div", { className: "geo-mode-tabs", role: "group", "aria-label": "任务模式" }, button("研究任务", icons.IconNewChatOutline16, () => set({ view: "research" }), { "aria-pressed": s.view === "research" }), button("创造任务", icons.IconSettingsOutline16, () => enterDevelopment(), { "aria-pressed": s.view === "development" })),
-          h("div", { className: "geo-native-tabs", role: "tablist", "aria-label": "研究面板" },
-            ...RESEARCH_TABS.map((tab) => button(tab.title, tab.icon, () => {
-              if (tab.id === "projects") set({ panel: null, view: "research" });
-              else { set({ view: "research" }); openResearchTab(tab.id); }
-            }, { className: activeTab === tab.id ? "selected" : "", "aria-selected": activeTab === tab.id }))),
           s.view !== "development" && button("新建项目", icons.IconProjectAddOutline16, () => set({ panel: "project" })),
           h("nav", { "aria-label": s.view === "development" ? "创造任务" : "研究项目", className: "geo-native-projects" }, ...s.projects.filter(() => s.view !== "development").map((p) => h("section", { key: p.id },
             h("div", { className: "geo-native-project-title" }, button(p.title, icons.IconFolderOpenOutline16, () => selectProject(p.id)), button("新建对话", icons.IconPlusOutline16, () => create({ workspaceId: p.id }), { iconOnly: true, disabled: p.archived }), button("管理项目", icons.IconSettingsOutline16, () => set({ panel: "edit", editing: { kind: "projects", id: p.id, title: p.title } }), { iconOnly: true })),
@@ -791,15 +773,18 @@ window.__ModuleLoader__.load({
             s.user.admin && s.view === "development" && h("section", { className: "geo-development-project" }, h("div", { className: "geo-native-project-title" }, button("GeoSentinel 开发", icons.IconFolderOpenOutline16, () => enterDevelopment()), button("新建创造任务", icons.IconPlusOutline16, () => enterDevelopment({ type: "geo:development-create" }), { iconOnly: true })),
               ...s.developmentItems.map((item) => h("div", { key: item.id, className: "geo-native-chat-row" }, button(item.title, icons.IconNewChatOutline16, () => enterDevelopment({ type: "geo:development-open", id: item.id }), { className: s.view === "development" && s.developmentCurrent === item.id ? "selected" : "" }), item.running && h("span", { role: "status" }, "运行中"), button("管理创造任务", icons.IconSettingsOutline16, () => set({ panel: "edit", editing: { kind: "development", id: item.id, title: item.title } }), { iconOnly: true }))))));
       }
-      // The product's tool entries in the native sidebar's `sidebar.footer.action` list. The
-      // three research panels moved up into the sidebar's tab strip (`RESEARCH_TABS`), so the
-      // footer keeps only the account and administrator entries — except in the collapsed rail,
-      // where the strip is not rendered and one icon entry still has to reach the monitor.
+      // The product's tool entries. From 0.1.5 they live in the native sidebar's
+      // `sidebar.footer.action` list, which is what the retired better-sidebar tabs
+      // used to provide — including 监测简报 and 空间数据, so those panels get an entry
+      // back instead of only being reachable from inside the conversation header.
       function ProductEntries({ wide = true }) {
         const s = useState();
         if (!s.user) return null;
         if (!wide) return button("全球事件监测", icons.IconGlobeOutline14, () => openResearchTab("monitor"), { iconOnly: true });
         return h("div", { className: "geo-native-bottom" },
+          button("全球事件监测", icons.IconGlobeOutline14, () => openResearchTab("monitor")),
+          button("监测简报", icons.IconListPenOutline16, () => openResearchTab("briefs")),
+          button("空间数据", icons.IconDataOutline16, () => openResearchTab("spatial")),
           s.user.admin && button("管理中心", icons.IconSettingsOutline16, async () => { const data = await api("/admin/users"); set({ panel: "admin", users: data.users }); }),
           s.user.admin && button("产品配置与发布", icons.IconSettingsOutline16, () => set({ panel: "releases" })),
           s.user.admin && button("管理员设置", icons.IconSettingsOutline16, () => enterDevelopment({ type: "geo:development-settings" })),
