@@ -214,11 +214,18 @@ export async function nativeAssets() {
   }
   // API helpers are library-only: their unrestricted transport plugins never activate.
   await collect("@deepseek-ai/dsh-api-session-controller");
-  // `dsh-better-sidebar` is deliberately NOT collected any more: the native sidebar
-  // family above owns the single `sidebar` slot from 0.1.5 on, and the native chat
-  // requires it. On the older line the native sidebar does not exist, so the shell
-  // then has no file panel — the product's own panel comes back only if it is
-  // re-expressed as a native sidebar contribution.
+  // `dsh-better-sidebar`, CLIENT HALF ONLY. It renders the product's three research panels as
+  // tabs of a right-side panel with a floating overlay — the shape the product shipped before the
+  // 0.1.5 migration — and the overlay mounts it itself (`require("dsh-better-sidebar/client")` in
+  // native/client.js), so collecting the client half is all the shell has to do. It does NOT claim
+  // the left `sidebar` slot (it injects `conversation.chat.turnTail` and `settings.section` and
+  // provides the client-side `betterSidebar` service), so it coexists with the native sidebar; the
+  // earlier note here claiming it "has to step aside" was wrong (verified against its own slot
+  // registrations). Its NODE half stays unmounted on purpose: it registers `/sidebar/api/*`, the
+  // same prefix the platform's own explorer adapter owns, and two mounts fail the whole plugin
+  // tree at boot ("duplicate prefix route"); plugins/platform/sidebar-adapter.mjs answers the
+  // `settings.get` / `shell.get` / `session.cwd` / `fs.tree` / `fs.read` methods its tabs ask for.
+  await collect("dsh-better-sidebar", createRequire(import.meta.url));
   // Data-visualisation client half: renders the dsh-ui fence and render_ui cards.
   await collect("@changfenhuang/dsh-genui", createRequire(import.meta.url));
   // Upload UI (paperclip, drag & drop, preview cards). Its host route is
