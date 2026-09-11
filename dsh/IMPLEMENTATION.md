@@ -243,7 +243,7 @@ public coding service or a claim that Docker eliminates every hostile-code risk.
 | File resources (`dsh-resource://`) | no | yes | the document preview resolves through the resource provider, which is bundled and booted on 0.1.5 |
 | Staged plan and confirmation | AgentTeams plan in the product UI | native plan mode (`exit_plan_mode`) plus the native question panel | acceptance: plan submitted, three-part question form asked, answered through the product's own contract, turn continued about 5 s later |
 | Delegation and role boundaries | AgentTeams, four fixed roles | native subagents plus the product's three role tools on the agent-preset plane | measured: supervisor 57 tools with no `subagent`/shell/workflow; the data and analysis specialists' FIRST requests carry 21 and 29 tools, item-by-item equal to `product.json.roleTools` |
-| Monitoring brief and spatial data panels | yes | yes | browser acceptance on an earlier candidate in this line (not repeated on the current one) |
+| Monitoring brief and spatial data panels | yes | yes | panel rendering plus the route behind each one re-verified on the current candidate: all three panels rendered, `/monitor/events` answered 200 twice, 0 console errors, 0 failed requests. Their snapshots are EMPTY there because a preview instance keeps monitoring collection off by design, and the panels say so ("0/0 条线索 · 数据待更新", "没有可预览的空间数据文件") instead of inventing content; a data-bearing snapshot was verified on an earlier candidate in this line |
 | Model and theme settings | native settings | native settings (with `ui-agent-preset` closed) | verified in the administrator development instance; not separately re-verified for ordinary users |
 
 ### Deliberately not reused, with reasons
