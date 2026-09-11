@@ -214,3 +214,71 @@ interaction integration; personal-host endpoints remain disabled.
 
 This is a functional controlled pilot for the agreed first three parts, not an unrestricted
 public coding service or a claim that Docker eliminates every hostile-code risk.
+
+## 0.1.5 core migration: parity index and verification evidence (2026-09-11)
+
+### How the comparison is made
+
+- **Module level**: the ids registered with the client module loader on each side (taken from the
+  loader's own registrations, not from package-name-looking substrings, which would also count CSS
+  class names). The running 0.1.2 product registers 17 client modules; the 0.1.5 candidate registers
+  26 and boots 25. The only module DROPPED is `dsh-better-sidebar`; the 10 added modules are all
+  0.1.5 native surfaces (sidebar family, upload, attachment, approval, deliverables, resources, the
+  file resource provider), so the capability set is a superset rather than a reduction.
+- **Artifact level**: a release id is `sha(JSON.stringify(fileHashes)).slice(0, 16)` over the frozen
+  files, so the same id means the same bytes. `.runtime/candidate-validity.mjs <sourceRoot>
+  <candidate>/manifest.json` answers "does the current source still freeze into the candidate that
+  was validated and acceptance-tested" — `publish` performs the same comparison itself before it
+  switches (release/manager.mjs).
+
+### User-facing surfaces
+
+| Surface | 0.1.2 product | 0.1.5 candidate | Evidence |
+| --- | --- | --- | --- |
+| Login, invitation, account panel | yes | yes | 133 product tests; the preview instance logs in as an ordinary user and the account panel shows usage |
+| Project / chat list and entries | the product's own list | the product's own list registered into the native `sidebar.workspaces` / `sidebar.footer.action` | browser acceptance: the sidebar lists projects and their chats, clicking one opens it; management entry points sit behind the row's gear |
+| Conversation, streaming answer, transcript | yes | yes | every step of the one-command acceptance runs a real chat; answers cross-checked against `native-history` |
+| Attachment upload | the product's own dock | native upload dock over the product's `/api/upload/native` bridge | acceptance: dock shows `upload-sample.md / MD 63B`, the only upload request is the bridge call, the workspace lists the file |
+| File panel and document preview | the product's own panel (refresh on navigation) | native right sidebar + the product's explorer namespace + a LIVE change feed | acceptance: groups, expand, click-to-render Markdown; PDF preview; **an open preview updated by itself about 4 s after the agent rewrote the file**, with no click |
+| File resources (`dsh-resource://`) | no | yes | the document preview resolves through the resource provider, which is bundled and booted on 0.1.5 |
+| Staged plan and confirmation | AgentTeams plan in the product UI | native plan mode (`exit_plan_mode`) plus the native question panel | acceptance: plan submitted, three-part question form asked, answered through the product's own contract, turn continued about 5 s later |
+| Delegation and role boundaries | AgentTeams, four fixed roles | native subagents plus the product's three role tools on the agent-preset plane | measured: supervisor 57 tools with no `subagent`/shell/workflow; the data and analysis specialists' FIRST requests carry 21 and 29 tools, item-by-item equal to `product.json.roleTools` |
+| Monitoring brief and spatial data panels | yes | yes | browser acceptance on an earlier candidate in this line (not repeated on the current one) |
+| Model and theme settings | native settings | native settings (with `ui-agent-preset` closed) | verified in the administrator development instance; not separately re-verified for ordinary users |
+
+### Deliberately not reused, with reasons
+
+- **`dsh-client-ui-workspace`** (the native session list): its activation waits on `workspaces` and
+  `remote.directoryPicker`, and the picker lives on the host plane the product keeps closed; booting
+  it leaves the loader entry pending, which makes the native loader report the WHOLE client bundle as
+  failed (blank page). It was never bundled on either line — it does not appear in the frozen 0.1.2
+  release either, and the module-level comparison above finds only `dsh-better-sidebar` dropped — so
+  the native session-list grouping interactions are a boundary, not a parity gap.
+- **`dsh-client-ui-open-in-app`**: polls the closed host API plane and answers 401 for an ordinary
+  user, so the button would be inert while every page load logged a failed request.
+- **`dsh-client-ui-plan`**: needs `remote.commands` from the closed plane; the plan itself is carried
+  by native plan mode plus the question panel.
+- **Host shell, `workflow`, `ralph`**: product boundaries. Model-authored code runs only in the
+  bounded, network-disabled analysis container, and orchestration belongs to the fixed roles.
+- **Directory picker**: a host-plane capability that an ordinary user never had; session archiving is
+  project-level by design (`archiveSession` refuses to archive a single session).
+
+### Re-verifying in one command
+
+1. `node dsh/tools/release.mjs preview --id <candidate> --hold 1800` in the validation home.
+2. `python .runtime/acceptance-suite.py 8513 <login-token>` — runs the six browser/API checks and
+   prints a PASS/FAIL verdict table (all six passed on `c5f518a3c6f651e6`).
+3. `node .runtime/candidate-validity.mjs <sourceRoot> <candidate>/manifest.json` — the frozen scope
+   still matches the source (it did, 187/187 files, before and after this document was written).
+
+### Still open
+
+- Formal publication. The technical path is pre-flighted: freezing the main tree produced the SAME
+  candidate id (hence the same bytes) as the one acceptance-tested here, offline install with
+  `--frozen-lockfile` succeeded, and the Docker image built.
+- The main tree's dependency upgrade (0.1.2 → 0.1.5). It replaces the runtime the current
+  administrator session runs on, so it is executed together with publication, on explicit approval.
+- One observed ordering deviation, left to the administrator: in the staged-plan acceptance the
+  supervisor called search/download tools BEFORE presenting the plan and asking for confirmation,
+  while its persona asks for the plan first. No boundary was crossed (downloads use the normal
+  entry points and quotas); it is recorded rather than silently patched.
