@@ -46,12 +46,13 @@ export const nativePlugins = [
   // The native sidebar family is REQUIRED from 0.1.5 on: `ui-chat` itself waits for
   // the `sidebarRight` service ("@deepseek-ai/dsh-client-ui-chat: pending (waiting
   // for service: sidebarRight)"), so the product cannot ship the native chat without
-  // it. It claims the single `sidebar` slot, which means the third-party
-  // `dsh-better-sidebar` the product used before has to step aside — the product's
-  // three-group file panel is retired in favour of the native one here (see the
-  // note in plugins/platform/sidebar-adapter.mjs).
+  // it. It claims the single `sidebar` slot (the LEFT sidebar); the product's
+  // three-group file panel is retired in favour of the native one here (see the note
+  // in plugins/platform/sidebar-adapter.mjs).
   "dsh-client-ui-sidebar", "dsh-client-ui-sidebar-right",
   "dsh-client-ui-sidebar-files", "dsh-client-ui-sidebar-documentpreview",
+  // `dsh-better-sidebar` is collected too, but it is a THIRD-PARTY package, so its entry lives
+  // in the `thirdParty` list below (this array prefixes every name with `@deepseek-ai/`).
   // The file-resource provider behind those two tabs. The document preview resolves
   // `dsh-resource://file/…` addresses through `ctx.resources`, and without this
   // provider the pane answers "文件资源服务不可用。" It needs exactly the three services
@@ -227,7 +228,18 @@ export async function nativeAssets() {
   const id = "@geosentinel/dsh-workbench";
   // Third-party client halves that mount as plugins in the product UI: the
   // visualisation renderer and the upload dock.
-  const thirdParty = ["@changfenhuang/dsh-genui", "dsh-file-upload"];
+  // `dsh-better-sidebar` renders the product's three research panels as tabs of a right-side panel
+// with a floating overlay — the shape the product shipped before the 0.1.5 migration. CLIENT HALF
+// ONLY, on purpose: it does not claim the left `sidebar` slot (it injects only
+// `conversation.chat.turnTail` and `settings.section`, and provides the client-side
+// `betterSidebar` service), so it coexists with the native sidebar — the note that used to say it
+// "has to step aside" was wrong. Its NODE half must stay unmounted: it registers `/sidebar/api/*`,
+// the same prefix the platform's own explorer adapter owns, and two mounts fail the whole plugin
+// tree at boot ("duplicate prefix route"). The overlay mounts the client half itself
+// (`require("dsh-better-sidebar/client")` in native/client.js) and registers the three panels on
+// it; plugins/platform/sidebar-adapter.mjs answers the `settings.get` / `shell.get` /
+// `session.cwd` / `fs.tree` / `fs.read` methods its own tabs ask for.
+const thirdParty = ["@changfenhuang/dsh-genui", "dsh-file-upload", "dsh-better-sidebar"];
   const entries = [...new Set([...bootable, ...thirdParty, id])].filter((name) => !noBoot.has(name)).map((name) => ({
     id: name, url: "/geo/native/bundle.js", rev: version,
     immediately: name === "@deepseek-ai/dsh-client-modules",
