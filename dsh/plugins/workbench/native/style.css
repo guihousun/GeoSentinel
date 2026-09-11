@@ -137,7 +137,19 @@ body:has(.geo-product-wallpaper) {isolation:isolate;}
 .geo-monitor-legend button {display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border:1px solid var(--geo-border);border-radius:999px;background:transparent;color:inherit;font:inherit;line-height:18px;cursor:pointer;}
 .geo-monitor-legend button:hover {border-color:var(--geo-accent);}
 .geo-monitor-legend button.off {opacity:.4;text-decoration:line-through;}
-.geo-monitor-legend i {width:9px;height:9px;border-radius:50%;display:inline-block;}
+.geo-monitor-legend i {width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 auto;}
+/* A multi-type group chip carries a three-dot cluster instead of one colour: no single
+   colour in the table stands for "natural hazards", and the caret shows it discloses. */
+.geo-monitor-legend i.geo-monitor-dots {width:auto;display:inline-flex;gap:2px;}
+.geo-monitor-legend i.geo-monitor-dots b {width:5px;height:5px;border-radius:50%;display:block;}
+.geo-monitor-caret {font-size:10px;line-height:1;opacity:.75;}
+.geo-monitor-legend-sub {display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 4px;padding:6px 8px;border:1px dashed var(--geo-border);border-radius:8px;font-size:12px;color:var(--dsw-alias-label-secondary,#53696f);}
+.geo-monitor-legend-sub button {display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border:1px solid var(--geo-border);border-radius:999px;background:transparent;color:inherit;font:inherit;line-height:18px;cursor:pointer;}
+.geo-monitor-legend-sub button:hover {border-color:var(--geo-accent);}
+.geo-monitor-legend-sub button.off {opacity:.4;text-decoration:line-through;}
+.geo-monitor-legend-sub button.geo-monitor-group-all {margin-left:auto;border-style:dashed;opacity:.9;}
+.geo-monitor-region {padding:2px 8px;border:1px solid var(--geo-border);border-radius:999px;background:transparent;color:inherit;font:inherit;line-height:18px;max-width:220px;cursor:pointer;}
+.geo-monitor-region:hover {border-color:var(--geo-accent);}
 .geo-monitor-sources {display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:4px 0 8px;font-size:12px;color:var(--dsw-alias-label-secondary,#53696f);}
 .geo-monitor-sources-title {font-weight:600;color:var(--dsw-alias-label-primary,#20323a);}
 .geo-monitor-sources span {padding:2px 8px;border:1px solid var(--geo-border);border-radius:999px;}
@@ -187,7 +199,9 @@ body:has(.geo-product-wallpaper) {isolation:isolate;}
 .geo-monitor-dot.level-low {background:#8fa3b8;}
 .geo-monitor-stage {position:relative;display:grid;gap:8px;}
 .geo-monitor-list {display:grid;gap:0;}
-.geo-monitor-cursor {position:absolute;left:10px;bottom:10px;z-index:600;padding:2px 8px;border-radius:4px;background:rgba(8,12,18,.66);color:#dbe6ee;font:11.5px/18px ui-monospace,"Cascadia Mono",Consolas,monospace;letter-spacing:.04em;pointer-events:none;}
+/* Anchored to the MAP's top-left, not the stage bottom: the legend is the stage's
+   last grid row, and a bottom-anchored readout sat on top of its chips. */
+.geo-monitor-cursor {position:absolute;left:10px;top:10px;z-index:600;padding:2px 8px;border-radius:4px;background:rgba(8,12,18,.66);color:#dbe6ee;font:11.5px/18px ui-monospace,"Cascadia Mono",Consolas,monospace;letter-spacing:.04em;pointer-events:none;}
 /* Corner-bracket glyph drawn in CSS: no icon dependency, same shape at any size. */
 .geo-monitor-full {position:relative;padding-left:27px !important;}
 .geo-monitor-full::before {content:"";position:absolute;left:9px;top:50%;width:11px;height:11px;margin-top:-5.5px;

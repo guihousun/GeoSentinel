@@ -905,7 +905,21 @@ window.__ModuleLoader__.load({
         landslides: "landslide", landslide: "landslide",
         conflict: "conflict", geopolitical: "geopolitical", tc: "tc", dr: "dr", vo: "vo",
       };
-      const MONITOR_LEGEND = Object.keys(MONITOR_TYPES);
+      // The legend's top level is a short list of GROUPS. The eight natural-hazard
+      // types collapse into one 自然灾害 chip that discloses its members on click —
+      // the panel used to open with eleven chips over two wrapped rows.
+      const MONITOR_GROUPS = [
+        { id: "conflict", label: "冲突", types: ["conflict"] },
+        { id: "geopolitical", label: "地缘政治", types: ["geopolitical"] },
+        { id: "disaster", label: "自然灾害", types: ["earthquake", "wildfires", "storm", "tc", "floods", "dr", "vo", "landslide"] },
+        { id: "other", label: "其他公开事件", types: ["other"] },
+      ];
+      // Zoom targets come from the same vendored Natural Earth topology the basemap is
+      // cut from (`/geo/vendor/countries.json`): ISO numeric id, English name, an
+      // optional Chinese label, and the bounding box of the country's largest polygon.
+      // The five regions the product leads with, in this order.
+      const MONITOR_REGION_LEADS = ["156", "840", "104", "356", "116"];
+      const monitorRegionLabel = (country) => country.cn || country.name;
       const MONITOR_SOURCE_STATUS = { error: "本轮不可用", rate_limited: "已限流", disabled: "未启用", degraded: "降级" };
       const MONITOR_BRIEF_STATE = { unavailable: "本轮简报生成失败，仅显示来源字段", partial: "部分记录尚未生成简报", original: "未启用中文整理，按原始专名展示", cached: "简报来自缓存" };
       const monitorKey = (type) => (MONITOR_TYPES[type] ? type : MONITOR_ALIAS[type] ?? "other");
@@ -963,6 +977,11 @@ window.__ModuleLoader__.load({
         const [levels, setLevels] = React.useState(() => new Set(["key", "high", "medium"]));
         const [hours, setHours] = React.useState(null);
         const [fullscreen, full] = React.useState(false);
+        // The region scope and the disclosed legend groups. Both are view state: the
+        // snapshot, its grades and the source fields are untouched by either.
+        const [region, setRegion] = React.useState(null);
+        const [countries, setCountries] = React.useState([]);
+        const [openGroups, setOpenGroups] = React.useState(() => new Set());
         const levelsTouched = React.useRef(false);
         const mapElement = React.useRef(null), map = React.useRef(null), markers = React.useRef(null), pins = React.useRef(new Map());
         const cursorElement = React.useRef(null), selectedRef = React.useRef(null), rootElement = React.useRef(null);
@@ -1025,14 +1044,45 @@ window.__ModuleLoader__.load({
         const items = React.useMemo(() => data?.items ?? [], [data]);
         const located = React.useMemo(() => items.filter(monitorCoordinates), [items]);
         const levelOf = React.useCallback((item) => monitorLevelKey(item, now), [now]);
+        React.useEffect(() => {
+          let live = true;
+          fetch("/geo/vendor/countries.json", { cache: "no-store" }).then((r) => r.json())
+            .then((value) => { if (live) setCountries(Array.isArray(value?.countries) ? value.countries : []); })
+            .catch(() => {});
+          return () => { live = false; };
+        }, []);
+        const regionCountry = region ? countries.find((country) => country.id === region) ?? null : null;
+        const regionBbox = regionCountry?.bbox ?? null;
+        // A bounding box, not a border test: an event is "in" the region when its
+        // reported coordinates fall inside the box. The note under the filters says
+        // exactly that, and the box comes from the country's largest polygon.
+        const inRegion = React.useCallback((item) => {
+          if (!regionBbox) return true;
+          if (!monitorCoordinates(item)) return false;
+          const [west, south, east, north] = regionBbox;
+          const { latitude: lat, longitude: lng } = item;
+          if (lat < south || lat > north) return false;
+          return west <= east ? lng >= west && lng <= east : lng >= west || lng <= east;
+        }, [regionBbox]);
+        const regionItems = React.useMemo(() => regionCountry ? items.filter(inRegion) : [], [items, regionCountry, inRegion]);
+        const chooseRegion = (id) => {
+          setRegion(id || null);
+          const country = id ? countries.find((entry) => entry.id === id) : null;
+          if (!country) { map.current?.fitBounds(WORLD_BOUNDS, { animate: false }); return; }
+          const [west, south, east, north] = country.bbox;
+          select(null);
+          map.current?.flyToBounds([[south, west], [north, east]], { padding: [24, 24], maxZoom: 6, duration: 0.8 });
+        };
+        const toggleGroup = (id) => setOpenGroups((previous) => { const next = new Set(previous); next.has(id) ? next.delete(id) : next.add(id); return next; });
         // Filters apply to the whole snapshot, not only to the mapped subset:
         // a fresh high-attention lead from a news feed has no coordinates and must
         // still be readable in the list and the key-lead rail.
         const shown = React.useMemo(() => items.filter((item) =>
           !hidden.has(monitorKey(item.type)) &&
           levels.has(levelOf(item)) &&
-          (hours === null || (monitorAgeHours(item, now) ?? Infinity) <= hours)
-        ), [items, hidden, levels, hours, now, levelOf]);
+          (hours === null || (monitorAgeHours(item, now) ?? Infinity) <= hours) &&
+          inRegion(item)
+        ), [items, hidden, levels, hours, now, levelOf, inRegion]);
         const plotted = React.useMemo(() => shown.filter(monitorCoordinates), [shown]);
         React.useEffect(() => {
           if (!markers.current) return;
@@ -1101,7 +1151,7 @@ window.__ModuleLoader__.load({
             data && h("span", { role: "status", className: "geo-monitor-status" }, fullscreen
               ? `快照 ${snapshotAt} · ${sources.length} 个渠道 · ${levelCounts.key} 条重点线索${data.stale ? " · 数据待更新" : ""}`
               : `${shown.length}/${items.length} 条线索 · ${plotted.length} 条已上图${data.stale ? " · 数据待更新" : ""}`),
-            button("全球范围", icons.IconGlobeOutline14, () => { select(null); map.current?.fitBounds(WORLD_BOUNDS, { animate: false }); }, { iconOnly: true }),
+            button("全球范围", icons.IconGlobeOutline14, () => chooseRegion(null), { iconOnly: true }),
             button(fullscreen ? "退出全屏" : "全屏查看", null, toggleFullscreen, { className: "geo-monitor-full", "aria-pressed": fullscreen })),
           h("div", { className: "geo-monitor-filters" },
             h("div", { className: "geo-monitor-filter-group" }, h("b", { className: "geo-monitor-filter-title" }, "关注等级"),
@@ -1109,12 +1159,45 @@ window.__ModuleLoader__.load({
                 h("i", { className: `geo-monitor-dot level-${key}` }), `${MONITOR_LEVELS[key].label} ${levelCounts[key]}`))),
             h("div", { className: "geo-monitor-filter-group" }, h("b", { className: "geo-monitor-filter-title" }, "时间窗"),
               ...MONITOR_WINDOWS.map((window) => h("button", { key: String(window.hours), type: "button", className: hours === window.hours ? "on" : "", "aria-pressed": hours === window.hours, onClick: () => setHours(window.hours) }, window.label))),
-            h("p", { className: "geo-monitor-note" }, `分级规则：来源标记的高关注条目在 ${MONITOR_KEY_HOURS} 小时内记为“重点线索”，超时保留为“高关注”；等级与类别都取自来源字段，不代表核实结论。`)),
+            h("div", { className: "geo-monitor-filter-group" }, h("b", { className: "geo-monitor-filter-title" }, "区域"),
+              h("select", { className: "geo-monitor-region", value: region ?? "", "aria-label": "按国家或区域查看", disabled: countries.length === 0, onChange: (event) => chooseRegion(event.target.value) },
+                h("option", { value: "" }, "全球范围"),
+                h("optgroup", { label: "重点区域" }, ...MONITOR_REGION_LEADS.map((id) => countries.find((country) => country.id === id)).filter(Boolean).map((country) => h("option", { key: country.id, value: country.id }, monitorRegionLabel(country)))),
+                h("optgroup", { label: "全部国家" }, ...countries.filter((country) => !MONITOR_REGION_LEADS.includes(country.id)).map((country) => h("option", { key: country.id, value: country.id }, monitorRegionLabel(country))))),
+              regionCountry && button("清除区域", icons.IconCloseOutline16, () => chooseRegion(null), { iconOnly: true })),
+            h("p", { className: "geo-monitor-note" }, `分级规则：来源标记的高关注条目在 ${MONITOR_KEY_HOURS} 小时内记为“重点线索”，超时保留为“高关注”；等级与类别都取自来源字段，不代表核实结论。`),
+            regionCountry && h("p", { className: "geo-monitor-note", role: "status" }, `区域：${monitorRegionLabel(regionCountry)} · 范围框内有 ${regionItems.length} 条线索；按坐标落在国家范围框内判定，非精确国界。`)),
           h("div", { className: "geo-monitor-body" },
             h("div", { className: "geo-monitor-stage" },
               h("div", { className: "geo-native-map", ref: mapElement, "aria-label": "全球事件地图" }),
               h("span", { className: "geo-monitor-cursor", ref: cursorElement, "aria-hidden": "true" }, "光标未在地图上"),
-              h("div", { className: "geo-monitor-legend" }, ...MONITOR_LEGEND.map((key) => h("button", { key, type: "button", className: hidden.has(key) ? "off" : "", title: "点击隐藏或显示该类事件", onClick: () => toggleType(key) }, h("i", { style: { background: MONITOR_TYPES[key].color } }), `${MONITOR_TYPES[key].label}${typeCounts[key] ? " " + typeCounts[key] : ""}`)))),
+              h("div", { className: "geo-monitor-legend" }, ...MONITOR_GROUPS.map((group) => {
+                const members = group.types;
+                const count = members.reduce((total, key) => total + (typeCounts[key] ?? 0), 0);
+                const multi = members.length > 1;
+                const open = openGroups.has(group.id);
+                return h("button", {
+                  key: group.id, type: "button",
+                  className: members.every((key) => hidden.has(key)) ? "off" : "",
+                  "aria-expanded": multi ? open : undefined,
+                  "aria-pressed": multi ? undefined : !hidden.has(group.id),
+                  title: multi ? (open ? "收起具体类别" : `展开${group.label}的具体类别`) : "点击隐藏或显示该类事件",
+                  onClick: () => (multi ? toggleGroup(group.id) : toggleType(group.id)),
+                },
+                  multi
+                    ? h("i", { className: "geo-monitor-dots" }, ...members.slice(0, 3).map((key) => h("b", { key, style: { background: MONITOR_TYPES[key].color } })))
+                    : h("i", { style: { background: MONITOR_TYPES[group.id].color } }),
+                  `${group.label}${count ? " " + count : ""}`,
+                  multi && h("span", { className: "geo-monitor-caret", "aria-hidden": "true" }, open ? "▴" : "▾"));
+              })),
+              ...MONITOR_GROUPS.filter((group) => group.types.length > 1 && openGroups.has(group.id)).map((group) => h("div", { key: group.id, className: "geo-monitor-legend-sub" },
+                ...group.types.map((key) => h("button", { key, type: "button", className: hidden.has(key) ? "off" : "", title: "点击隐藏或显示该类事件", "aria-pressed": !hidden.has(key), onClick: () => toggleType(key) },
+                  h("i", { style: { background: MONITOR_TYPES[key].color } }), `${MONITOR_TYPES[key].label}${typeCounts[key] ? " " + typeCounts[key] : ""}`)),
+                h("button", { type: "button", className: "geo-monitor-group-all", onClick: () => hide((previous) => {
+                  const next = new Set(previous), allHidden = group.types.every((key) => next.has(key));
+                  for (const key of group.types) { if (allHidden) next.delete(key); else next.add(key); }
+                  return next;
+                }) }, group.types.every((key) => hidden.has(key)) ? `全部显示${group.label}` : `全部隐藏${group.label}`)))),
             fullscreen && h("aside", { className: "geo-monitor-rail" },
               h("section", { className: "geo-monitor-meta" }, h("h3", null, "研究口径与快照"),
                 h("ul", null,
