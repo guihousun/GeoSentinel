@@ -345,10 +345,29 @@ window.__ModuleLoader__.load({
         if (!response.ok) throw new Error(response.status === 404 ? "文件不存在" : `文件读取失败 (${response.status})`);
         return await response.arrayBuffer();
       }
+      // The session's virtual root is `/工作区/<会话标题>`, and the product RE-TITLES a chat from
+      // its first message, so the root is not stable for the life of a session: a cached one
+      // goes stale mid-turn and every later request answers 403 "文件路径超出工作区" (measured on
+      // a preview instance: the file panel's own listings started failing the moment the first
+      // turn renamed the chat). The cache therefore expires, and a failed call refreshes it once
+      // and retries instead of surfacing a stale-path error to the panel.
+      const ROOT_TTL_MS = 10000;
       const fileRoots = new Map();
-      const workspaceRootOf = async (sessionId) => {
-        if (!fileRoots.has(sessionId)) fileRoots.set(sessionId, (await explorer("session.cwd", { sessionId })).root);
-        return fileRoots.get(sessionId);
+      const workspaceRootOf = async (sessionId, { fresh = false } = {}) => {
+        const cached = fileRoots.get(sessionId);
+        if (!fresh && cached !== undefined && Date.now() - cached.at < ROOT_TTL_MS) return cached.root;
+        const { root } = await explorer("session.cwd", { sessionId });
+        fileRoots.set(sessionId, { root, at: Date.now() });
+        return root;
+      };
+      // Run one explorer call against the session's root, retrying once with a re-read root.
+      const withRoot = async (sessionId, target, run) => {
+        try {
+          return await run(await virtualAddress(sessionId, target));
+        } catch (error) {
+          fileRoots.delete(sessionId);
+          return await run(await virtualAddress(sessionId, target)).catch(() => { throw error; });
+        }
       };
       // The native tree descends by joining `parent + "/" + name`, so after the first
       // level it addresses the view with RELATIVE paths while the host expects the
@@ -401,6 +420,10 @@ window.__ModuleLoader__.load({
       // during a session, and both the directory walk and the file count are capped so a
       // pathological workspace cannot make an open preview into a load source.
       const WATCH_IDLE_MS = 15000, WATCH_EVENT_DEBOUNCE_MS = 400, WATCH_MAX_DIRS = 400, WATCH_MAX_FILES = 4000, WATCH_MAX_QUEUE = 500;
+      // A listing that keeps failing (an expired preview link answers 403, an ended session
+      // answers 404) must not be retried every beat forever: that produced nothing but a console
+      // error and a wasted request every 15 seconds. Back off first, then give up.
+      const WATCH_MAX_FAILURES = 8, WATCH_MAX_IDLE_MS = 120000;
       // Kept equal to `SHARE_LABEL` in plugins/platform/share.mjs by tests/native-watch.test.mjs.
       const WATCH_SHARE_LABEL = "共享数据（只读）";
       // The administrator's library appears in the view as one group, so its own path ends with
@@ -408,7 +431,10 @@ window.__ModuleLoader__.load({
       const isSharedView = (path) => path === WATCH_SHARE_LABEL || path.endsWith(`/${WATCH_SHARE_LABEL}`) || path.includes(`/${WATCH_SHARE_LABEL}/`);
       async function workspaceSnapshot(sessionId) {
         const files = new Map();
-        const queue = [await virtualAddress(sessionId, "")];
+        // Re-read the root on every beat on purpose (see `ROOT_TTL_MS`): the chat's title — and
+        // therefore the virtual root — can change between two beats, and the host answers a stale
+        // path with 403 "文件路径超出工作区".
+        const queue = [await workspaceRootOf(sessionId, { fresh: true })];
         let directories = 0;
         while (queue.length > 0 && directories < WATCH_MAX_DIRS && files.size < WATCH_MAX_FILES) {
           const directory = queue.shift();
@@ -466,11 +492,13 @@ window.__ModuleLoader__.load({
           // `ready` says the subscription is live, which is why the stream opens first; the
           // baseline listing follows immediately so a write right after readiness is reported.
           deliver({ kind: "ready" });
+          let failures = 0;
           let previous;
-          try { previous = await workspaceSnapshot(sessionId); } catch { previous = undefined; }
+          try { previous = await workspaceSnapshot(sessionId); } catch { previous = undefined; failures += 1; }
           while (!ended && signal?.aborted !== true) {
+            const wait = failures === 0 ? WATCH_IDLE_MS : Math.min(WATCH_IDLE_MS * 2 ** Math.min(failures, 3), WATCH_MAX_IDLE_MS);
             await new Promise((resolve) => {
-              const timer = setTimeout(done, WATCH_IDLE_MS);
+              const timer = setTimeout(done, wait);
               wakeSleep = done;
               signal?.addEventListener?.("abort", done, { once: true });
               function done() { clearTimeout(timer); wakeSleep = undefined; signal?.removeEventListener?.("abort", done); resolve(); }
@@ -483,8 +511,14 @@ window.__ModuleLoader__.load({
               if (ended || signal?.aborted === true) break;
             }
             let next;
-            // A transient listing failure must not end the feed: the next beat retries.
-            try { next = await workspaceSnapshot(sessionId); } catch { continue; }
+            // A transient listing failure must not end the feed: the next beat retries, slower.
+            try { next = await workspaceSnapshot(sessionId); }
+            catch {
+              failures += 1;
+              if (failures >= WATCH_MAX_FAILURES) break;
+              continue;
+            }
+            failures = 0;
             if (previous === undefined) { previous = next; continue; }
             for (const change of workspaceChanges(previous, next)) deliver({ kind: "change", change });
             previous = next;
@@ -502,47 +536,47 @@ window.__ModuleLoader__.load({
         };
       }
       function workspaceFilesFace() {
-        const stats = async (sessionId, target) => {
-          const path = await virtualAddress(sessionId, target);
+        const stats = (sessionId, target) => withRoot(sessionId, target, async (path) => {
           const parent = path.slice(0, path.lastIndexOf("/")) || path;
           const { entries } = await explorer("fs.tree", { sessionId, path: parent });
           const entry = entries.find((item) => item.path === path);
           if (!entry) throw new Error("文件不存在");
           return { absolutePath: path, version: fileVersion(entry.size), ...(typeof entry.size === "number" ? { bytes: entry.size } : {}) };
-        };
-        const page = async (sessionId, target, range) => {
+        });
+        const page = (sessionId, target, range) => {
           const offset = Number.isSafeInteger(range?.offset) && range.offset > 0 ? range.offset : 1;
           const limit = Number.isSafeInteger(range?.limit) && range.limit > 0 ? range.limit : 2000;
-          const path = await virtualAddress(sessionId, target);
-          const buffer = await explorerBytes(sessionId, path);
-          const info = await stats(sessionId, path);
-          const decoded = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
-          if (decoded.includes("\0")) throw new Error(`“${path}”不是文本文件`);
-          const lines = decoded.split("\n");
-          const slice = lines.slice(offset - 1, offset - 1 + limit);
-          const text = slice.join("\n");
-          if (new TextEncoder().encode(text).length > PAGE_BYTES) throw new Error(`“${path}”的这一页超出 2 MiB 上限`);
-          return { ...info, offset, text, lines: slice.length, eof: offset - 1 + slice.length >= lines.length };
+          return withRoot(sessionId, target, async (path) => {
+            const buffer = await explorerBytes(sessionId, path);
+            const info = await stats(sessionId, path);
+            const decoded = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+            if (decoded.includes("\0")) throw new Error(`“${path}”不是文本文件`);
+            const lines = decoded.split("\n");
+            const slice = lines.slice(offset - 1, offset - 1 + limit);
+            const text = slice.join("\n");
+            if (new TextEncoder().encode(text).length > PAGE_BYTES) throw new Error(`“${path}”的这一页超出 2 MiB 上限`);
+            return { ...info, offset, text, lines: slice.length, eof: offset - 1 + slice.length >= lines.length };
+          });
         };
-        const complete = async (sessionId, target) => {
-          const path = await virtualAddress(sessionId, target);
+        const complete = (sessionId, target) => withRoot(sessionId, target, async (path) => {
           const buffer = await explorerBytes(sessionId, path);
           if (buffer.byteLength > FULL_FILE_BYTES) throw new Error(`“${path}”超过 32 MiB 的整文件读取上限`);
           const bytes = new Uint8Array(buffer);
           let binary = "";
           for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
           return { absolutePath: path, version: fileVersion(bytes.length), bytes: bytes.length, offset: 0, data: btoa(binary), eof: true };
-        };
+        });
         return {
           list: async (sessionId, target) => {
             try {
-              const path = await virtualAddress(sessionId, target);
-              const { entries } = await explorer("fs.tree", { sessionId, path });
-              // The native tree wants lstat-style entries and derives child addresses by
-              // joining names, so only the name, kind and size travel.
-              return ok({ path, truncated: false,
-                entries: entries.map((entry) => ({ name: entry.name, type: entry.isDir ? "directory" : "file",
-                  ...(typeof entry.size === "number" ? { size: entry.size } : {}) })) });
+              return ok(await withRoot(sessionId, target, async (path) => {
+                const { entries } = await explorer("fs.tree", { sessionId, path });
+                // The native tree wants lstat-style entries and derives child addresses by
+                // joining names, so only the name, kind and size travel.
+                return { path, truncated: false,
+                  entries: entries.map((entry) => ({ name: entry.name, type: entry.isDir ? "directory" : "file",
+                    ...(typeof entry.size === "number" ? { size: entry.size } : {}) })) };
+              }));
             } catch (error) { return fail(error.message); }
           },
           stat: async (sessionId, target) => { try { return ok(await stats(sessionId, target)); } catch (error) { return fail(error.message); } },
@@ -568,6 +602,34 @@ window.__ModuleLoader__.load({
         remoteListeners.set(event, listener);
         return () => { if (remoteListeners.get(event) === listener) remoteListeners.delete(event); };
       },
+        // The remote transport's streaming primitive. The native resource provider
+        // (`@deepseek-ai/dsh-api-workspace-files`) reaches the workspace change feed through
+        // THIS — `remote.$stream({ name, open, ended })` — and never calls
+        // `workspaceFiles.changes` itself, so answering that namespace alone stays unreachable:
+        // measured as an open file preview with no change traffic at all. It is the only BOOTED
+        // consumer of `$stream` (the session and workspace controllers are bundled but not
+        // booted), and what it needs from the handle is an async iterable of `{value, accept}`
+        // items plus `dispose()`, whose result the session's NEXT feed awaits before opening.
+        $stream({ open } = {}) {
+          const controller = new AbortController();
+          let iterator;
+          try { iterator = open(controller.signal)[Symbol.asyncIterator](); } catch { iterator = undefined; }
+          let closed = false;
+          const handle = {
+            [Symbol.asyncIterator]() { return this; },
+            next: () => (closed || iterator === undefined ? Promise.resolve({ value: undefined, done: true }) : iterator.next()),
+            return: async (value) => { await handle.dispose(); return { value, done: true }; },
+            dispose: () => {
+              if (closed) return Promise.resolve();
+              closed = true;
+              // Aborting ends the feed underneath; the pull still pending resolves as done.
+              controller.abort();
+              try { return Promise.resolve(iterator?.return?.(undefined)).then(() => undefined, () => undefined); }
+              catch { return Promise.resolve(); }
+            },
+          };
+          return handle;
+        },
         session: { openWorkspacePath: async () => fail("主机路径不可访问，请在会话工作区查看文件。") },
         // The native right sidebar's file tree and document preview read the workspace
         // through this Remote namespace (`list` / `read` / `readAll` / `readRelated` /

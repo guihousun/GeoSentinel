@@ -61,7 +61,7 @@ test("the workspace change feed reports ready, then additions, edits and removal
     crypto: { randomUUID: () => "id-watch" },
     EventSource: class { constructor(url) { this.url = url; streams.push(this); } close() { this.closed = true; } },
     setInterval: () => 1, clearInterval() {},
-    setTimeout, clearTimeout,
+    setTimeout, clearTimeout, AbortController,
     fetch: async (url, init = {}) => {
       const route = String(url).replace("/geo/api", "");
       requests.push(route);
@@ -133,4 +133,202 @@ test("the workspace change feed reports ready, then additions, edits and removal
   assert.ok(listings.length >= 2, "至少走过根与一个可写分组");
   assert.equal(listings.includes(share), false, "只读的共享数据分组不应被遍历");
   assert.ok(listings.includes(`${root}/上传的文件`), "可写分组要被遍历");
+});
+
+// A listing that keeps failing (an expired preview link answers 403, a closed session 404)
+// must not be retried every beat forever: measured on a preview instance whose login link had
+// expired, the feed produced a console error and a wasted request every 15 seconds, with no way
+// to stop. It now backs off and gives up.
+test("a feed whose listings keep failing backs off and gives up", async () => {
+  const services = {};
+  let attempts = 0;
+  const ctx = {
+    provide: (key, value) => { services[key] = value; ctx[key] = value; },
+    get: (key) => services[key],
+    plugin: () => ({ dispose() {} }), inject() {}, on() {},
+    slots: { provideRoot() {}, inject(name, register) { register(); }, register() {} },
+  };
+  const context = vm.createContext({
+    window: { __ModuleLoader__: { load({ factory }) {
+      const plugin = factory((id) => {
+        if (id === "react") return { createElement: (type, props, ...children) => ({ type, props, children }) };
+        if (id.includes("client-store")) return { createSnapshotStore: () => ({ getSnapshot: () => ({}), subscribe: () => () => {}, set() {} }) };
+        if (id.includes("api-session-controller")) return { createScope: () => ({ ctx: {}, fiber: { dispose() {} } }), scopeOf() {}, MutableSessionEventSource: class { replace() {} } };
+        return {};
+      });
+      plugin.apply(ctx);
+    } } },
+    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    crypto: { randomUUID: () => "id-fail" },
+    EventSource: class { constructor(url) { this.url = url; } close() {} },
+    setInterval: () => 1, clearInterval() {},
+    // Compress the feed's beats so a minute of backoff runs in milliseconds here.
+    setTimeout: (callback, ms) => setTimeout(callback, Math.min(ms ?? 0, 20)), clearTimeout: (timer) => clearTimeout(timer),
+    AbortController,
+    fetch: async (url, init = {}) => {
+      const route = String(url).replace("/geo/api", "");
+      if (route === "/sidebar/api/session.cwd") return { ok: true, json: async () => ({ ok: true, value: { root: "/工作区/失效" } }) };
+      if (route === "/sidebar/api/fs.tree") { attempts += 1; return { ok: false, status: 403, json: async () => ({ ok: false, error: { message: "forbidden" } }) }; }
+      return { ok: false, status: 404, json: async () => ({ ok: false, error: { message: route } }) };
+    },
+  });
+  vm.runInContext(source, context);
+  for (let index = 0; index < 8; index += 1) await new Promise(setImmediate);
+
+  const controller = new AbortController();
+  const feed = services["remote"].workspaceFiles.changes("s1", controller.signal);
+  assert.equal((await feed.next()).value.value.kind, "ready");
+  const finished = await Promise.race([feed.next(), new Promise((resolve) => setTimeout(() => resolve("timeout"), 3000))]);
+  assert.notEqual(finished, "timeout", "连续失败后应当自己结束，而不是无限重试");
+  assert.equal(finished.done, true);
+  assert.ok(attempts >= 2, `至少要重试一次（实际 ${attempts}）`);
+  assert.ok(attempts <= 8, `重试次数必须有上限（实际 ${attempts}）`);
+  controller.abort();
+});
+
+// The session's virtual root is `/工作区/<会话标题>`, and the product re-titles a chat from its
+// first message — so the root changes mid-session. Measured on a preview instance: the feed's
+// cached root went stale the moment the first turn renamed the chat and every later listing was
+// answered 403 "文件路径超出工作区", three console errors per beat. The feed re-reads the root
+// every beat and the panel's calls retry once with a fresh one.
+test("a re-titled chat does not stale the feed or the panel", async () => {
+  const services = {};
+  const listings = [];
+  const streams = [];
+  let root = "/工作区/变更流";
+  const tree = new Map();
+  const ctx = {
+    provide: (key, value) => { services[key] = value; ctx[key] = value; },
+    get: (key) => services[key],
+    plugin: () => ({ dispose() {} }), inject() {}, on() {},
+    slots: { provideRoot() {}, inject(name, register) { register(); }, register() {} },
+  };
+  const context = vm.createContext({
+    window: { __ModuleLoader__: { load({ factory }) {
+      const plugin = factory((id) => {
+        if (id === "react") return { createElement: (type, props, ...children) => ({ type, props, children }) };
+        if (id.includes("client-store")) return { createSnapshotStore: () => ({ getSnapshot: () => ({}), subscribe: () => () => {}, set() {} }) };
+        if (id.includes("api-session-controller")) return { createScope: () => ({ ctx: {}, fiber: { dispose() {} } }), scopeOf() {}, MutableSessionEventSource: class { replace() {} } };
+        return {};
+      });
+      plugin.apply(ctx);
+    } } },
+    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    crypto: { randomUUID: () => "id-retitle" },
+    EventSource: class { constructor(url) { this.url = url; streams.push(this); } close() {} },
+    setInterval: () => 1, clearInterval() {},
+    setTimeout: (callback, ms) => setTimeout(callback, Math.min(ms ?? 0, 20)), clearTimeout: (timer) => clearTimeout(timer),
+    AbortController,
+    fetch: async (url, init = {}) => {
+      const route = String(url).replace("/geo/api", "");
+      if (route === "/sidebar/api/session.cwd") return { ok: true, json: async () => ({ ok: true, value: { root } }) };
+      if (route === "/sidebar/api/fs.tree") {
+        const { path } = JSON.parse(init.body);
+        // The host refuses any path outside the session's CURRENT root — 403, like the product.
+        if (path !== root && !path.startsWith(root + "/"))
+          return { ok: false, status: 403, json: async () => ({ ok: false, error: { message: "文件路径超出工作区" } }) };
+        listings.push(path);
+        return { ok: true, json: async () => ({ ok: true, value: { entries: tree.get(path) ?? [] } }) };
+      }
+      return { ok: false, status: 404, json: async () => ({ ok: false, error: { message: route } }) };
+    },
+  });
+  vm.runInContext(source, context);
+  for (let index = 0; index < 8; index += 1) await new Promise(setImmediate);
+
+  tree.set(root, [{ name: "报告.md", path: `${root}/报告.md`, isDir: false, size: 5 }]);
+  const controller = new AbortController();
+  const feed = services["remote"].workspaceFiles.changes("s1", controller.signal);
+  assert.equal((await feed.next()).value.value.kind, "ready");
+  for (let attempt = 0; attempt < 200 && listings.length === 0; attempt += 1) await new Promise(setImmediate);
+
+  // The first turn renames the chat: new root, and the file moves with it.
+  root = "/工作区/请在工作区写入一个文件";
+  tree.set(root, [{ name: "报告.md", path: `${root}/报告.md`, isDir: false, size: 5 },
+    { name: "新文件.md", path: `${root}/新文件.md`, isDir: false, size: 9 }]);
+  streams[0].onmessage?.();
+
+  const frame = await Promise.race([feed.next(), new Promise((resolve) => setTimeout(() => resolve("timeout"), 2000))]);
+  assert.notEqual(frame, "timeout", "改标题后变更流必须仍然给出帧");
+  const changes = [frame.value.value];
+  while (true) {
+    const next = await Promise.race([feed.next(), new Promise((resolve) => setTimeout(() => resolve(undefined), 30))]);
+    if (next === undefined || next.done) break;
+    changes.push(next.value.value);
+  }
+  const added = changes.find((change) => change.change.absolutePath === `${root}/新文件.md`);
+  assert.ok(added, `变更帧要用新根下的路径（实际 ${JSON.stringify(changes.map((change) => change.change.absolutePath))}）`);
+
+  // The panel's own calls recover too: `list` retries with a re-read root.
+  const listed = await services["remote"].workspaceFiles.list("s1", "/");
+  assert.equal(listed.ok, true, `改标题后 list 必须自愈（实际 ${JSON.stringify(listed)}）`);
+  assert.ok(listings.some((path) => path === root), "list 必须用新根重新列目录");
+  controller.abort();
+});
+
+// The native resource provider never calls `workspaceFiles.changes` directly: it wraps it in the
+// transport's streaming primitive, `remote.$stream({name, open, ended})`, and iterates the handle
+// (`for await (const item of this.stream)` → `item.value`, `item.accept()`); when its last
+// follower leaves it calls `dispose()`, and the session's next feed awaits that result before
+// opening. Without `$stream` the feed was unreachable — an open preview with no change traffic.
+test("the transport streaming primitive exposes the feed the native provider iterates", async (t) => {
+  const services = {};
+  const streams = [];
+  const root = "/工作区/流";
+  const tree = new Map([[root, [{ name: "报告.md", path: `${root}/报告.md`, isDir: false, size: 12 }]]]);
+  const ctx = {
+    provide: (key, value) => { services[key] = value; ctx[key] = value; },
+    get: (key) => services[key],
+    plugin: () => ({ dispose() {} }), inject() {}, on() {},
+    slots: { provideRoot() {}, inject(name, register) { register(); }, register() {} },
+  };
+  const context = vm.createContext({
+    window: { __ModuleLoader__: { load({ factory }) {
+      const plugin = factory((id) => {
+        if (id === "react") return { createElement: (type, props, ...children) => ({ type, props, children }) };
+        if (id.includes("client-store")) return { createSnapshotStore: () => ({ getSnapshot: () => ({}), subscribe: () => () => {}, set() {} }) };
+        if (id.includes("api-session-controller")) return { createScope: () => ({ ctx: {}, fiber: { dispose() {} } }), scopeOf() {}, MutableSessionEventSource: class { replace() {} } };
+        return {};
+      });
+      plugin.apply(ctx);
+    } } },
+    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    crypto: { randomUUID: () => "id-stream" },
+    EventSource: class { constructor(url) { this.url = url; streams.push(this); } close() { this.closed = true; } },
+    setInterval: () => 1, clearInterval() {},
+    setTimeout, clearTimeout, AbortController,
+    fetch: async (url, init = {}) => {
+      const route = String(url).replace("/geo/api", "");
+      if (route === "/sidebar/api/session.cwd") return { ok: true, json: async () => ({ ok: true, value: { root } }) };
+      if (route === "/sidebar/api/fs.tree") {
+        const { path } = JSON.parse(init.body);
+        return { ok: true, json: async () => ({ ok: true, value: { entries: tree.get(path) ?? [] } }) };
+      }
+      return { ok: false, status: 404, json: async () => ({ ok: false, error: { message: route } }) };
+    },
+  });
+  vm.runInContext(source, context);
+  for (let index = 0; index < 8; index += 1) await new Promise(setImmediate);
+
+  const remote = services["remote"];
+  assert.equal(typeof remote.$stream, "function", "叠加层必须提供 remote.$stream");
+  // Exactly the shape the native provider builds.
+  const stream = remote.$stream({
+    name: "workspace file changes of s1",
+    open: (signal) => remote.workspaceFiles.changes("s1", signal),
+    ended: () => new Error("ended"),
+  });
+  assert.equal(typeof stream[Symbol.asyncIterator], "function");
+  assert.equal(typeof stream.dispose, "function");
+  t.after(() => stream.dispose());
+
+  const ready = await stream.next();
+  assert.equal(ready.value.value.kind, "ready");
+  assert.equal(typeof ready.value.accept, "function");
+  assert.equal(streams.length > 0 && streams[0].closed !== true, true, "订阅打开时事件流是活的");
+
+  await stream.dispose();
+  const ended = await stream.next();
+  assert.equal(ended.done, true, "dispose 之后不再产出帧");
+  assert.equal(streams[0].closed, true, "dispose 要关掉底层订阅");
 });
