@@ -49,8 +49,19 @@ export const nativePlugins = [
   // it. It claims the single `sidebar` slot (the LEFT sidebar); the product's
   // three-group file panel is retired in favour of the native one here (see the note
   // in plugins/platform/sidebar-adapter.mjs).
+  //
+  // `dsh-client-ui-sidebar-files` is NOT collected, and that is a product decision rather than
+  // a packaging accident: the file surface here is `dsh-better-sidebar`'s own window (below),
+  // whose explorer is fed by the fenced read-only adapter in plugins/platform/sidebar-adapter.mjs
+  // — see the note beside that plugin's tab registrations in workbench/native/client.js.
+  // Shipping the native tree tab as well put TWO file tabs in the right dock, reported from a
+  // preview screenshot: the seeded `Files` tab and the native `文件` one. The dock itself stays
+  // (`-sidebar-right`), and so does the file viewer (`-documentpreview`); only the duplicate tree
+  // tab is dropped. This module declares only consumers, so nothing waits on it and leaving it out
+  // cannot leave another entry pending; the package stays a declared dependency so its pin keeps
+  // tracking the rest of the 0.1.5 client.
   "dsh-client-ui-sidebar", "dsh-client-ui-sidebar-right",
-  "dsh-client-ui-sidebar-files", "dsh-client-ui-sidebar-documentpreview",
+  "dsh-client-ui-sidebar-documentpreview",
   // `dsh-better-sidebar` is collected too, but it is a THIRD-PARTY package, so its entry lives
   // in the `thirdParty` list below (this array prefixes every name with `@deepseek-ai/`).
   // The file-resource provider behind those two tabs. The document preview resolves

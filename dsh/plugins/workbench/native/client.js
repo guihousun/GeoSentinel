@@ -660,7 +660,12 @@ window.__ModuleLoader__.load({
       const preferences = new Map();
       ctx.provide("settingsScope", { bind({ namespace }) {
         if (!preferences.has(namespace)) {
-          const defaults = namespace.includes("locale") ? { preference: "zh" } : namespace.includes("theme") ? { preference: managedTheme.colorScheme, fontSize: managedTheme.fontSize || 16 } : {};
+          // The durable locale default must name the pack this overlay itself selects: the
+          // product's Chinese copy for the native conversation/subagent surfaces is registered
+          // under `zh-Hans` (below), with the built-in `zh` dictionary as its per-key fallback,
+          // so a stored "zh-Hans" resolves to our pack on a reload without waiting for the
+          // `setLocale` call that runs later in this same overlay.
+          const defaults = namespace.includes("locale") ? { preference: "zh-Hans" } : namespace.includes("theme") ? { preference: managedTheme.colorScheme, fontSize: managedTheme.fontSize || 16 } : {};
           const value = createSnapshotStore({ status: "ready", value: defaults, revision: 0, error: null });
           preferences.set(namespace, { ...value, set: async (field, next) => value.set({ ...value.getSnapshot(), value: { ...value.getSnapshot().value, [field]: next } }) });
         }
@@ -1359,6 +1364,38 @@ window.__ModuleLoader__.load({
         inner.effect(() => inner.betterSidebar.registerTab({ id: "geosentinel:spatial", title: "空间数据", single: true, order: 2, icon: h(icons.IconDataOutline16), component: () => h(Spatial) }));
         // Files use better-sidebar's own explorer, fed by the fenced read-only
         // sidebar adapter, so there is no second, worse file list to maintain.
+        //
+        // That window is seeded into every new session by better-sidebar itself, and its
+        // seeded tab carries a HARDCODED English title — `makeDefaultState` builds
+        // `{ type: "editor", title: "Files", meta: { treeOpen: true } }` — which never goes
+        // through `t()`, so no locale setting can translate it. The right dock therefore
+        // showed "Files" (this seeded tab) while the product's own tabs read Chinese. Rename
+        // it through the service's documented `updateTab`; a session's state is seeded lazily
+        // on first activation, so the subscription re-runs the pass on every session switch.
+        inner.effect(() => {
+          const service = inner.betterSidebar;
+          if (!service.features?.includes("updateTab")) return;
+          const renameSeededFileTab = () => {
+            const state = service.getSnapshot()?.state;
+            if (!state) return;
+            const leaves = [];
+            const walk = (node) => {
+              if (!node || typeof node !== "object") return;
+              if (node.kind === "leaf") leaves.push(node);
+              else if (Array.isArray(node.children)) for (const child of node.children) walk(child);
+            };
+            walk(state.splits);
+            walk(state.bottomSplits);
+            const tabs = [...leaves.flatMap((leaf) => leaf.tabs ?? []), ...(state.floats ?? []).map((float) => float.tab)];
+            // Only the seeded window: no `path` means no file was opened into it, and the
+            // English title is what identifies the literal. A tab opened for a real file keeps
+            // its file name.
+            for (const tab of tabs)
+              if (tab?.type === "editor" && !tab.path && tab.title === "Files") service.updateTab(tab.id, { title: "文件" });
+          };
+          renameSeededFileTab();
+          return service.subscribeState(renameSeededFileTab);
+        });
       });
       // From 0.1.5 the native sidebar family owns the single `sidebar` slot, and the
       // native chat itself waits for its `sidebarRight` service, so this overlay only

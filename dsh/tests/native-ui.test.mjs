@@ -140,12 +140,19 @@ test("the product shell bundles the 0.1.5 surfaces it reuses", async () => {
   // own explorer surface (the tabs call that namespace directly). The resource
   // provider behind it needs a live host change stream, so it stays bundled but
   // unstarted — booting it would leave an entry pending and blank the client.
-  for (const name of ["@deepseek-ai/dsh-client-ui-sidebar-right", "@deepseek-ai/dsh-client-ui-sidebar-files",
+  for (const name of ["@deepseek-ai/dsh-client-ui-sidebar-right",
     "@deepseek-ai/dsh-client-ui-sidebar-documentpreview"])
     if (installed(name)) {
       assert.ok(assets.bundle.includes(name), `外壳未包含 ${name}`);
       assert.ok(assets.entries.includes(name), `未引导 ${name}`);
     }
+  // The native file TREE tab is dropped on purpose: the product's file surface is
+  // better-sidebar's own window (its explorer is fed by the fenced read-only adapter in
+  // plugins/platform/sidebar-adapter.mjs — see the note in workbench/native/client.js), so
+  // shipping this one too put two file tabs in the right dock (reported from a preview
+  // screenshot: the seeded `Files` tab beside the native `文件` one). The module declares
+  // consumers only, so its absence cannot leave another booted entry pending.
+  assert.ok(!assets.bundle.includes("@deepseek-ai/dsh-client-ui-sidebar-files"), "原生文件标签与 better-sidebar 的文件窗口重复，不应打包");
   // The resource provider behind those tabs MUST boot: the document preview resolves
   // `dsh-resource://file/…` addresses through `ctx.resources`, which this provider
   // registers. It needs exactly the three services the product already publishes
