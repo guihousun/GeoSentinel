@@ -39,6 +39,9 @@ test("native client restores remembered history and keeps project/file ownership
     "/chats/c2/plan": { team: { phase: "running", halted: true, tasks: [{ id: "t1", subject: "暂停分析", status: "in_progress" }] } },
     "/chats/c1/questions": { pending: null }, "/chats/c2/questions": { pending: null },
     "/chats/c1/files": { files: [{ name: "job/result.md" }] }, "/chats/c2/files": { files: [] },
+    // The live file feed reads the session's own view through the product's explorer surface.
+    "/sidebar/api/session.cwd": { ok: true, value: { root: "/工作区/One" } },
+    "/sidebar/api/fs.tree": { ok: true, value: { entries: [] } },
   };
   const storage = new Map([["geosentinel:selection:u1", "c1"]]);
   const posts = [];
@@ -318,10 +321,19 @@ test("the product answers the native file namespace from its own explorer", asyn
   const missing = await face.read("c1", "上传的文件/缺失.md");
   assert.equal(missing.ok, false);
   assert.match(missing.error.message, /文件不存在/);
-  // No live change stream exists for an ordinary user: say so instead of pretending.
-  const changes = await face.changes("c1");
-  assert.equal(changes.ok, false);
-  assert.match(changes.error.message, /不可用/);
+  // The live change feed: a queue-backed subscription that is live from the CALL, so the
+  // first frame is `ready` (which the native provider acknowledges). It is cancelled here
+  // immediately — a feed left running keeps an idle timer and would hold the process open,
+  // and tests/native-watch.test.mjs covers what it reports.
+  const controller = new AbortController();
+  const feed = face.changes("c1", controller.signal);
+  assert.equal(typeof feed[Symbol.asyncIterator], "function");
+  const first = await feed.next();
+  assert.equal(first.value.value.kind, "ready");
+  assert.equal(typeof first.value.accept, "function");
+  controller.abort();
+  const finished = await feed.next();
+  assert.equal(finished.done, true);
 });
 
 test("the overlay stays inert in a host that has no product shell", async () => {

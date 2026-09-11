@@ -382,6 +382,125 @@ window.__ModuleLoader__.load({
         return [root, ...normalizeSegments(value)].join("/");
       }
       const fileVersion = (size) => (typeof size === "number" ? String(size) : "0");
+      // The file panel's live change feed. The native provider
+      // (`@deepseek-ai/dsh-api-workspace-files`) pulls
+      // `remote.workspaceFiles.changes(sessionId, signal)` and expects an async iterable of
+      // frames: one `{kind:"ready"}` first (which it acknowledges), then
+      // `{kind:"change", change:{absolutePath, version}}` when a file appears or changes and
+      // `{kind:"change", change:{absolutePath, absent:true}}` when it is gone. The wire
+      // protocol normally wraps each item as `{value, accept}`; the product answers this
+      // namespace itself, so it must wrap them the same way or the consumer reads
+      // `item.value` of `undefined`.
+      //
+      // The product has no filesystem watcher for an ordinary user — the Host observes its OWN
+      // instrumented writes, while a user's workspace is served through `/sidebar/api/fs.tree`.
+      // So the feed is derived: the chat's own event stream says when the agent did something,
+      // the grouped listing is re-read then (plus a slow safety poll for changes that came from
+      // outside the agent), and the two listings are diffed. Only the session's own view is
+      // walked, the administrator's read-only library is skipped because it cannot change
+      // during a session, and both the directory walk and the file count are capped so a
+      // pathological workspace cannot make an open preview into a load source.
+      const WATCH_IDLE_MS = 15000, WATCH_EVENT_DEBOUNCE_MS = 400, WATCH_MAX_DIRS = 400, WATCH_MAX_FILES = 4000, WATCH_MAX_QUEUE = 500;
+      // Kept equal to `SHARE_LABEL` in plugins/platform/share.mjs by tests/native-watch.test.mjs.
+      const WATCH_SHARE_LABEL = "共享数据（只读）";
+      // The administrator's library appears in the view as one group, so its own path ends with
+      // the label while its children carry it as a segment.
+      const isSharedView = (path) => path === WATCH_SHARE_LABEL || path.endsWith(`/${WATCH_SHARE_LABEL}`) || path.includes(`/${WATCH_SHARE_LABEL}/`);
+      async function workspaceSnapshot(sessionId) {
+        const files = new Map();
+        const queue = [await virtualAddress(sessionId, "")];
+        let directories = 0;
+        while (queue.length > 0 && directories < WATCH_MAX_DIRS && files.size < WATCH_MAX_FILES) {
+          const directory = queue.shift();
+          directories += 1;
+          const { entries } = await explorer("fs.tree", { sessionId, path: directory });
+          for (const entry of entries) {
+            if (typeof entry.path !== "string") continue;
+            if (entry.isDir) { if (!isSharedView(entry.path)) queue.push(entry.path); continue; }
+            files.set(entry.path, fileVersion(entry.size));
+          }
+        }
+        return files;
+      }
+      function workspaceChanges(previous, next) {
+        const changes = [];
+        for (const [path, version] of next) if (previous.get(path) !== version) changes.push({ absolutePath: path, version });
+        for (const path of previous.keys()) if (!next.has(path)) changes.push({ absolutePath: path, absent: true });
+        return changes;
+      }
+      // The feed is live from the CALL, not from the first pull: the native transport streams
+      // frames as they occur and buffers them for the consumer, and an async generator cannot do
+      // that (it only advances when pulled, so a write that lands between pulls would be folded
+      // into the next baseline instead of being reported). Hence a small queue: the watcher runs
+      // on its own, the consumer drains it, and cancelling the signal stops both.
+      function watchWorkspace(sessionId, signal) {
+        const pending = [];
+        let waiting, wakeSleep, stream, ended = false, wakeups = 0;
+        const deliver = (frame) => {
+          if (ended) return;
+          // The consumer iterates the feed and reads `item.value` (the frame) and
+          // `item.accept()` (its acknowledgement), so the ITERATOR RESULT's value is the
+          // envelope, not the frame.
+          const item = { value: { value: frame, accept() {} }, done: false };
+          if (waiting !== undefined) { const resolve = waiting; waiting = undefined; resolve(item); return; }
+          pending.push(item);
+          // A consumer that stops pulling must not grow this without bound.
+          if (pending.length > WATCH_MAX_QUEUE) pending.splice(0, pending.length - WATCH_MAX_QUEUE);
+        };
+        const finish = () => {
+          if (ended) return;
+          ended = true;
+          try { stream?.close(); } catch { /* the page may already be gone */ }
+          if (waiting !== undefined) { const resolve = waiting; waiting = undefined; resolve({ value: undefined, done: true }); }
+        };
+        // A message on the chat's stream means the agent just did something: cut the wait short.
+        const bump = () => { wakeups += 1; const wake = wakeSleep; wakeSleep = undefined; wake?.(); };
+        const run = async () => {
+          try {
+            if (typeof EventSource === "function") {
+              stream = new EventSource(`/geo/api/chats/${rootFor(sessionId)}/events`);
+              stream.onmessage = bump;
+              stream.onerror = bump;
+            }
+          } catch { stream = undefined; }
+          // `ready` says the subscription is live, which is why the stream opens first; the
+          // baseline listing follows immediately so a write right after readiness is reported.
+          deliver({ kind: "ready" });
+          let previous;
+          try { previous = await workspaceSnapshot(sessionId); } catch { previous = undefined; }
+          while (!ended && signal?.aborted !== true) {
+            await new Promise((resolve) => {
+              const timer = setTimeout(done, WATCH_IDLE_MS);
+              wakeSleep = done;
+              signal?.addEventListener?.("abort", done, { once: true });
+              function done() { clearTimeout(timer); wakeSleep = undefined; signal?.removeEventListener?.("abort", done); resolve(); }
+            });
+            if (ended || signal?.aborted === true) break;
+            if (wakeups > 0) {
+              wakeups = 0;
+              // Let a burst of writes settle before listing, so one turn reports one batch.
+              await new Promise((resolve) => setTimeout(resolve, WATCH_EVENT_DEBOUNCE_MS));
+              if (ended || signal?.aborted === true) break;
+            }
+            let next;
+            // A transient listing failure must not end the feed: the next beat retries.
+            try { next = await workspaceSnapshot(sessionId); } catch { continue; }
+            if (previous === undefined) { previous = next; continue; }
+            for (const change of workspaceChanges(previous, next)) deliver({ kind: "change", change });
+            previous = next;
+          }
+        };
+        signal?.addEventListener?.("abort", finish, { once: true });
+        void run().catch(() => {}).finally(finish);
+        return {
+          [Symbol.asyncIterator]() { return this; },
+          next() {
+            if (pending.length > 0) return Promise.resolve(pending.shift());
+            if (ended) return Promise.resolve({ value: undefined, done: true });
+            return new Promise((resolve) => { waiting = resolve; });
+          },
+        };
+      }
       function workspaceFilesFace() {
         const stats = async (sessionId, target) => {
           const path = await virtualAddress(sessionId, target);
@@ -439,10 +558,10 @@ window.__ModuleLoader__.load({
               return ok(await complete(sessionId, `${parent}/${relative}`));
             } catch (error) { return fail(error.message); }
           },
-          // A live observation stream over the host filesystem. The product has none
-          // for an ordinary user, and pretending would silently drop refreshes, so this
-          // fails loudly and the tree keeps its explicit refresh path.
-          changes: async () => fail("文件变更订阅不可用，请手动刷新。") };
+          // Live change feed for the panel's open files and the resource provider behind the
+          // document preview. It reports only what the session's own listing shows (see
+          // `watchWorkspace` for the frame contract and why it is derived, not observed).
+          changes: (sessionId, signal) => watchWorkspace(sessionId, signal) };
       }
       ctx.provide("remote", { $host: { platform: "managed", isLoopback: false }, $on: (event, listener) => {
         if (event !== "user-questions/request") return () => {};
