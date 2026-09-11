@@ -57,12 +57,21 @@ export function containedWrite(root, value) {
   return containedPath([path.join(root, WRITE_DIR)], value, root);
 }
 
-export async function directoryUsage(root) {
+export async function directoryUsage(root, { skipLinks = false } = {}) {
   let bytes = 0, files = 0, entries = 0;
   async function walk(dir) {
     const info = await lstat(dir).catch((e) => { if (e.code === "ENOENT") return null; throw e; });
     if (!info) return;
-    if (info.isSymbolicLink()) throw new PlatformError(403, "存储目录包含符号链接，拒绝操作");
+    if (info.isSymbolicLink()) {
+      // The platform itself links the read-only share roots into chat workspaces
+      // (see `ensureShareLinks`), so usage counting must skip a link: the linked data
+      // belongs to the administrator, not to the account, and `userUsage()` would
+      // otherwise refuse the whole tree with 403 for every user who ever opened a
+      // chat. Cleanup deliberately keeps the strict default — removing THROUGH a link
+      // could delete data outside the fence (tests/storage-runtime.test.mjs pins that).
+      if (skipLinks) return;
+      throw new PlatformError(403, "存储目录包含符号链接，拒绝操作");
+    }
     if (info.isFile()) { bytes += info.size; files++; return; }
     if (!info.isDirectory()) throw new PlatformError(403, "存储目录含不支持的文件类型");
     for (const entry of await readdir(dir)) {
@@ -105,5 +114,5 @@ export class WorkspaceFiles {
     this.locks.set(projectId, action);
     try { await action; } finally { if (this.locks.get(projectId) === action) this.locks.delete(projectId); }
   }
-  async userUsage(user) { return directoryUsage(workspacePath(this.store.root, `users/${user.id}`)); }
+  async userUsage(user) { return directoryUsage(workspacePath(this.store.root, `users/${user.id}`), { skipLinks: true }); }
 }

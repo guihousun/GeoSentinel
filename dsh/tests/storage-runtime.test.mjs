@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, existsSync, symlinkSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, existsSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { PlatformStore } from "../plugins/platform/store.mjs";
 import { RuntimeLedger } from "../plugins/platform/runtime.mjs";
-import { WorkspaceFiles } from "../plugins/platform/files.mjs";
+import { WorkspaceFiles, directoryUsage } from "../plugins/platform/files.mjs";
 import { cleanupDeleted } from "../plugins/platform/maintenance.mjs";
 import { DockerRunner, dockerMemoryMiB } from "../plugins/research/docker.mjs";
 
@@ -75,4 +75,22 @@ test("cleanup refuses junctions and will not purge a pending workspace", async (
   await assert.rejects(() => cleanupDeleted(f.store, f.runtime, { now, apply: true }), /符号链接/);
   assert.equal(existsSync(outside), true);
   rmSync(link);
+});
+
+test("usage counting skips the share link the platform puts in a chat workspace", async (t) => {
+  const f = fixture(t);
+  const chatRoot = f.store.chatRoot(f.user, f.chat.id);
+  mkdirSync(chatRoot, { recursive: true });
+  writeFileSync(path.join(chatRoot, "note.txt"), "0123456789");
+  const shareRoot = mkdtempSync(path.join(tmpdir(), "geo-share-root-"));
+  t.after(() => rmSync(shareRoot, { recursive: true, force: true }));
+  writeFileSync(path.join(shareRoot, "huge.bin"), "x".repeat(4096));
+  symlinkSync(shareRoot, path.join(chatRoot, "share"), process.platform === "win32" ? "junction" : "dir");
+
+  // The cleanup default still refuses a linked tree…
+  await assert.rejects(() => directoryUsage(f.store.root), /符号链接/);
+  // …while usage counting reports only the account's own bytes, never the share root's.
+  const usage = await f.storage.userUsage(f.user);
+  assert.equal(usage.bytes, 10, "只应统计账号自己的文件");
+  assert.equal(usage.files, 1);
 });
