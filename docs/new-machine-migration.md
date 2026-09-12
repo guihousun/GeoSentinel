@@ -29,13 +29,20 @@
 ## 最快路径：一条命令（**[实测]**，2026-09-12 复核）
 
 ```powershell
-git clone --branch feat/dsh-0.1.5-native https://github.com/guihousun/GeoSentinel.git GeoSentinel
+git clone https://github.com/guihousun/GeoSentinel.git GeoSentinel
 cd GeoSentinel
 node dsh/scripts/bootstrap.mjs            # 或 pnpm --dir dsh bootstrap
 ```
 
-`--branch feat/dsh-0.1.5-native` 是当前产品线；仓库默认分支不是它时会 clone 到旧代码。
-不确定就用 `git branch -r` 看，或 clone 后 `git switch feat/dsh-0.1.5-native`。
+**默认分支 `main` 就是当前产品线**（2026-09-12 起与 `feat/dsh-0.1.5-native` 同一提交），所以普通 `git clone`
+拿到的就是最新代码。想显式钉住也可以写 `--branch feat/dsh-0.1.5-native`，两者内容相同。
+
+克隆后先确认版本，再往下走：
+
+```powershell
+git log --oneline -1            # 记下提交号，写进新机器的验收记录
+git branch -r                   # 若 main 落后（产品在别的分支上），用 --branch 指定那个分支
+```
 
 它按顺序做六件事，每一步都先检查、已完成的跳过，可以反复运行：
 
