@@ -5,11 +5,12 @@
 
 - 当前推荐部署面是 `dsh/`（基于 DSH 的独立产品运行时）。仓库里的 `web/`、`Streamlit.py`、
   `graph_factory_v2.py` 等是旧 Python 平台，保留作能力迁移参考，**不是**本文的安装对象。
-- 本文的命令以 Windows + PowerShell 为准，路径示例使用 `D:\GeoSentinel-DSH`；换成实际目录即可。
-- 文档中标注 **[实测]** 的步骤是在 2026-09-10 于本机 `D:\GeoSentinel-DSH` 上真实执行过的；
-  标注 **[文档步骤]** 的是按仓库既有文档（`dsh/README.md`、`dsh/RELEASES.md`、
-  `dsh/ADMIN-DEVELOPMENT.md`、`dsh/MONITOR.md`）整理的操作，**本轮没有在全新机器上从零验证过**，
-  第一次在新机器执行时请把每一步的实际输出与本文对照。
+- 本文的命令以 Windows + PowerShell 为准。路径示例用 `E:\GeoSentinel\project`（本机 2026-09-12 起的位置），
+  换成实际的 clone 目录即可；旧路径若保留目录联接（junction），两种写法都能用。
+- 文档中标注 **[实测]** 的步骤是在本机真实执行过的（2026-09-10 首轮 `D:\GeoSentinel-DSH`；
+  2026-09-12 复核 + 换盘到 `E:\GeoSentinel\project`）；标注 **[文档步骤]** 的是按仓库既有文档
+  （`dsh/README.md`、`dsh/RELEASES.md`、`dsh/ADMIN-DEVELOPMENT.md`、`dsh/MONITOR.md`）整理的操作。
+  一条命令的安装路径（下节）已在同一台机器上反复跑通，换盘后再次验证。
 
 相关文档：
 
@@ -21,17 +22,20 @@
 - 已实现能力与限制：`dsh/IMPLEMENTATION.md`
 - 工具迁移进度：`dsh/TOOL-MIGRATION.md`
 - 插件契约与插件清单：`dsh/plugins/README.md`
-- 基线基准（30 例）：`dsh/benchmark/README.md`
+- 基线基准（31 例）与缺陷记录：`dsh/benchmark/README.md`、`dsh/benchmark/RESULTS-2026-09-12-single-version.md`
 
 ---
 
-## 最快路径：一条命令
+## 最快路径：一条命令（**[实测]**，2026-09-12 复核）
 
 ```powershell
-git clone https://github.com/guihousun/GeoSentinel.git GeoSentinel
+git clone --branch feat/dsh-0.1.5-native https://github.com/guihousun/GeoSentinel.git GeoSentinel
 cd GeoSentinel
 node dsh/scripts/bootstrap.mjs            # 或 pnpm --dir dsh bootstrap
 ```
+
+`--branch feat/dsh-0.1.5-native` 是当前产品线；仓库默认分支不是它时会 clone 到旧代码。
+不确定就用 `git branch -r` 看，或 clone 后 `git switch feat/dsh-0.1.5-native`。
 
 它按顺序做六件事，每一步都先检查、已完成的跳过，可以反复运行：
 
@@ -63,9 +67,9 @@ node dsh/scripts/bootstrap.mjs            # 或 pnpm --dir dsh bootstrap
 | 调度器 | **不需要外部仓库**：0.1.5 原生预设提供委派工具，平台自带方案审阅与角色绑定 | 无 | 见 §6 |
 | 依赖 | `dsh/node_modules`、pnpm store | 不要带 | 用 `pnpm install --frozen-lockfile` 重建；离线机器需先暖 pnpm 缓存 |
 | 构建产物 | Docker 镜像 `geosentinel-gis:*` | 不要带（可选导出） | 4.06–4.24 GB/镜像，新机器 `docker build` 重建；也可 `docker save/load` |
-| 平台数据 | `GEO_DSH_HOME`（本机 `dsh\.runtime\upgrade-rc1-home`）：`geosentinel/`（账号·项目·工作区）、`sessions/`、`storages/`、`releases/`（已发布版本与状态） | 仅当要沿用账号/产物/已发布版本 | 只带源码则等于全新开始，账号与产物为空 |
-| 监测数据 | `GEO_MONITOR_DIR`（本机 `dsh\.runtime\home\monitor`） | 可选 | 不带则重新采集一轮即有数据 |
-| 共享数据 | `GEO_SHARE_DIR` / `GEO_SHARE_DIRS` 指向的目录（如 `E:\DSH\缅甸地理`） | 可选 | 公开用例数据/边界/影像/GDP/参考书；不属于账号数据，需单独复制或重新下载 |
+| 平台数据 | `GEO_DSH_HOME`（本机 `E:\GeoSentinel\runtime\upgrade-rc1-home`）：`geosentinel/`（账号·项目·工作区）、`sessions/`、`storages/`、`releases/`（已发布版本与状态） | 仅当要沿用账号/产物/已发布版本 | 只带源码则等于全新开始，账号与产物为空 |
+| 监测数据 | `GEO_MONITOR_DIR`（本机 `E:\GeoSentinel\runtime\home\monitor`） | 可选 | 不带则重新采集一轮即有数据 |
+| 共享数据 | `GEO_SHARE_DIR` / `GEO_SHARE_DIRS` 指向的目录（本机 `E:\DSH\缅甸地理`、`E:\DSH\全球基础数据`） | 可选 | 不属于账号数据；新机器用 `pnpm --dir dsh share:data --root <目录>` 按需重新下载（geoBoundaries 全球边界 + WorldPop 等），或用 `docker save/load` 那种"搬数据"方式复制 |
 | 临时/QA | `.runtime` 下的 `isolation-*`、`recovery-*`、`migrated-tools-*`、`*-qa-home`、`release-acceptance`、`previews/`、旧 `releases/versions/*`、`.playwright-cli/` | 不要带 | 都是验收与预览残留，体积大且无复用价值 |
 
 原则：**代码靠 Git 与 `pnpm install` 重建，运行数据靠目录复制，凭据靠人工重新放置。**
@@ -92,19 +96,19 @@ node dsh/scripts/bootstrap.mjs            # 或 pnpm --dir dsh bootstrap
 ## 2. 三分钟理解结构
 
 ```
-D:\GeoSentinel-DSH\
+E:\GeoSentinel\project\      （换盘前为 D:\GeoSentinel-DSH\，旧路径保留为目录联接）
   dsh\                        产品运行时（本文的主角）
     plugins\platform\         邀请/账号/SQLite/工作区/API/监测接入/发布服务
     plugins\research\         GEE 下载、隔离 Docker 计算、报告与证据
     plugins\workbench\        中文界面适配：侧栏、项目对话、全球事件监测、空间数据、简报
     profile\                  cordis.patch.yml（产品 profile）与 product.json（默认模型/角色工具）
-    skills\                   随发布冻结的技能库（22 个技能）
+    skills\                   随发布冻结的技能库
     monitoring\               监测 worker、快照归一化与关注等级规则
     docker\                   GIS 容器（Dockerfile、worker.py、requirements.txt）
     release\                  冻结/校验/预览/切换/回滚
     tools\release.mjs         本地运维 CLI（与界面同一套发布路径）
     scripts\                  start/admin/check-env/import-env/monitor/maintenance/smoke-*
-    benchmark\                30 例基准与执行器
+    benchmark\                31 例基准、执行器与结果记录
     tests\                    node:test 套件
   packages\ntl_toolkit\src\   GIS 核心算法（冻结进发布）
   monitoring\sources.py       上游事件源采集（冻结进发布）
@@ -119,26 +123,30 @@ D:\GeoSentinel-DSH\
 
 ---
 
-## 3. 取得源码（含未提交改动）
+## 3. 取得源码
 
-**[实测]** 当前 `D:\GeoSentinel-DSH` 的工作区**有 41 个已修改文件 + 41 个未跟踪文件**，HEAD 为
-`725804b`，远端 `https://github.com/guihousun/GeoSentinel.git`，分支 `codex/geosentinel-dsh` 跟踪 `origin/main`。
+**[实测]** 当前源码状态（2026-09-12）：分支 `feat/dsh-0.1.5-native`（跟踪
+`origin/feat/dsh-0.1.5-native`），工作区干净，`git status -sb` 无未提交改动。因此新机器**只用 Git 就够**：
 
-因此迁移源码有两种方式，任选一种，**不要只 `git clone` 就以为拿到了当前状态**：
+```powershell
+git clone --branch feat/dsh-0.1.5-native https://github.com/guihousun/GeoSentinel.git GeoSentinel
+cd GeoSentinel
+git log --oneline -1        # 记下这个提交号，写进新机器的验收记录
+```
+
+如果旧机器上确实还有未提交的改动（改代码的过程中迁移），再走下面任一种，**不要只 clone 就以为拿到了当前状态**：
 
 ```powershell
 # 方式 A（推荐）：先在旧机器提交一个工作快照，再推分支
-cd D:\GeoSentinel-DSH
+cd E:\GeoSentinel\project
 git switch -c migration/<日期>
 git add -A
 git commit -m "chore: snapshot before new-machine migration"
 git push -u origin migration/<日期>
 
-# 方式 B：直接打包工作区（含未跟踪文件，排除依赖与运行时）
-# 整个 Git 历史：git bundle create ..\geosentinel.bundle --all
-cd D:\GeoSentinel-DSH
-Compress-Archive -Path .\dsh,.\packages,.\monitoring,.\docs,.\monitoring\sources.py -DestinationPath ..\geosentinel-src.zip
-# .env 与凭据单独走安全通道，不要放进这个压缩包
+# 方式 B：把整个仓库连历史打包（不含 node_modules 与 .runtime）
+git bundle create ..\geosentinel.bundle --all
+# .env 与凭据单独走安全通道，不要放进任何压缩包
 ```
 
 复制到新机器后，`dsh/.runtime` 这类运行时目录不要一起带（见 §0 表格最后一行）；
@@ -146,6 +154,7 @@ Compress-Archive -Path .\dsh,.\packages,.\monitoring,.\docs,.\monitoring\sources
 不要提交进 Git，也不要放进任何会被分享的压缩包。**
 
 新机器上放置目录时保持**同一层级结构**（`dsh/` 与 `packages/` 必须相邻），否则冻结与相对路径会失配。
+仓库放在哪个盘都行，不必和旧机器一致；换盘迁移已有部署见 §19。
 
 ---
 
@@ -218,14 +227,15 @@ notepad .env
 | `GEE_DEFAULT_PROJECT_ID` | 已授权的 GEE 项目 |
 | `GEO_GEE_CREDENTIALS` | Earth Engine 凭据文件绝对路径（只读挂载给获取容器） |
 | `GEO_GEE_PROXY` | 仅 GEE 获取容器使用；Docker 访问主机代理写 `host.docker.internal` |
-| `GEO_DSH_HOME` | 产品 home（账号、会话、发布版本、预览）；本机 `D:/GeoSentinel-DSH/dsh/.runtime/upgrade-rc1-home` |
-| `GEO_MONITOR_DIR` | 监测快照目录；本机外置为 `D:/GeoSentinel-DSH/dsh/.runtime/home/monitor` |
+| `GEO_DSH_HOME` | 产品 home（账号、会话、发布版本、预览）；本机 `E:/GeoSentinel/runtime/upgrade-rc1-home`（换盘前是 `D:/GeoSentinel-DSH/dsh/.runtime/upgrade-rc1-home`） |
+| `GEO_MONITOR_DIR` | 监测快照目录；本机 `E:/GeoSentinel/runtime/home/monitor` |
 | `GEO_MONITOR_ENABLED` / `GEO_MONITOR_TRANSLATE` / `GEO_MONITOR_MODEL` | 监测采集与中文整理 |
 | `GEO_ALLOWED_HOSTS` | 必须包含实际端口，例如 `127.0.0.1:8511,localhost:8511` |
 | `GEO_SECURE_COOKIES` | 公网 HTTPS 时设 `true` |
 | `GEO_RESEARCH_CONCURRENCY` / `GEO_USER_RESEARCH_CONCURRENCY` | 研究与每账号并发上限 |
 | `GEO_DOCKER_CONCURRENCY` / `GEO_USER_DOCKER_CONCURRENCY` / `GEO_DOCKER_MEMORY_MIB` | 容器并发与单容器内存（3072/4096） |
 | `GEO_MIN_FREE_DISK_MIB` | 磁盘余量保护（默认 1024） |
+| `GEO_GIS_IMAGE` | 由发布实例自动注入：候选验证时构建的 `geosentinel-gis:release-<版本ID>` **摘要**。手工启动/开发时留空即用通用标签 `geosentinel-gis:0.1`；不要手工指向别的标签，否则跑批测的容器和自己以为的不是同一个（见 `dsh/plugins/README.md` 与基准记录 D11） |
 | `AMAP_API_KEY` | 可选：高德开放平台密钥，供外部地理服务 MCP（地址↔坐标、POI、距离、路径规划）使用；不配置则这些工具不出现 |
 | `GEO_SHARE_DIR` | 共享数据库的单一根目录；按 `share/<子路径>` 访问，只读 |
 | `GEO_SHARE_DIRS` | 共享数据库的多个命名根（`名称=路径`，`;` 分隔）；按 `share/<名称>/<子路径>` 访问，只读 |
@@ -366,12 +376,13 @@ node dsh/tools/release.mjs cancel
 
 ## 12. 数据与状态目录（备份/迁移用）
 
-本机 `dsh/.env` 中的实际取值（**[实测]**，非密钥项）：
+本机 `dsh/.env` 中的实际取值（**[实测]**，2026-09-12 换盘后，非密钥项）：
 
 ```
-GEO_DSH_HOME   = D:/GeoSentinel-DSH/dsh/.runtime/upgrade-rc1-home
-GEO_MONITOR_DIR= D:/GeoSentinel-DSH/dsh/.runtime/home/monitor
+GEO_DSH_HOME   = E:/GeoSentinel/runtime/upgrade-rc1-home
+GEO_MONITOR_DIR= E:/GeoSentinel/runtime/home/monitor
 GEO_ALLOWED_HOSTS = 127.0.0.1:8511,localhost:8511
+GEO_SHARE_DIRS = 缅甸地理=E:/DSH/缅甸地理;全球基础数据=E:/DSH/全球基础数据
 ```
 
 ```
@@ -419,9 +430,10 @@ GEO_DSH_HOME/
 ## 13. 验收
 
 ```powershell
-cd D:\GeoSentinel-DSH\dsh
-pnpm test                    # node --test tests/*.test.mjs，本机 87 项通过 [实测]
+cd E:\GeoSentinel\project\dsh
+pnpm test                    # node --test tests/*.test.mjs，本机 154 项通过 [实测 2026-09-12]
 node scripts/check-env.mjs   # 版本/镜像/凭据存在性
+node scripts/bootstrap.mjs --check   # 同一件事的 JSON 闸门：ok=true 才算装好，可直接进 CI
 ```
 
 真实 smoke（`scripts/smoke-*.mjs`）会调用真实模型与 GEE、创建测试账号与项目并产生 API 费用，
@@ -448,16 +460,19 @@ playwright-cli -s=verify console error         # 期望 0 条
 > （`GEO_MONITOR_DIR/snapshot.json`）复制进预览 home 的 `monitor/` 目录即可；这属于**标注清楚的验证夹具**，
 > 验证完删除，正式数据不动。此时界面会显示“数据待更新”，因为预览没有心跳。
 
-### 基准（30 例）
+### 基准（31 例）
 
 ```powershell
-cd D:\GeoSentinel-DSH
+cd E:\GeoSentinel\project
 node dsh\benchmark\run.mjs --base http://127.0.0.1:8513 --preview-token <token> `
-  --concurrency 2 --project "基准测试" --out dsh\.runtime\benchmark-report.json
+  --concurrency 4 --project "基准测试" --out dsh\.runtime\benchmark-report.json
 
 # 正式实例上的普通账号（需要邀请码或已有账号）
 node dsh\benchmark\run.mjs --base http://127.0.0.1:8511 --username <u> --password <p> --concurrency 2
 ```
+
+用例集与逐例结果见 `dsh/benchmark/README.md` 与 `dsh/benchmark/RESULTS-2026-09-12-single-version.md`
+（本机 2026-09-12 全量 31 例：28/31 通过，基础档 10/10；三个未过项分别是预算与模型选路，非平台缺陷）。
 
 - 选项：`--only A09,C04`、`--timeout <分钟>`、`--no-approve`、`--project`。
 - 并发受平台准入控制：普通账号默认同时最多 2 个研究对话、2 个 Docker 作业，第 3 例会排队（平台策略，不是执行器缺陷）。
@@ -539,7 +554,7 @@ node scripts/monitor.mjs --translate-cache --once   # 仅重跑中文整理缓�
 - [ ] F 管理员初始化成功，首次启动生成初始快照并能打开工作台
 - [ ] G `geosentinel` 启动器可用（默认 8511）
 - [ ] H 用普通账号走通：邀请 → 项目 → 对话 → 方案确认 → 产物下载 [文档步骤]
-- [ ] I `pnpm test` 全绿（本机 87 项）
+- [ ] I `pnpm test` 全绿（本机 154 项）；`node dsh/scripts/bootstrap.mjs --check` 返回 `ok: true`
 - [ ] J 至少跑一次 `node scripts/smoke-gee.mjs` 验证真实 GEE
 - [ ] K 走一次发布：`prepare → preview(8513) → publish`，浏览器按 1366×768 / 1440×900 验收
 - [ ] L 跑通基准若干例（`dsh/benchmark/run.mjs`），确认工具、产物、关键词与“禁止词”评分工作
@@ -549,6 +564,7 @@ node scripts/monitor.mjs --translate-cache --once   # 仅重跑中文整理缓�
 - [ ] P 共享数据：`GEO_SHARE_DIR` / `GEO_SHARE_DIRS` 指向存在的目录，左栏「文件」出现只读分组「共享数据（只读）」，并且容器内 `ogrinfo /workspace/share/<…>` 能打开数据
 - [ ] Q 生成数据目录：`node dsh/tools/catalog-share.mjs --write --image geosentinel-gis:0.1` 在每个共享根写出 `CATALOG.md` + `catalog.json`（智能体读这一份就知道有什么数据、字段与解析方式）
 - [ ] R 外部地理服务：`.env` 配置 `AMAP_API_KEY` 后重启实例，确认智能体工具表里出现 `mcp__cmr__*`（无需密钥）与 `mcp__amap__*`；未配置密钥时 CMR 仍应可用
+- [ ] S 如果这次是**换盘/搬迁已有部署**：按 §19 核对联接、`.env` 规范路径、`restart.ps1 -CheckOnly` 通过与平台数据计数不变
 
 ---
 
@@ -570,15 +586,55 @@ node scripts/monitor.mjs --translate-cache --once   # 仅重跑中文整理缓�
 
 ---
 
-## 18. 本机现状快照（2026-09-10，会随时间变化）
+## 18. 本机现状快照（2026-09-12，会随时间变化）
 
-- 生产实例：`http://127.0.0.1:8511`，运行 `scripts/start.mjs --port 8511 --no-open`，实际加载冻结版本 `35dd689e8f1ea35d`。
-- 已提交候选：`12c88eda4c0e3944`（已验证、已预览，`publish` 请求已登记，等平台空闲切换）。
-- Docker：`geosentinel-gis:0.1`（`850d75a7d4a3`）、近期发布标签指向 `a52f5cffd0fc`。
-- 测试：`pnpm test` 87 项通过；监测等级规则新增单测（重点线索＝72 小时内高关注，缺时间不升级）。
-- 基准进度：30 例中已记录 22 例（run1 14 + run2 7 + C03），剩余 A09、C04–C10 待跑。
-- 监测快照：200 条线索（重点线索 10 / 中关注 28 / 低关注 162），渠道 GDACS、NASA EONET、EMSC、国际新闻可用；
+- 位置：仓库 `E:\GeoSentinel\project`，运行时数据 `E:\GeoSentinel\runtime`；
+  `D:\GeoSentinel-DSH` 与 `…\dsh\.runtime` 都是目录联接（见 §19）。
+- 源码：分支 `feat/dsh-0.1.5-native`（跟踪 `origin/feat/dsh-0.1.5-native`），工作区干净，HEAD `d16f13f`。
+- 正式实例：`http://127.0.0.1:8511`，健康检查 `{"status":"ok","service":"geosentinel-dsh","release":"9f829af5881d642f","preview":false}`；
+  `releases/state.json` 里 `active=9f829af5881d642f`、`pending` 空、无 `lastError`。
+- Docker：`geosentinel-gis:0.1`（`79def542ccfb`）与候选镜像 `geosentinel-gis:release-9f829af5881d642f`
+  （`sha256:28d2a7f3…`，正式实例通过 `GEO_GIS_IMAGE` 使用它）；Docker 磁盘在 E: 盘。
+- 平台数据：11 账号 / 7 项目 / 18 对话 / 1291 条审计；`geosentinel` 503 个文件、sessions 31、storages 31。
+- 测试：`pnpm test` 154 项通过；`node dsh/scripts/bootstrap.mjs --check` → `ok: true`。
+- 基准：31 例，全量结果与缺陷记录见 `dsh/benchmark/RESULTS-2026-09-12-single-version.md`
+  （最终候选 28/31，基础档 10/10；D1–D13 十三项系统性缺陷均已修，其中 D13 是换盘暴露的运维缺陷）。
+- 监测快照：200 条线索量级（重点/中/低关注随采集变化），渠道 GDACS、NASA EONET、EMSC、国际新闻可用；
   ACLED 未启用，GDELT 常受限流。
-- 已知未完成项：Earthdata/VNP46 官方 HDF5 获取、MCP 接入、专题地图、深层长技能继续精简与发布 smoke 脚本化。
+- 已知未完成项：Earthdata/VNP46 官方 HDF5 获取、专题地图、长技能继续精简、发布 smoke 脚本化；
+  基准里 A04 的预算调整（45→60 分钟）与 D13 尚未进入已发布快照。
 
 这些数字只用于对照，不作为承诺；以 `node dsh/tools/release.mjs status`、`docker images` 与测试输出为准。
+
+---
+
+## 19. 换盘 / 搬迁已有部署（**[实测]** 2026-09-12）
+
+把部署从一块盘搬到另一块盘（本机从 `D:` 到 `E:`）时，**不需要改配置**也能先跑起来：
+
+1. 停机：确认没有排队/运行中的任务（`runtime_jobs` 里没有 `queued/running/cancelling`），
+   然后停正式实例与其控制器（`restart.ps1` 的停止部分，或手动结束 supervisor 与实例进程）。
+2. 搬运：项目目录与运行时目录整体复制到新盘（`robocopy /E /COPY:DAT /R:2 /W:2 /MT:16` 支持长路径；
+   1.2M 个小文件的项目树要几分钟到十几分钟）。
+3. 留联接：在旧路径建**目录联接**指向新位置，旧路径继续可用：
+
+   ```powershell
+   cmd /c mklink /J "D:\GeoSentinel-DSH" "E:\GeoSentinel\project"
+   cmd /c mklink /J "E:\GeoSentinel\project\dsh\.runtime" "E:\GeoSentinel\runtime"
+   ```
+
+4. 规范配置：把 `.env` 的 `GEO_DSH_HOME`、`GEO_MONITOR_DIR` 改成新盘的**真实路径**
+   （备份原 `.env`；旧盘路径仍可用，但配置不该依赖联接）。
+5. 启动与核对：`pwsh -NoProfile -File "<新路径>\dsh\scripts\restart.ps1" -Port 8511`，
+   然后逐项对：健康检查里的 `release` 与迁移前一致、`state.json` 的 `active/pending` 未变、
+   `platform.sqlite` 计数（账号/项目/对话）与迁移前一致、`docker image inspect <候选镜像摘要>` 仍在、
+   共享数据根可解析、容器内 `python -c "import rasterio"` 可用。
+
+两个**已经踩过**的坑：
+
+- **重启入口的路径别名**：`restart.ps1` 曾经用字符串包含比较进程归属，换盘后会把旧拼写启动的正式实例
+  判成"别的服务"而拒绝停止。现已按解析后的真实路径判断（`dsh/scripts/path-alias.ps1`，
+  单测 `dsh/tests/restart-alias.test.mjs`）；如果你的部署版本较旧，先更新到含该修复的提交。
+- **磁盘余量**：平台在可用空间低于 `GEO_MIN_FREE_DISK_MIB`（默认 1 GiB）时拒绝新写入与计算
+  （上传会返回 507），迁移前先清掉旧 `releases/versions/*`（未被 `state.json` 引用的）
+  与旧 `previews/*`，别等验收步骤上再发现。
