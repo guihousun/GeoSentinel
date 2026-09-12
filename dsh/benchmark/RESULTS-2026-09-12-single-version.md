@@ -212,6 +212,37 @@ B09 尤其说明问题：一个**纯定义题**（"ANTL 与 TNTL 分别是什么
 - 验证：单测固定在 `tests/docker-attach-watch.test.mjs`（137 含上限与 OOM 字样、143 含时限、
   其它码逐字不变）。**现场触发未复现**（该轮之后再没出现 OOM），如实标注为单测级证据。
 
+### D13 部署换盘后，重启入口拒绝停止"自己的"服务（迁移现场发现，已修）
+
+- 现场（2026-09-12，部署从 D: 迁到 E:）：项目迁到 `E:\GeoSentinel\project`，运行时数据迁到
+  `E:\GeoSentinel\runtime`，D: 上只留目录联接（junction）保持旧路径可用。迁移后
+  `restart.ps1 -CheckOnly` 直接拒绝：`Port 8511 belongs to a different service; nothing stopped.`
+- 原因：所有权判断是**字符串包含**（`$server.CommandLine.Contains($releaseState.directory)`）。
+  正在运行的实例是换盘前启动的，argv 里保留旧拼写（`D:\…\upgrade-rc1-home\releases\…`），
+  而配置解析出的是新拼写（`E:\…`）——同一目录的两种写法被判成"别的服务"，
+  平台的正式重启入口在迁移后**无法重启自己**。
+- **修法**：`restart.ps1` 增加 `Resolve-RealPath`（逐级解析目录联接，最多 16 层），
+  从 argv 中抽出 `…\releases\versions\<版本ID>` 再解析真实路径，与发布目录**前缀比较**；
+  保留原有的 profile（`geosentinel-<版本ID>`）与父进程（supervisor）两道校验。
+  （该文件在冻结范围内，因此这条修复进的是**源码**；运行中的 `9f829af5881d642f` 快照里仍是旧写法，
+  而运维入口本来就跑源码树里的脚本，所以重启能力当场恢复。下次冻结会把它带进候选。）
+- 验证（三种情形都对）：运行实例 argv 为旧盘拼写、配置为新盘拼写 → 通过；
+  外部程序占用端口（60070）→ 拒绝；空闲端口 → 通过。`dsh npm test` 153/153。
+
+### 迁移后的部署核对（2026-09-12）
+
+用户把整个部署搬到 E: 盘后逐项核对：`D:\GeoSentinel-DSH` → 联接 → `E:\GeoSentinel\project`；
+`E:\GeoSentinel\project\dsh\.runtime` → 联接 → `E:\GeoSentinel\runtime`。在此布局下：
+
+- 正式实例健康：`/geo/api/health` = `{"status":"ok","service":"geosentinel-dsh","release":"9f829af5881d642f","preview":false}`；
+  发布状态 `active=9f829af5881d642f`、`pending` 空、无 `lastError`——**上一轮的授权发布已实际完成**。
+- 研究任务历史数据完好：`platform.sqlite` 计数与迁移前一致（用户 11 / 项目 7 / 对话 18），
+  审计行 1280 → 1291（新增的正是发布与重启记录）；`geosentinel` 503 个文件、sessions 31、storages 31。
+- 容器能力完好：候选镜像摘要 `sha256:28d2a7f3…` 仍在（Docker 盘一并迁到 E:），
+  容器内 `rasterio 1.4.3` 可用；共享数据根 `E:\DSH\{缅甸地理,全球基础数据}` 可解析。
+- `.env` 已改成 E: 规范路径（`GEO_DSH_HOME`、`GEO_MONITOR_DIR`），备份在 `dsh/.env.before-e-migration`；
+  旧盘路径靠联接仍然可用，但配置不再依赖它。
+
 ## 4. 用例修正（基准维护，不是平台缺陷）
 
 - **C06 前提有误**：原题假设"北纬 25–26°、东经 122–124° 海域无数据"，实测该范围内有

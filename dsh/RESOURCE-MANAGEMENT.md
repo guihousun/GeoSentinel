@@ -84,7 +84,7 @@ GEO_MIN_FREE_DISK_MIB=1024
 只供管理员本机停机维护使用。默认预览，不自动定时删除：
 
 ```powershell
-cd D:\GeoSentinel-DSH\dsh
+cd E:\GeoSentinel\project\dsh
 # 使用与服务相同的 GEO_ENV_FILE / GEO_DSH_HOME / GEO_DATA_DIR。
 # 先停止该平台服务并完成备份。
 node scripts/maintenance.mjs --days=30

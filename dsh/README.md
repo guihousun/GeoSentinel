@@ -205,11 +205,11 @@ DSH 原生界面 + Better Sidebar 是本目录唯一的工作台入口。访问 
 ### 正式重启入口
 
 ```powershell
-pwsh -NoProfile -File "D:\GeoSentinel-DSH\dsh\scripts\restart.ps1" -Port 8511
+pwsh -NoProfile -File "E:\GeoSentinel\project\dsh\scripts\restart.ps1" -Port 8511
 # 只预检，不停止进程
-pwsh -NoProfile -File "D:\GeoSentinel-DSH\dsh\scripts\restart.ps1" -Port 8511 -CheckOnly
+pwsh -NoProfile -File "E:\GeoSentinel\project\dsh\scripts\restart.ps1" -Port 8511 -CheckOnly
 ```
 
-默认端口8511。核对冻结版本和进程归属，停止本实例及其控制器，然后独立后台启动并检查健康状态中的版本ID。发布切换期间拒绝重启；重启会中断正在执行的任务，请等任务结束。历史与用户数据保留。兼容回滚逻辑位于release/compatible-runtime.mjs，只允许启动曾发布的旧版，并先验证其快照。
+默认端口8511。核对冻结版本和进程归属，停止本实例及其控制器，然后独立后台启动并检查健康状态中的版本ID。发布切换期间拒绝重启；重启会中断正在执行的任务，请等任务结束。历史与用户数据保留。兼容回滚逻辑位于release/compatible-runtime.mjs，只允许启动曾发布的旧版，并先验证其快照。换盘迁移只需在旧路径留目录联接（junction）：脚本按解析后的真实路径判断端口归属，旧拼写启动的实例同样能被正确停止；详见 [RELEASES.md](RELEASES.md)。
 
 .runtime仅保存日志与运行数据，不再存放日常运维所依赖的实现。旧restart-published.ps1只作为正式脚本的兼容转发入口。日志为.runtime/server.log和.runtime/server-error.log。

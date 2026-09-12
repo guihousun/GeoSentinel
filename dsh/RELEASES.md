@@ -89,11 +89,13 @@ node tools/release.mjs generate-preview --publish --by agent --authorization "�
 ### 正式重启入口
 
 ```powershell
-pwsh -NoProfile -File "D:\GeoSentinel-DSH\dsh\scripts\restart.ps1" -Port 8511
+pwsh -NoProfile -File "E:\GeoSentinel\project\dsh\scripts\restart.ps1" -Port 8511
 # 只预检，不停止进程
-pwsh -NoProfile -File "D:\GeoSentinel-DSH\dsh\scripts\restart.ps1" -Port 8511 -CheckOnly
+pwsh -NoProfile -File "E:\GeoSentinel\project\dsh\scripts\restart.ps1" -Port 8511 -CheckOnly
 ```
 
 默认端口8511。核对冻结版本和进程归属，停止本实例及其控制器，然后独立后台启动并检查健康状态中的版本ID。发布切换期间拒绝重启；重启会中断正在执行的任务，请等任务结束。历史与用户数据保留。兼容回滚逻辑位于release/compatible-runtime.mjs，只允许启动曾发布的旧版，并先验证其快照。
+
+部署换盘时把项目与运行时数据搬到新盘，并在旧路径留目录联接（junction）即可：脚本按**解析后的真实路径**判断端口归属（`Resolve-RealPath`），所以旧拼写启动的实例同样能被正确停止。2026-09-12 从 `D:\GeoSentinel-DSH` 迁到 `E:\GeoSentinel\project`（运行时数据在 `E:\GeoSentinel\runtime`，`.env` 的 `GEO_DSH_HOME`／`GEO_MONITOR_DIR` 已指向新盘），D: 上的旧路径仍可访问但不是必需。
 
 .runtime仅保存日志与运行数据，不再存放日常运维所依赖的实现。旧restart-published.ps1只作为正式脚本的兼容转发入口。日志为.runtime/server.log和.runtime/server-error.log。
