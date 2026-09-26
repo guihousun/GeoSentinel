@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createServer } from "node:http";
@@ -31,6 +31,71 @@ test("managed Dream Skin uses real midnight tokens with accessible contrast", as
   for (const background of ["--dsw-alias-bg-base", "--dsw-alias-bg-layer-1"])
     for (const foreground of ["--dsw-alias-label-primary", "--dsw-alias-label-secondary", "--dsw-alias-label-tertiary", "--dsw-alias-brand-primary"])
       assert.ok((luminance(theme.tokens[foreground]) + .05) / (luminance(theme.tokens[background]) + .05) >= 4.5, foreground);
+});
+
+test("native dropdown rows state their own surface instead of inheriting the popup's", async (t) => {
+  // A native <select> popup is painted by the browser, not by this stylesheet: its
+  // rows start from the platform's white base. A control that only says
+  // `background:transparent;color:inherit` therefore renders the dark theme's
+  // near-white label colour on white, and every option is unreadable (reported from
+  // the region picker in 全球事件监测). The stylesheet contract is that each native
+  // select — and its option/optgroup rows — names its own themed surface and
+  // foreground, with contrast checked against the shipped theme tokens.
+  const root = await mkdtemp(path.join(tmpdir(), "geo-select-"));
+  const previousHome = process.env.GEO_DSH_HOME;
+  process.env.GEO_DSH_HOME = root;
+  t.after(async () => {
+    if (previousHome === undefined) delete process.env.GEO_DSH_HOME; else process.env.GEO_DSH_HOME = previousHome;
+    await rm(root, { recursive: true, force: true });
+  });
+  const [client, raw, theme] = await Promise.all([
+    readFile(new URL("../plugins/workbench/native/client.js", import.meta.url), "utf8"),
+    readFile(new URL("../plugins/workbench/native/style.css", import.meta.url), "utf8"),
+    dreamSkinTheme(),
+  ]);
+  const css = raw.replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.equal((css.match(/\{/g) ?? []).length, (css.match(/\}/g) ?? []).length, "样式表括号不配对");
+  const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((match) => ({
+    // An @media prelude is carried in the same capture; the class check below does
+    // not care, and the base rule is looked up by its exact trailing selector.
+    selector: match[1].trim().replace(/\s+/g, " "),
+    body: match[2],
+  }));
+  const declared = (body, property) => new RegExp(`(?:^|;)\\s*${property}\\s*:([^;]+)`).exec(body)?.[1].trim() ?? "";
+  const tail = (selector) => selector.slice(selector.lastIndexOf(" ") + 1);
+  // The product's own --geo-* aliases are what the rules should reference; resolve
+  // them to the managed theme's tokens so the contrast below is a real measurement.
+  const aliases = Object.fromEntries([...rules.find((rule) => rule.selector === "body").body
+    .matchAll(/(--geo-[a-z-]+)\s*:\s*var\((--dsw-alias-[a-z0-9-]+)/g)].map((match) => [match[1], match[2]]));
+  const value = (property) => {
+    const alias = /var\((--geo-[a-z-]+)/.exec(property)?.[1];
+    const token = alias && aliases[alias];
+    return token && theme.tokens[token];
+  };
+  const luminance = (hex) => hex.slice(1).match(/../g).map((pair) => {
+    const channel = parseInt(pair, 16) / 255;
+    return channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+  }).reduce((sum, channel, index) => sum + channel * [.2126, .7152, .0722][index], 0);
+  const contrast = (a, b) => (Math.max(luminance(a), luminance(b)) + .05) / (Math.min(luminance(a), luminance(b)) + .05);
+
+  const selects = [...client.matchAll(/h\("select",\s*\{\s*className:\s*"([^"]+)"/g)].map((match) => match[1]);
+  assert.ok(selects.length > 0, "产品里应至少有一个原生下拉框");
+  for (const name of selects) {
+    const base = rules.find((rule) => tail(rule.selector) === `.${name}`);
+    assert.ok(base, `缺少 .${name} 的基础样式`);
+    const background = declared(base.body, "background");
+    const foreground = declared(base.body, "color");
+    // The popup base follows the control's own background, so "transparent" is what
+    // put the rows on white in the first place.
+    assert.doesNotMatch(background, /transparent/, `${name} 的弹层底色必须自带，不能透明`);
+    assert.notEqual(foreground, "inherit", `${name} 的文字颜色必须自带，不能继承主题`);
+    const surface = value(background), text = value(foreground);
+    assert.ok(surface && text, `${name} 的底色与文字应引用产品主题变量`);
+    assert.ok(contrast(surface, text) >= 4.5, `${name} 文字对比度不足：${surface} / ${text}`);
+    const row = rules.find((rule) => new RegExp(`\\.${name}\\b`).test(rule.selector) && /option/.test(rule.selector));
+    assert.ok(row, `缺少 .${name} 的 option/optgroup 行样式`);
+    assert.ok(value(declared(row.body, "background-color")) && value(declared(row.body, "color")), `.${name} 的下拉行需要自带底色与文字颜色`);
+  }
 });
 
 test("native events preserve renderer identity while excluding model request secrets", () => {

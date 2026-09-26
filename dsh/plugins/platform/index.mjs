@@ -9,7 +9,7 @@ import { containedPath, containedWrite } from "./files.mjs";
 import { parseShareDirs, shareContained, shareTarget, ensureShareLinks } from "./share.mjs";
 import { createUploadProxy, createNativeUploadProxy } from "./uploads.mjs";
 import { allowedTools, policyPath, readPolicy, skillEnabled } from "./capability-policy.mjs";
-import { DOMAIN_TOOLS, DOCUMENT_TOOLS, FS_READ_TOOLS, FS_WRITE_TOOLS, MCP_TOOLS, PLAN_TOOLS, TEAM_TOOLS, VISUAL_TOOLS, WEB_TOOLS } from "./catalog.mjs";
+import { DOMAIN_TOOLS, DOCUMENT_TOOLS, FS_READ_TOOLS, FS_WRITE_TOOLS, IMAGE_TOOLS, MCP_TOOLS, PLAN_TOOLS, TEAM_TOOLS, VISUAL_TOOLS, WEB_TOOLS } from "./catalog.mjs";
 import { registerProductSkills } from "./skills.mjs";
 import { RuntimeLedger } from "./runtime.mjs";
 import { monitorService } from "../../monitoring/host.mjs";
@@ -227,7 +227,7 @@ export function apply(ctx, config = {}) {
       console.error("GeoSentinel: 会话标题同步失败：" + error.message);
     }
   });
-  const allowed = new Set([...TEAM_TOOLS, ...DOMAIN_TOOLS, ...FS_READ_TOOLS, ...FS_WRITE_TOOLS, ...WEB_TOOLS, ...DOCUMENT_TOOLS, ...VISUAL_TOOLS, ...MCP_TOOLS, ...PLAN_TOOLS, "ask_user_question", "skill"]);
+  const allowed = new Set([...TEAM_TOOLS, ...DOMAIN_TOOLS, ...FS_READ_TOOLS, ...FS_WRITE_TOOLS, ...WEB_TOOLS, ...DOCUMENT_TOOLS, ...IMAGE_TOOLS, ...VISUAL_TOOLS, ...MCP_TOOLS, ...PLAN_TOOLS, "ask_user_question", "skill"]);
   let restrictWarned = false;
   let bindWarned = false;
   // One-time diagnostics for the spawn-time binding path, so a specialist that keeps the

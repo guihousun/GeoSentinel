@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
+import { webcrypto } from "node:crypto";
 
 test("native client restores remembered history and keeps project/file ownership aligned", async () => {
   const source = await readFile(new URL("../plugins/workbench/native/client.js", import.meta.url), "utf8");
@@ -176,6 +177,22 @@ test("native client restores remembered history and keeps project/file ownership
   assert.equal(typeof submission.requestId, "string");
   assert.equal((await services.sessions.binding("c2").session.prompt([{ type: "text", text: "你好" }])).ok, true);
   assert.ok(requests.includes("/chats/c2/prompt"), "prompt 未发送到平台接口");
+  assert.match(submission.requestId, /^id-\d+$/, "prefer the native randomUUID when available");
+  context.crypto = { getRandomValues: values => webcrypto.getRandomValues(values) };
+  const session = services.sessions.binding("c2").session;
+  const ids = new Set();
+  for (const text of ["公网 HTTP 消息", "另一个请求"]) {
+    const pending = session.beginSubmission({ mode: "send", text });
+    assert.match(pending.requestId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    ids.add(pending.requestId);
+    assert.equal(session.getSnapshot().pendingSubmissions[0].requestId, pending.requestId);
+    assert.equal((await session.prompt([{ type: "text", text }])).ok, true);
+  }
+  assert.equal(ids.size, 2);
+  for (const missing of [{}, undefined]) {
+    context.crypto = missing;
+    assert.throws(() => session.beginSubmission({ mode: "send", text: "unsupported" }), /安全随机数/);
+  }
 });
 
 // From 0.1.5 the native sidebar family owns the single `sidebar` slot, so the overlay

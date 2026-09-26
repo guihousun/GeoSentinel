@@ -84,11 +84,13 @@ export const MCP_TOOLS = [
 ];
 /** Document reading for user uploads (PDF/DOCX/XLSX). */
 export const DOCUMENT_TOOLS = ["read_document"];
+/** Native multimodal image reader exposed by the DeepSeek client modules. */
+export const IMAGE_TOOLS = ["read_image"];
 /** Visualisation surface from the genui plugin; supervisor only. */
 export const VISUAL_TOOLS = ["render_ui", "validate_dsh_ui"];
 /** Every tool the supervisor may call, before the administrator's policy narrows it. */
 export const MAIN_TOOLS = [
-  ...TEAM_TOOLS, ...DOMAIN_TOOLS, ...FS_READ_TOOLS, ...FS_WRITE_TOOLS, ...WEB_TOOLS, ...DOCUMENT_TOOLS, ...VISUAL_TOOLS, ...MCP_TOOLS, ...PLAN_TOOLS,
+  ...TEAM_TOOLS, ...DOMAIN_TOOLS, ...FS_READ_TOOLS, ...FS_WRITE_TOOLS, ...WEB_TOOLS, ...DOCUMENT_TOOLS, ...IMAGE_TOOLS, ...VISUAL_TOOLS, ...MCP_TOOLS, ...PLAN_TOOLS,
   "ask_user_question", "skill",
 ];
 

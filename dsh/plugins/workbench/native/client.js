@@ -24,6 +24,38 @@ window.__ModuleLoader__.load({
     try { betterSidebarPlugin = require("dsh-better-sidebar/client"); } catch {}
     const fail = (message) => ({ ok: false, error: { code: "geosentinel/unavailable", message } });
     const ok = (value) => ({ ok: true, value });
+    function createRequestId() {
+      const crypto = globalThis.crypto;
+      if (typeof crypto?.randomUUID === "function") return crypto.randomUUID();
+      // Public HTTP lacks randomUUID, but getRandomValues remains available.
+      // Keep UUID v4 entropy; do not fall back to Math.random or timestamps.
+      if (typeof crypto?.getRandomValues !== "function") throw new Error("浏览器缺少安全随机数支持，请升级浏览器或使用 HTTPS 访问");
+      const bytes = crypto.getRandomValues(new Uint8Array(16));
+      bytes[6] = (bytes[6] & 0x0f) | 0x40;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+      const hex = Array.from(bytes, value => value.toString(16).padStart(2, "0")).join("");
+      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    }
+    function nativeArtifactEvent(event) {
+      // DSH treats every leading-slash Markdown media URL as a host file.
+      // Resolve only our fenced artifact routes against the current origin;
+      // do not enable the personal /api/file endpoint or alter stored history.
+      const origin = globalThis.location?.origin;
+      if (!/^https?:\/\//.test(origin ?? "")) return event;
+      const media = (text) => typeof text === "string" ? text.replace(
+        /(!\[[^\]\n]*\]\(\s*<?)(\/geo\/api\/chats\/[a-zA-Z0-9_-]+\/files\?[^\s)>]+)(>?\s*(?:"[^"\n]*"\s*)?\))/g,
+        (_, prefix, route, suffix) => prefix + origin + route + suffix,
+      ) : text;
+      if (event.type === "assistant/message" && event.data?.message?.content) return {
+        ...event, data: { ...event.data, message: { ...event.data.message,
+          content: event.data.message.content.map(part => part.type === "text" ? { ...part, text: media(part.text) } : part),
+        } },
+      };
+      if (event.type === "assistant/chunk" && event.data?.chunk?.type === "text-delta") return {
+        ...event, data: { ...event.data, chunk: { ...event.data.chunk, text: media(event.data.chunk.text) } },
+      };
+      return event;
+    }
     function teamTodos(team) {
       return (team?.tasks ?? []).map((task) => {
         let status = task.status, note = "";
@@ -35,6 +67,14 @@ window.__ModuleLoader__.load({
         return { content: `${task.id}. ${note ? `[${note}] ` : ""}${task.subject}`, status };
       });
     }
+    const researchExamples = [
+      { id: "myanmar-cities", title: "缅甸的首位城市，优势如何变化？", source: "《缅甸地理》表 6-2 · 城市规模",
+        prompt: "请使用 share/缅甸地理/CATALOG.md 中的城市体系位序规模.xlsx，分析2000、2010、2019年77个城市的位序规模与首位度（《缅甸地理》表6-2）。人口单位为万人，是估计值。各年分别降序排序，拟合累积人口=a·ln(位序)+b，报告a、b、R²；计算S2=P1/P2、S4=P1/(P2+P3+P4)、S11=2×P1/(P2+…+P11)。输出三年CSV与Markdown结果表，以及三年散点和拟合线的中文图，注明方程、R²、单位、资料来源并内联显示。讨论2010年前后的变化；说明估计值不等于普查值，R²高不能证明规模分布均衡。" },
+      { id: "myanmar-density", title: "三期地图，看缅甸人口聚集在哪里", source: "《缅甸地理》图 4-16 · 人口密度",
+        prompt: "请使用 share/缅甸地理/CATALOG.md 中1973人口密度.csv、1983人口密度.csv、2014人口密度.csv和MIMU边界mmr_polbnda2_adm1_250k_mimu_1.shp，复现《缅甸地理》图4-16的三期人口密度地图。CSV是GBK编码，前两列为中文省邦名与人/km²，将伊诺瓦底省归一为伊洛瓦底省。边界字段ST为英文名，掸邦East/North/South和勃固East/West须归并为15个省邦单元，明确检查匹配。三图并排、统一色标0–25、26–50、51–100、101–200、201–400、>400，中文图名图例及资料来源，必须内联显示。内比都1973/1983缺值用斜纹无数据，禁止填0或插值。输出2014密度排序CSV与Markdown表，指出最高、最低及1973到2014增幅最大省邦，说明1:250k边界的使用限制。" },
+      { id: "myanmar-aging", title: "缅甸哪些省邦的老龄化程度更高？", source: "《缅甸地理》表 4-8 · 年龄结构",
+        prompt: "请使用 share/缅甸地理/CATALOG.md 中2019-2020年缅甸年龄人口分布.xlsx和2019-2020年缅甸老龄化指数分布.xlsx，分析《缅甸地理》表4-8与图4-19对应的年龄结构。年龄人口原单位是千人，换算为万人（除以10），检查合并表头、空行及省邦匹配。计算65+占比、老龄化指数=65+/0–14×100及总抚养比=(0–14+65+)/15–64×100，核对源指数表差异。输出各省邦年龄人数、65+占比和老龄化指数的CSV与Markdown表；按老龄化指数排序，绘制三年龄段占比合计100%的中文堆叠条形图，标注老龄化指数、单位和资料来源并内联显示。指出最高与最低省邦，讨论全国开始面临老龄化的判断，并明确单年份和估算口径不能证明时间趋势。" },
+    ];
     function apply(ctx) {
       const state = createSnapshotStore({ user: null, checking: true, projects: [], activeProject: null, error: "", panel: null, team: null, files: [], view: "research", developmentItems: [], developmentUrl: null });
       const set = (patch) => state.set({ ...state.getSnapshot(), ...patch });
@@ -123,7 +163,7 @@ window.__ModuleLoader__.load({
           // derives, so neither line's renderer reads an undefined field.
           beginSubmission({ text, attachments, images, mode, onRetire }) {
             if (addresses.has(id)) throw new Error(readOnlyMessage);
-            const requestId = crypto.randomUUID();
+            const requestId = createRequestId();
             const files = attachments ?? images ?? [];
             const running = session.getSnapshot().running;
             update({ pendingSubmissions: [{ requestId, text, attachments: files, images: files,
@@ -158,7 +198,7 @@ window.__ModuleLoader__.load({
           if (records.get(id) !== record) return;
           const signature = JSON.stringify(data.events);
           if (record.lastEvents !== signature) {
-            record.eventSource.replace(data.events.map((event) => ({ type: "event", event })), false);
+            record.eventSource.replace(data.events.map((event) => ({ type: "event", event: nativeArtifactEvent(event) })), false);
             record.lastEvents = signature;
           }
           record.update({ openState: "open", openError: null, blank: data.events.length === 0, running: data.running,
@@ -1514,6 +1554,41 @@ window.__ModuleLoader__.load({
           ...s.projects.map((project) => button(project.title, icons.IconFolderOpenOutline16, () => onPick(project.id), { key: project.id })),
           !s.projects.length && h("p", null, "暂无研究项目"), button("新建项目", icons.IconPlusOutline16, () => { onClose(); set({ panel: "project" }); }), button("关闭", icons.IconCloseOutline16, onClose));
       }
+      function ResearchExamples({ id }) {
+        const shell = ctx.get("conversation").input.for(binding(id).ctx);
+        const input = React.useSyncExternalStore(shell.state.subscribe, shell.state.getSnapshot);
+        const [index, choose] = React.useState(() => Math.floor(Math.random() * researchExamples.length));
+        const [paused, pause] = React.useState(false);
+        const [hovered, hover] = React.useState(false);
+        const [focused, focus] = React.useState(false);
+        const next = () => choose(value => (value + 1 + Math.floor(Math.random() * (researchExamples.length - 1))) % researchExamples.length);
+        const occupied = Boolean(input.draft.trim() || input.attachmentIds.length || input.phase !== "plain");
+        React.useEffect(() => {
+          const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+          if (paused || hovered || focused || occupied) return;
+          const timer = setInterval(() => { if (!document.hidden && !motion.matches) next(); }, 8000);
+          return () => clearInterval(timer);
+        }, [paused, hovered, focused, occupied]);
+        const example = researchExamples[index];
+        return h("section", { className: "geo-research-examples", "aria-label": "缅甸地理提问示例",
+          onMouseEnter: () => hover(true), onMouseLeave: () => hover(false),
+          onFocus: () => focus(true), onBlur: event => { if (!event.currentTarget.contains(event.relatedTarget)) focus(false); } },
+          h("button", { type: "button", className: "geo-example-prompt", disabled: occupied,
+            onClick: () => { const current = shell.state.getSnapshot(); if (current.draft.trim() || current.attachmentIds.length || current.phase !== "plain") return; shell.setDraft(example.prompt); },
+            title: occupied ? "保留当前草稿；清空输入后可选择示例" : "填入输入框，不会自动发送" },
+          h("span", { key: example.id, className: "geo-example-title" }, example.title), h("small", null, example.source)),
+          h("div", { className: "geo-example-controls" },
+            h("span", null, occupied ? "已保留当前草稿" : "点击示例填入，可编辑后发送"),
+            button("换一个示例", icons.IconRefreshOutline16, next),
+            h("button", { type: "button", className: "geo-native-action", "aria-pressed": paused, onClick: () => pause(value => !value) }, paused ? "继续轮换" : "暂停轮换")));
+      }
+      function HeroBrand() {
+        const current = React.useSyncExternalStore(list.subscribe, list.getSnapshot).current;
+        const s = useState();
+        return h("div", { className: "geo-hero-content" },
+          h("h1", { className: "geo-native-hero" }, h("span", null, "地缘环境"), h("span", null, "智能计算平台")),
+          s.user && current && !addresses.has(current) && h(ResearchExamples, { key: current, id: current }));
+      }
       ctx.slots.inject("conversation.hero.workspace", () => ctx.slots.register({ name: "conversation.hero.workspace" }, ProjectPicker));
       ctx.slots.inject("shell.overlay", () => ctx.slots.register({ name: "shell.overlay", id: "geo-account" }, Overlay));
       ctx.slots.inject("shell.overlay", () => ctx.slots.register({ name: "shell.overlay", id: "geo-development-workspace", order: -10 }, DevelopmentWorkspace));
@@ -1526,7 +1601,7 @@ window.__ModuleLoader__.load({
         select: (owner) => owner.session?.subagent ? { address: owner.session.subagent.address } : null },
       ({ matched }) => h("div", { className: "geo-native-child-readonly" }, h("span", { role: "status" }, "子智能体运行记录 · 只读"),
         button("返回主对话", icons.IconNewChatOutline16, () => open(matched.address.parentSessionId)))));
-      ctx.slots.inject("conversation.hero.brand.mark", () => ctx.slots.register({ name: "conversation.hero.brand.mark" }, () => h("h1", { className: "geo-native-hero" }, h("span", null, "地缘环境"), h("span", null, "智能计算平台"))));
+      ctx.slots.inject("conversation.hero.brand.mark", () => ctx.slots.register({ name: "conversation.hero.brand.mark" }, HeroBrand));
       ctx.slots.inject("conversation.session.header.utilities", () => ctx.slots.register({ name: "conversation.session.header.utilities", id: "geo-monitor" }, () => button("全球事件监测", icons.IconGlobeOutline14, () => openResearchTab("monitor"))));
       api("/auth/status").then(async ({ user, preview }) => { set({ user, checking: false, previewMode: preview === true }); if (user) { await refresh(); if (user.admin && typeof location !== "undefined" && ["#releases", "#development"].includes(location.hash)) set({ panel: location.hash.slice(1), developmentTarget: "development" }); } }).catch((error) => set({ checking: false, error: error.message }));
       ctx.on("dispose", () => { clear(); });

@@ -27,6 +27,7 @@ test("product publication refuses personal authority, credentials and unsafe pro
   assert.equal(validateProduct({ ...product, roleTools: { 分析助手: ["geo_inspect_raster", "skill", "read", "glob", "write", "edit"] } }).roleTools.分析助手.length, 6);
   assert.equal(validateProduct({ ...product, roleTools: { 事件助手: ["web_search", "web_fetch"] } }).roleTools.事件助手.length, 2);
   assert.equal(validateProduct({ ...product, roleTools: { 分析助手: ["read_document"] } }).roleTools.分析助手.length, 1);
+  assert.equal(validateProduct({ ...product, roleTools: { 分析助手: ["read_image"] } }).roleTools.分析助手.length, 1);
   // Published remote-MCP queries are allowed by name shape; anything that is not
   // a well-formed `mcp__<server>__<tool>` (or a geo_/known tool) stays refused.
   assert.equal(validateProduct({ ...product, roleTools: { 事件助手: ["mcp__amap__maps_geo", "mcp__cmr__get_collections"] } }).roleTools.事件助手.length, 2);
@@ -35,7 +36,7 @@ test("product publication refuses personal authority, credentials and unsafe pro
   // render_ui / validate_dsh_ui are supervisor-only rendering tools: a research
   // role must not be able to receive them through the product configuration.
   assert.throws(() => validateProduct({ ...product, roleTools: { 分析助手: ["render_ui"] } }));
-  const profile = await readFile(new URL("../profile/cordis.patch.yml", import.meta.url), "utf8");
+  const profile = (await readFile(new URL("../profile/cordis.patch.yml", import.meta.url), "utf8")).replaceAll("\r\n", "\n");
   const rows = validateProfile(profile);
   assert.ok(rows.length);
   // Every row the release still requires disabled must be refused when a profile
@@ -74,7 +75,7 @@ test("product publication refuses personal authority, credentials and unsafe pro
   // The freeze validates the exact preset the profile names as default. Each mutation below
   // is a release that would ship a broken role boundary, so each must be refused.
   const presetUrl = new URL("../profile/agent-presets/geosentinel/agent.cordis.yml", import.meta.url);
-  const presetText = await readFile(presetUrl, "utf8");
+  const presetText = (await readFile(presetUrl, "utf8")).replaceAll("\r\n", "\n");
   assert.ok(validatePreset(presetText, shipped).length > 0);
   const shellRow = "- id: tool-bash\n  name: '@deepseek-ai/dsh-tool-bash'\n  disabled: true";
   assert.ok(presetText.includes(shellRow), "preset 缺少保持关闭的 tool-bash 行");
@@ -111,6 +112,9 @@ test("snapshot, explicit publish, stale draft rejection and rollback preserve th
   for (const file of ["package.json", "pnpm-lock.yaml", "cordis.patch.yml", "LICENSE"]) await writeFile(path.join(fork, file), file === "package.json" ? '{"version":"test"}' : "test");
   await writeFile(path.join(source, "dsh/.env"), "DO_NOT_PUBLISH=private");
   await writeFile(path.join(source, "dsh/plugins/view.js"), "export const title='first';");
+  for (const name of ["path-alias.ps1", "restart.ps1"]) {
+    await writeFile(path.join(source, "dsh/scripts", name), "# PowerShell release fixture\n");
+  }
   const manager = new ReleaseManager(source, path.join(dir, "releases"), fork);
   manager.build = async (id) => {
     await manager.verify(id);
@@ -125,6 +129,9 @@ test("snapshot, explicit publish, stale draft rejection and rollback preserve th
   assert.equal(Object.keys((await manager.verify(first.id)).hashes).some((name) => name.endsWith(".env")), false);
   assert.ok(Object.keys((await manager.verify(first.id)).hashes).includes("dsh/skills/example-skill/SKILL.md"));
   assert.ok(Object.keys((await manager.verify(first.id)).hashes).includes("monitoring/sources.py"));
+  for (const name of ["path-alias.ps1", "restart.ps1"]) {
+    assert.ok(Object.keys((await manager.verify(first.id)).hashes).includes(`dsh/scripts/${name}`));
+  }
   await assert.rejects(manager.request(first.id, "admin"), /预览/);
   let state = await manager.state(); state.candidate.previewed = true; await manager.save(state);
   await assert.rejects(manager.request(first.id, "admin", false, "发布此版本"), /预览/);

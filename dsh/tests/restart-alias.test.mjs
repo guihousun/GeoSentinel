@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,7 +27,7 @@ test("真实路径解析会逐级跟随目录联接（部署换盘后仍能认�
   if (process.platform !== "win32") { t.skip("仅 Windows 有目录联接"); return; }
   const shell = powershell();
   if (!shell) { t.skip("未找到 PowerShell"); return; }
-  const root = mkdtempSync(path.join(tmpdir(), "geo-alias-"));
+  const root = realpathSync.native(mkdtempSync(path.join(tmpdir(), "geo-alias-")));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const real = path.join(root, "real", "inner");
   mkdirSync(real, { recursive: true });

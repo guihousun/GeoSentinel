@@ -64,6 +64,8 @@ git branch -r                   # 若 main 落后（产品在别的分支上）�
 
 ---
 
+本次 `D:\地缘环境智能计算平台\GeoSentinel` 部署于 2026-09-15 切换至 **8502**，沿用花生壳域名；具体操作见 [§20](#20-花生壳接入-8502windows-dsh-部署)。下文 8511 默认值和 §18 的其他机器快照保留原适用范围。
+
 ## 0. 先看这张表：迁移什么、不迁移什么
 
 | 类别 | 具体内容 | 要不要带 | 说明 |
@@ -645,3 +647,67 @@ node scripts/monitor.mjs --translate-cache --once   # 仅重跑中文整理缓�
 - **磁盘余量**：平台在可用空间低于 `GEO_MIN_FREE_DISK_MIB`（默认 1 GiB）时拒绝新写入与计算
   （上传会返回 507），迁移前先清掉旧 `releases/versions/*`（未被 `state.json` 引用的）
   与旧 `previews/*`，别等验收步骤上再发现。
+
+## 20. 花生壳接入 8502（Windows DSH 部署）
+
+本节记录 2026-09-15 在 `D:\地缘环境智能计算平台\GeoSentinel` 的实际部署。运行的是 DSH 版，无需激活 Conda，也不运行旧版 `python run_web.py`。账号、会话和共享数据继续使用原有 DSH home；改端口不需要重新初始化管理员。
+
+### 配置与启动
+
+在已有 `dsh/.env` 中设置以下非密钥项，保留其他配置：
+
+```ini
+GEO_ALLOWED_HOSTS=127.0.0.1:8502,localhost:8502,geointer.geosetting-ai.com
+GEO_SECURE_COOKIES=false
+```
+
+`false` 对应当前 HTTP 入口，仅用于连通性验证。为该域名配置有效 HTTPS 证书后，将 `GEO_SECURE_COOKIES` 改为 `true` 并重启，此后通过 HTTPS 登录。不要在 HTTP 上长期传输账号密码。
+
+先启动 Docker Desktop，再打开 PowerShell：
+
+```powershell
+cd "D:\地缘环境智能计算平台\GeoSentinel"
+node dsh/scripts/background-start.mjs 8502
+```
+
+后台模式可关闭启动终端。需要前台查看日志时使用 `node dsh/scripts/start.mjs --port 8502 --no-open`，并保持窗口运行。两种方式选其一；启动器不会替你停止其他端口上的实例。首次从 8511 迁移时，先确认没有执行或排队任务，再停止已核对归属的旧实例及控制器；不要让两个实例同时写同一套数据。
+
+已经在 8502 运行后，日常重启使用：
+
+```powershell
+pwsh -NoProfile -File "D:\地缘环境智能计算平台\GeoSentinel\dsh\scripts\restart.ps1" -Port 8502
+```
+
+若 `pwsh` 不在 PATH，使用本机 PowerShell 7 可执行文件的完整路径。管理员开发模式还需在 `.env` 中通过 `GEO_ADMIN_PWSH_PATH` 指向已验证可运行的 PowerShell 7；不要将另一台机器的缓存路径照搬过来。
+
+日志位于 `dsh/.runtime/server.log` 和 `dsh/.runtime/server-error.log`。启动日志可能包含登录令牌，对外分享前须脱敏。
+
+### 花生壳映射
+
+在已登录的花生壳客户端中核对或开启以下映射：
+
+| 配置项 | 值 |
+| --- | --- |
+| 映射类型 | HTTP（当前配置） |
+| 内网主机 | `127.0.0.1` |
+| 内网端口 | `8502` |
+| 公网域名 | `geointer.geosetting-ai.com` |
+| 映射开关 | 开启 |
+
+本次入口不是 `www.geosetting-ai.com`。代理需保留 Host，并支持 SSE 长连接及 WebSocket；不要映射内部开发端口、8513 预览端口、Docker socket 或个人 DSH 配置服务。
+
+### 验证与日常使用
+
+```powershell
+Invoke-RestMethod "http://127.0.0.1:8502/geo/api/health"
+Invoke-RestMethod "http://geointer.geosetting-ai.com/geo/api/health"
+```
+
+两者应返回 `status=ok`、`service=geosentinel-dsh`、相同的 `release`，且 `preview=false`。HTTP 200 本身不够：花生壳错误页也可能返回 200，必须核对 JSON 内容。
+
+- 本机入口：[http://127.0.0.1:8502/](http://127.0.0.1:8502/)。
+- 公网入口：[http://geointer.geosetting-ai.com/](http://geointer.geosetting-ai.com/)。使用手机关闭 Wi-Fi、切到移动网络，确认登录页能打开；再验收登录、消息流和侧栏。
+- Windows 保持开机、联网且不休眠，GeoSentinel 与花生壳保持运行，映射保持开启；GIS/GEE 计算还需 Docker 引擎运行。
+- 本机也打不开：检查 GeoSentinel 日志和 8502 监听；本机正常但公网失败：检查花生壳登录、映射、诊断和域名。公网偶发超时应单独记录，不能只凭一次成功认定稳定。
+
+2026-09-15 实测：本机与公网健康接口均通过，版本为 `9b7e3c1af9a19745`；公网曾出现一次超时。HTTPS 检查返回证书域名不匹配，尚未完成 TLS 验收。上述记录不是对后续网络状态的保证，也不代表已经完成手机移动网络或公网完整交互验收。

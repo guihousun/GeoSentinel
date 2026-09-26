@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,15 +20,15 @@ const pythonAvailable = () => {
 
 test("GIS tool paths accept every documented root plus a bare job directory", async (t) => {
   if (!pythonAvailable()) { t.skip("python 不可用，跳过（容器内由镜像保证）"); return; }
-  const root = mkdtempSync(path.join(tmpdir(), "geo-gis-"));
+  const root = realpathSync.native(mkdtempSync(path.join(tmpdir(), "geo-gis-")));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const name of ["inputs", "previous", "outputs", "share"]) mkdirSync(path.join(root, name), { recursive: true });
 
   const script = `
 import json, sys
-sys.path.insert(0, r"${dockerDir.replaceAll("\\", "\\\\")}")
+sys.path.insert(0, ${JSON.stringify(dockerDir)})
 from gis_dispatch import scoped_path
-root = r"${root.replaceAll("\\", "\\\\")}"
+root = ${JSON.stringify(root)}
 out = {}
 for label, value, output in [
     ("jobdir", "20260911-180003-gee-235ce3/imagery.tif", False),

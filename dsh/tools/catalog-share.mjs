@@ -93,7 +93,18 @@ try:
     book = pd.ExcelFile(p) if p.lower().endswith((".xlsx", ".xls")) else None
     names = book.sheet_names if book else [None]
     for name in names:
-        frame = book.parse(name, nrows=200) if book else pd.read_csv(p, nrows=200)
+        if book:
+            frame = book.parse(name, nrows=200)
+        else:
+            # Strict decoding first; legacy Chinese tables are commonly GB18030.
+            # Never replace undecodable bytes and silently corrupt join keys.
+            delimiter = "\t" if p.lower().endswith(".tsv") else ","
+            try:
+                frame = pd.read_csv(p, nrows=200, sep=delimiter, encoding="utf-8-sig")
+                out["encoding"] = "utf-8-sig"
+            except UnicodeDecodeError:
+                frame = pd.read_csv(p, nrows=200, sep=delimiter, encoding="gb18030")
+                out["encoding"] = "gb18030"
         columns = [str(c) for c in frame.columns][:24]
         out["sheets"].append({"name": name, "columns": columns, "sample_rows": int(len(frame))})
 except Exception as error:

@@ -31,7 +31,7 @@ const requiredDisabled = ["api-remotes", "directory-picker", "tool-cordis", "too
 // (`mcp__<server>__<tool>`). An MCP name is only a SHAPE here: the product table
 // still has to be a subset of the agent-teams row, so a role cannot be granted a
 // tool the release never declared.
-const ROLE_EXTRA_TOOLS = new Set(["skill", "read", "glob", "write", "edit", "web_search", "web_fetch", "read_document"]);
+const ROLE_EXTRA_TOOLS = new Set(["skill", "read", "glob", "write", "edit", "web_search", "web_fetch", "read_document", "read_image"]);
 const MCP_TOOL_NAME = /^mcp__[a-z0-9_-]{1,32}__[a-z0-9_.-]{1,64}$/;
 // The three fixed research roles. The agent-teams fork also accepts the legacy
 // NTL_* ids for teams created before the rename.
@@ -50,7 +50,7 @@ export function validateProduct(value) {
   if (typeof value.monitorEnabled !== "boolean") throw new Error("monitorEnabled 必须为布尔值");
   if (value.roleTools !== undefined) {
     if (!value.roleTools || Array.isArray(value.roleTools) || Object.keys(value.roleTools).some((role) => !ROLE_NAMES.has(role))) throw new Error("角色工具配置无效");
-    for (const tools of Object.values(value.roleTools)) if (!Array.isArray(tools) || tools.length > 100 || tools.some((name) => !/^geo_[a-z0-9_]+$/.test(name) && !ROLE_EXTRA_TOOLS.has(name) && !MCP_TOOL_NAME.test(name))) throw new Error("用户研究角色只能分配已注册的 geo_ 工具、受限的 skill/read/glob/write/edit/web_search/web_fetch/read_document，以及已发布的 mcp__<server>__<tool>");
+    for (const tools of Object.values(value.roleTools)) if (!Array.isArray(tools) || tools.length > 100 || tools.some((name) => !/^geo_[a-z0-9_]+$/.test(name) && !ROLE_EXTRA_TOOLS.has(name) && !MCP_TOOL_NAME.test(name))) throw new Error("用户研究角色只能分配已注册的 geo_ 工具、受限的 skill/read/glob/write/edit/web_search/web_fetch/read_document/read_image，以及已发布的 mcp__<server>__<tool>");
   }
   return value;
 }
@@ -107,7 +107,7 @@ async function filesUnder(root, prefix, output) {
     const relative = prefix + "/" + entry.name, info = await lstat(path.join(root, relative));
     if (info.isSymbolicLink()) throw new Error("发布源中不允许符号链接：" + relative);
     if (entry.isDirectory()) await filesUnder(root, relative, output);
-    else if (entry.isFile() && /\.(mjs|js|json|yml|yaml|py|css|html|md|txt|svg|png|jpg|jpeg|webp|woff|woff2|ico)$|(?:^|\/)Dockerfile$/.test(relative)) {
+    else if (entry.isFile() && /\.(mjs|js|json|yml|yaml|py|ps1|css|html|md|txt|svg|png|jpg|jpeg|webp|woff|woff2|ico)$|(?:^|\/)Dockerfile$/.test(relative)) {
       if (info.size > 8 * 1024 * 1024) throw new Error("发布源文件过大：" + relative);
       output[relative] = await readFile(path.join(root, relative));
     }

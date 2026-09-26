@@ -230,7 +230,7 @@
           产物落在 outputs/ 并在文件内注明来源作业 ID；外部目录（如 NASA CMR）的结果只能作为来源引用，
           不得当作平台观测。拿不到、覆盖不足或无法核实时如实说明，不要用记忆或推测补数值。
         toolFilter:
-          allow: ['geo_list_files', 'geo_read_evidence', 'geo_write_report', 'geo_inspect_raster', 'geo_download_gee', 'geo_download_boundary', 'geo_inspect_vector', 'geo_validate_geodata', 'geo_clip_raster', 'geo_reproject_raster', 'geo_mosaic_rasters', 'skill', 'read', 'glob', 'write', 'edit', 'read_document', 'mcp__cmr__get_collections', 'mcp__cmr__get_granules', 'mcp__cmr__get_variables', 'mcp__amap__maps_regeocode']
+          allow: ['geo_list_files', 'geo_read_evidence', 'geo_write_report', 'geo_inspect_raster', 'geo_download_gee', 'geo_download_boundary', 'geo_inspect_vector', 'geo_validate_geodata', 'geo_clip_raster', 'geo_reproject_raster', 'geo_mosaic_rasters', 'skill', 'read', 'glob', 'write', 'edit', 'read_document', 'read_image', 'mcp__cmr__get_collections', 'mcp__cmr__get_granules', 'mcp__cmr__get_variables', 'mcp__amap__maps_regeocode']
 
     - id: geo-delegate-analysis
       name: '@deepseek-ai/dsh-tool-subagent'
@@ -245,7 +245,7 @@
           只把结果交回主管，不要给其他专家派活。观测数值必须来自工具产物而不是记忆；无法验证的结论标注
           「未核实」，并把限制写进回报。
         toolFilter:
-          allow: ['geo_list_files', 'geo_read_evidence', 'geo_write_report', 'geo_inspect_raster', 'geo_execute_python', 'geo_inspect_vector', 'geo_validate_geodata', 'geo_calculate_zonal_statistics', 'geo_calculate_ntl_metrics_for_raster', 'geo_composite_ntl_rasters', 'geo_analyze_ntl_trend', 'geo_detect_ntl_anomaly', 'geo_filter_points_by_polygon', 'geo_buffer_points_aeqd', 'geo_spatial_join_points_to_admin', 'geo_dissolve_intersections', 'geo_clip_raster', 'geo_reproject_raster', 'geo_mosaic_rasters', 'skill', 'read', 'glob', 'write', 'edit', 'read_document', 'mcp__amap__maps_geo', 'mcp__amap__maps_distance', 'mcp__amap__maps_direction_driving', 'mcp__amap__maps_direction_transit_integrated']
+          allow: ['geo_list_files', 'geo_read_evidence', 'geo_write_report', 'geo_inspect_raster', 'geo_execute_python', 'geo_inspect_vector', 'geo_validate_geodata', 'geo_calculate_zonal_statistics', 'geo_calculate_ntl_metrics_for_raster', 'geo_composite_ntl_rasters', 'geo_analyze_ntl_trend', 'geo_detect_ntl_anomaly', 'geo_filter_points_by_polygon', 'geo_buffer_points_aeqd', 'geo_spatial_join_points_to_admin', 'geo_dissolve_intersections', 'geo_clip_raster', 'geo_reproject_raster', 'geo_mosaic_rasters', 'skill', 'read', 'glob', 'write', 'edit', 'read_document', 'read_image', 'mcp__amap__maps_geo', 'mcp__amap__maps_distance', 'mcp__amap__maps_direction_driving', 'mcp__amap__maps_direction_transit_integrated']
 
     - id: geo-delegate-event
       name: '@deepseek-ai/dsh-tool-subagent'

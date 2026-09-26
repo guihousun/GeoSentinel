@@ -184,7 +184,16 @@ GEO_SHARE_DIRS="缅甸地理=E:/DSH/缅甸地理;GDP=E:/DSH/gdp"   # 多个命�
 
 ## 公网
 
-本地默认仅用于 HTTP 测试。经过花生壳或反向代理 HTTPS 发布时，在 `.env` 设置公开域名 `GEO_ALLOWED_HOSTS` 和 `GEO_SECURE_COOKIES=true`；代理需保留 Host 并支持 SSE 长连接。不要同时暴露 DSH 的个人配置服务或旧后端管理端口。最终切换到 8502 前先确认该端口原服务的迁移安排，本轮使用 8510，不抢占旧服务。
+本地默认仅用于 HTTP 测试。经过花生壳或反向代理 HTTPS 发布时，在 `.env` 设置公开域名 `GEO_ALLOWED_HOSTS` 和 `GEO_SECURE_COOKIES=true`；代理需保留 Host 并支持 SSE/WebSocket。不要同时暴露 DSH 的个人配置服务或旧后端管理端口。切换端口前确认目标端口空闲，并等待运行中的任务结束。
+
+2026-09-15，本次 Windows 部署已切换至 `127.0.0.1:8502`，花生壳公网入口为 `http://geointer.geosetting-ai.com/`。后台启动：
+
+```powershell
+cd "D:\地缘环境智能计算平台\GeoSentinel"
+node dsh/scripts/background-start.mjs 8502
+```
+
+这只是本次部署的显式端口，启动器默认值仍为 8511，`pnpm start` 默认仍为 8510。完整映射、配置、重启和验收步骤见 [花生壳接入 8502](../docs/new-machine-migration.md#20-花生壳接入-8502windows-dsh-部署)。
 
 ## 验收与维护
 
